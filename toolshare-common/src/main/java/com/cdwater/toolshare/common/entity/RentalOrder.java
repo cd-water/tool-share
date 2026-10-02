@@ -45,6 +45,8 @@ public class RentalOrder {
 
     private BigDecimal overdueFee;
 
+    private BigDecimal compensationFee;
+
     private String cancelReason;
 
     @TableField(fill = FieldFill.INSERT)

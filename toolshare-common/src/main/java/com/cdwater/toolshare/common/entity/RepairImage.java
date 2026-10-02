@@ -10,29 +10,18 @@ import lombok.Data;
 
 
 @Data
-@TableName("sys_user")
-public class SysUser {
+@TableName("repair_image")
+public class RepairImage {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String username;
+    private Long repairId;
 
-    private String password;
+    private String url;
 
-    private String realName;
-
-    private String phone;
-
-    private String idCard;
-
-    private String role;
-
-    private String status;
+    private Integer sort;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
-
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updateTime;
 }

@@ -25,11 +25,15 @@ public class RepairOrder {
 
     private Long reporterId;
 
+    private String damagePart;
+
     private String description;
 
     private String status;
 
     private Long handlerId;
+
+    private String estimatedDuration;
 
     private BigDecimal repairFee;
 

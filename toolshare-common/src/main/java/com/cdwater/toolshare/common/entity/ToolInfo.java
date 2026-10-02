@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.Data;
 
@@ -32,6 +33,16 @@ public class ToolInfo {
     private BigDecimal depositAmount;
 
     private String storageArea;
+
+    private LocalDate purchaseDate;
+
+    private String supplier;
+
+    private Long creatorId;
+
+    private String auditStatus;
+
+    private String auditRemark;
 
     private String status;
 
