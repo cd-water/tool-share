@@ -69,6 +69,8 @@ pnpm build      # vue-tsc 类型检查 + vite 构建
 ## 关键文档
 
 - `docs/PRD.md`：需求来源，实现功能前先对照
+- `docs/技术方案.md`：前端 + 后端技术方案（模块职责、状态机、关键技术设计、里程碑）
+- `docs/API.md`：前后端对接契约——全局约定、枚举字典、全部接口的请求/响应示例；改接口先改它
 - `docs/附录.md`：三张业务单据（工具信息录入单 / 租赁记录单 / 损坏报修单）的字段级模板与实例，字段口径与它和 schema.sql 列注释保持一致
 - `docs/diagrams/`：`architecture.html` 运行时架构、`er-overview.html` ER 全景（14 表按模块分区）、`er-business.html` 核心八表字段级关系；改表或中间件后需同步更新
 - `README.md`：技术栈与启动说明
