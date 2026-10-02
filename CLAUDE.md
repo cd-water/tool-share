@@ -43,7 +43,7 @@ pnpm build      # vue-tsc 类型检查 + vite 构建
 
 ## 架构
 
-单体多模块 Maven，按业务功能划分，依赖关系单向：**业务模块 → toolshare-common → toolshare-boot 聚合**。业务模块之间互不依赖。业务模块目前只有 `package-info` 占位包（尚无实现代码），动手前先对照 `docs/PRD.md` 与 `docs/附录.md`。
+单体多模块 Maven，按业务功能划分，依赖关系单向：**业务模块 → toolshare-common → toolshare-boot 聚合**。业务模块之间互不依赖。业务模块已有请求骨架（controller / dto / service 接口，**service 实现均为 `// TODO` 空方法**，mapper 与业务逻辑未写），动手前先对照 `docs/PRD.md`、`docs/技术方案.md` 与 `docs/API.md`。
 
 所有模块共用包前缀 `com.cdwater.toolshare`，启动类默认组件扫描即可覆盖全部业务模块，无需额外配置。
 
@@ -72,5 +72,6 @@ pnpm build      # vue-tsc 类型检查 + vite 构建
 - `docs/技术方案.md`：前端 + 后端技术方案（模块职责、状态机、关键技术设计、里程碑）
 - `docs/API.md`：前后端对接契约——全局约定、枚举字典、全部接口的请求/响应示例；改接口先改它
 - `docs/附录.md`：三张业务单据（工具信息录入单 / 租赁记录单 / 损坏报修单）的字段级模板与实例，字段口径与它和 schema.sql 列注释保持一致
+- `docs/demo.html`：前端交互演示（单文件、内置与 API.md 一致的 mock 数据），正式前端的页面结构与交互以此为准
 - `docs/diagrams/`：`architecture.html` 运行时架构、`er-overview.html` ER 全景（14 表按模块分区）、`er-business.html` 核心八表字段级关系；改表或中间件后需同步更新
 - `README.md`：技术栈与启动说明
