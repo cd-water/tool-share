@@ -1,0 +1,46 @@
+server:
+  port: 8800
+
+spring:
+  application:
+    name: tool-share
+  datasource:
+    url: jdbc:postgresql://localhost:6432/${POSTGRES_DB:tool_share}
+    username: ${POSTGRES_USER:toolpostgres}
+    password: ${POSTGRES_PASSWORD:toolpostgres}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:7379}
+      password: ${REDIS_PASSWORD:toolredis}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:6672}
+    username: ${RABBITMQ_DEFAULT_USER:toolrabbitmq}
+    password: ${RABBITMQ_DEFAULT_PASS:toolrabbitmq}
+
+sa-token:
+  token-name: Authorization # 请求头名，同时是 Redis key 前缀
+  timeout: 2592000 # 30 天
+  token-style: uuid
+  is-read-body: false # 默认 true，这里关闭
+  is-read-header: true
+  is-read-cookie: false # 前后端分离，只走 header
+  is-print: false # 关闭启动字符画
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml # XML 放各业务模块 resources/mapper/ 下
+  type-aliases-package: com.cdwater.toolshare.common.entity # 全部实体集中于此
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto # 数据库自增
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+s3: # MinIO 走 S3 协议；SDK 无自动装配，Config 类读此段构建 S3Client
+  endpoint: http://localhost:10000
+  access-key: ${MINIO_ROOT_USER:toolminio}
+  secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
+  bucket: tool-share
