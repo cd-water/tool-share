@@ -1,310 +1,354 @@
-/** 与 docs/API.md 一一对应的传输类型 */
+/**
+ * 与后端 docs/API.md 一一对应的类型定义（日期均为 ISO 字符串）
+ */
 
-export type Role = 'RESIDENT' | 'STAFF' | 'ADMIN'
+// ---------- 通用 ----------
 
-export interface UserInfo {
-  id: number
-  username: string
-  realName: string
-  phone?: string
-  role: Role
-  status?: string
-  createTime?: string
-}
-
-export interface PageResult<T> {
-  total: number
+/** 分页查询基类（后端 common/dto/PageQuery） */
+export interface PageQuery {
   page: number
   size: number
+}
+
+/** 分页响应（后端 common/result/PageResult） */
+export interface PageResult<T> {
+  total: number
   records: T[]
+  page: number
+  size: number
 }
 
-export interface PageQuery {
-  page?: number
-  size?: number
-}
+// ---------- 用户模块 ----------
 
-// ---------- 认证 / 用户 / 配置 ----------
-
-export interface LoginData {
+export interface LoginDTO {
   username: string
   password: string
 }
 
-export interface LoginResult {
+export interface LoginVO {
   token: string
-  user: UserInfo
+  userId: number
+  realName: string
+  /** 0居民 1社区工作人员 2系统管理员 */
+  role: number
 }
 
-export interface UserQuery extends PageQuery {
-  role?: Role
+export interface RegisterDTO {
+  username: string
+  password: string
+  realName: string
+  phone: string
+  idCard: string
+}
+
+export interface UserVO {
+  id: number
+  username: string
+  realName: string
+  /** 脱敏后手机号 */
+  phone: string
+  /** 0居民 1社区工作人员 2系统管理员 */
+  role: number
+}
+
+export interface UserQueryDTO extends PageQuery {
+  realName?: string
+  role?: number
+}
+
+export interface UserRoleDTO {
+  role: number
+}
+
+export interface UserStatusDTO {
+  /** 1启用 0停用 */
+  status: number
+}
+
+// ---------- 工具模块 ----------
+
+export interface ToolDTO {
+  name: string
+  modelSpec: string
+  /** 1维修 2园艺 3清洁 4其他 */
+  category: number
+  /** 1全新 2轻微磨损 3中度磨损 4严重损坏 */
+  damageLevel: number
+  /** 押金（元） */
+  deposit: number
+  storageLocation: string
+  usageInstruction: string
+  images: string[]
+  purchaseDate?: string
+  supplierInfo?: string
+}
+
+export interface ToolQueryDTO extends PageQuery {
   keyword?: string
+  category?: number
+  status?: number
+  storageLocation?: string
+  /** rentalCount 按租赁次数 / lastRepairTime 按最近维修时间 */
+  orderBy?: string
 }
 
-export interface ConfigItem {
-  configKey: string
-  configValue: string
+export interface Tool {
+  id: number
+  toolCode: string
+  name: string
+  modelSpec: string
+  category: number
+  damageLevel: number
+  deposit: number
+  storageLocation: string
+  usageInstruction: string
+  images: string[]
+  purchaseDate: string
+  supplierInfo: string
+  /** 1可用 2已借出 3维修中 4报废 5下架 */
+  status: number
+  /** 1待审核 2已通过 3需修改 */
+  auditStatus: number
+  auditOpinion: string
+  createBy: number
+  createTime: string
+  updateTime: string
+}
+
+export interface ToolCreateVO {
+  id: number
+  toolCode: string
+}
+
+export interface ToolStatusDTO {
+  /** 1可用 2已借出 3维修中 4报废 5下架 */
+  status: number
   remark?: string
 }
 
-// ---------- 工具 ----------
+export interface ToolAuditDTO {
+  /** 2已通过 3需修改 */
+  auditStatus: number
+  auditOpinion?: string
+}
 
-export interface CategoryItem {
+export interface ToolStatusLog {
   id: number
-  code: string
-  name: string
-}
-
-export interface TimeRange {
-  start: string
-  end: string
-}
-
-export interface Availability {
-  date: string
-  busy: TimeRange[]
-}
-
-export interface ToolImage {
-  id: number
-  url: string
-  sort: number
-}
-
-export interface ToolQuery extends PageQuery {
-  keyword?: string
-  categoryId?: number
-  damageLevel?: string
-  status?: string
-  storageArea?: string
-}
-
-export interface ToolItem {
-  id: number
-  toolCode: string
-  name: string
-  model: string
-  categoryId: number
-  categoryName: string
-  coverImage?: string
-  damageLevel: string
-  depositAmount: number
-  status: string
-  rentalCount: number
-  lastRepairTime?: string
-  auditStatus: string
-}
-
-export interface ToolDetail {
-  id: number
-  toolCode: string
-  name: string
-  model: string
-  categoryId: number
-  categoryName: string
-  description: string
-  damageLevel: string
-  depositAmount: number
-  storageArea: string
-  purchaseDate?: string
-  supplier?: string
-  status: string
-  rentalCount: number
-  lastRepairTime?: string
-  auditStatus: string
-  auditRemark?: string
-  images: ToolImage[]
-}
-
-export interface ToolCreateData {
-  name: string
-  model: string
-  categoryId: number
-  storageArea: string
-  description: string
-  damageLevel: string
-  depositAmount: number
-  purchaseDate?: string
-  supplier?: string
-}
-
-export interface ToolCreated {
-  id: number
-  toolCode: string
-}
-
-// ---------- 租赁 ----------
-
-export interface RentalCreateData {
   toolId: number
-  startTime: string
-  endTime: string
-  pickupPerson?: string
-}
-
-export interface RentalCreated {
-  id: number
-  orderCode: string
-  depositAmount: number
-  status: string
-}
-
-export interface Suggestion {
-  suggested: boolean
-  startTime?: string
-  endTime?: string
-}
-
-export interface PayResult {
-  payCode: string
-  amount: number
-  payTime: string
-}
-
-export interface ReturnData {
-  acceptResult: string
-  damageLevel: string
-  compensationFee?: number
-}
-
-export interface Settlement {
-  overdueFee: number
-  compensationFee: number
-  refundAmount: number
-}
-
-export interface RentalOrderItem {
-  id: number
-  orderCode: string
-  toolId: number
-  toolCode: string
-  toolName: string
-  userName?: string
-  userPhone?: string
-  pickupPerson: string
-  startTime: string
-  endTime: string
-  depositAmount: number
-  depositStatus: string
-  status: string
-  pickupTime?: string
-  returnTime?: string
-  acceptResult?: string
-  overdueFee: number
-  compensationFee: number
-  cancelReason?: string
+  oldStatus: number
+  newStatus: number
+  operatorId: number
+  remark: string
   createTime: string
 }
 
-export interface RentalQuery extends PageQuery {
+// ---------- 租赁模块 ----------
+
+export interface TimeSlotVO {
+  startTime: string
+  endTime: string
+}
+
+export interface RentalCreateDTO {
+  toolId: number
+  startTime: string
+  endTime: string
+  pickupName: string
+}
+
+export interface RentalCreateVO {
+  id: number
+  orderNo: string
+}
+
+export interface RentalPickupDTO {
+  pickupName?: string
+}
+
+export interface RentalReturnDTO {
+  /** 1完好 2轻微损坏 3严重损坏 */
+  acceptResult: number
+  overdueFee: number
+  depositRefundAmount: number
+}
+
+export interface RentalQueryDTO extends PageQuery {
   userName?: string
   toolCode?: string
-  acceptResult?: string
-  status?: string
+  acceptResult?: number
   overdue?: boolean
 }
 
-// ---------- 报修 ----------
-
-export interface RepairCreateData {
-  toolId: number
-  orderId?: number
-  damagePart: string
-  description: string
-  imageUrls?: string[]
-}
-
-export interface RepairCreated {
+export interface RentalOrderVO {
   id: number
-  repairCode: string
-}
-
-export interface RepairItem {
-  id: number
-  repairCode: string
+  orderNo: string
   toolId: number
+  toolCode: string
   toolName: string
-  reporterName?: string
-  damagePart: string
-  description: string
-  status: string
+  userId: number
+  userName: string
+  userPhone: string
+  pickupName: string
+  startTime: string
+  endTime: string
+  depositAmount: number
+  /** 1未缴 2已缴 3已退还 */
+  depositStatus: number
+  /** 1待支付 2已预约 3已取件 4已归还 5已取消 */
+  status: number
+  cancelTime: string
+  returnTime: string
+  /** 1完好 2轻微损坏 3严重损坏 */
+  acceptResult: number
+  overdueFee: number
+  depositRefundAmount: number
   createTime: string
+  updateTime: string
+}
+
+// ---------- 报修模块 ----------
+
+export interface RepairCreateDTO {
+  rentalOrderId: number
+  toolId: number
+  damagePart: string
+  damageDesc: string
+  /** 1-3 张图片 URL */
+  images?: string[]
+}
+
+export interface RepairCreateVO {
+  id: number
+  repairNo: string
+}
+
+export interface RepairQueryDTO extends PageQuery {
+  toolCode?: string
+  /** 1待配件 2维修中 3维修完成 4维修失败（报废） */
+  repairStatus?: number
 }
 
 export interface RepairProgress {
   id: number
-  content: string
-  operatorName: string
+  repairId: number
+  status: number
+  description: string
+  operatorId: number
   createTime: string
 }
 
-export interface RepairDetail {
+export interface RepairOrderVO {
   id: number
-  repairCode: string
+  repairNo: string
+  rentalOrderId: number
+  orderNo: string
   toolId: number
+  toolCode: string
   toolName: string
-  orderId?: number
-  orderCode?: string
   reporterId: number
+  reporterName: string
+  reporterPhone: string
   damagePart: string
-  description: string
-  status: string
-  handlerName?: string
-  estimatedDuration?: string
-  repairFee?: number
-  repairDescription?: string
-  acceptResult?: string
-  rejectReason?: string
+  damageDesc: string
   images: string[]
-  progress: RepairProgress[]
+  createTime: string
+  verifyBy: number
+  verifyByName: string
+  verifyTime: string
+  /** 1确认损坏 2疑似损坏 3误报 */
+  verifyResult: number
+  repairerName: string
+  expectDuration: string
+  repairStartTime: string
+  /** 1待配件 2维修中 3维修完成 4维修失败（报废） */
+  repairStatus: number
+  repairFee: number
+  acceptBy: number
+  acceptByName: string
+  acceptTime: string
+  /** 1合格 2不合格 3部分合格 */
+  acceptResult: number
+  remark: string
+  progressList: RepairProgress[]
 }
 
-export interface RepairQuery extends PageQuery {
-  status?: string
-  toolCode?: string
+export interface RepairVerifyDTO {
+  verifyResult: number
+  remark?: string
 }
 
-// ---------- 消息 / 知识库 / 问答 / 上传 ----------
+export interface RepairProgressDTO {
+  status: number
+  description?: string
+}
 
-export interface MsgItem {
+export interface RepairAcceptDTO {
+  acceptResult: number
+  /** 验收后工具状态：1可用 3维修中 4报废 */
+  toolStatus: number
+  remark?: string
+}
+
+// ---------- 消息提醒模块 ----------
+
+export interface NotifyQueryDTO extends PageQuery {
+  /** 1取件 2到期 3逾期 4维修完成 */
+  type?: number
+  /** 0未读 1已读 */
+  readStatus?: number
+}
+
+export interface Message {
   id: number
-  type: string
+  userId: number
+  type: number
   title: string
   content: string
-  channel: string
-  sendStatus: string
-  sendTime?: string
-  bizCode?: string
+  /** 1系统内 2短信 */
+  channel: number
+  /** 1待发送 2已发送 3发送失败 */
+  sendStatus: number
+  sendTime: string
+  bizNo: string
+  readStatus: number
   createTime: string
 }
 
-export interface MsgQuery extends PageQuery {
-  type?: string
-  userId?: number
+export interface NotifyConfigDTO {
+  /** 1系统内 2短信 */
+  channel: number
 }
 
-export interface KbDocCreated {
-  id: number
-  docName: string
-  status: string
+// ---------- AI 模块 ----------
+
+export interface ChatDTO {
+  question: string
 }
 
-export interface KbDocItem {
-  id: number
-  docName: string
-  docType: string
-  toolId?: number
-  toolName?: string
-  status: string
-  chunkCount: number
-  createTime: string
+export interface ChatSourceVO {
+  content: string
+  documentName: string
 }
 
-export interface ChatResult {
+export interface ChatVO {
   answer: string
-  sources: { docName: string; content: string }[]
+  sources: ChatSourceVO[]
 }
 
-export interface UploadResult {
+export interface KbDocument {
+  id: number
+  fileName: string
+  fileUrl: string
+  fileSize: number
+  chunkCount: number
+  /** 1解析中 2完成 3失败 */
+  status: number
+  uploadBy: number
+  createTime: string
+}
+
+// ---------- 文件模块 ----------
+
+export interface FileVO {
   url: string
 }

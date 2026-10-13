@@ -10,14 +10,12 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
-    "@vueuse/core": "^15.0.0",
     "axios": "^1.20.0",
-    "dayjs": "^1.11.23",
-    "element-plus": "^2.14.6",
-    "pinia": "^4.0.3",
+    "element-plus": "^2.14.7",
+    "pinia": "^4.1.0",
     "pinia-plugin-persistedstate": "^4.7.1",
     "vue": "^3.5.42",
-    "vue-router": "^5.3.1"
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

@@ -1,48 +1,46 @@
+import { get, post, put } from './request'
 import type {
-  Availability,
-  CategoryItem,
   PageResult,
-  ToolCreateData,
-  ToolCreated,
-  ToolDetail,
-  ToolImage,
-  ToolItem,
-  ToolQuery,
+  Tool,
+  ToolAuditDTO,
+  ToolCreateVO,
+  ToolDTO,
+  ToolQueryDTO,
+  ToolStatusDTO,
+  ToolStatusLog,
 } from './types'
-import { httpDelete, httpGet, httpPost, httpPut } from '../utils/request'
 
-export function listCategories() {
-  return httpGet<CategoryItem[]>('/tool/categories')
+/** 工具分页筛选 */
+export function pageTools(query: ToolQueryDTO) {
+  return get<PageResult<Tool>>('/tool/page', query)
 }
 
-export function listTools(params: ToolQuery) {
-  return httpGet<PageResult<ToolItem>>('/tool/tools', params)
-}
-
+/** 工具详情 */
 export function getTool(id: number) {
-  return httpGet<ToolDetail>(`/tool/tools/${id}`)
+  return get<Tool>(`/tool/${id}`)
 }
 
-export function getAvailability(id: number, date: string) {
-  return httpGet<Availability>(`/tool/tools/${id}/availability`, { date })
+/** 创建工具（编号自动生成） */
+export function createTool(data: ToolDTO) {
+  return post<ToolCreateVO>('/tool', data)
 }
 
-export function createTool(data: ToolCreateData) {
-  return httpPost<ToolCreated>('/tool/tools', data)
+/** 更新工具信息 */
+export function updateTool(id: number, data: ToolDTO) {
+  return put<void>(`/tool/${id}`, data)
 }
 
-export function auditTool(id: number, data: { result: 'APPROVED' | 'REJECTED'; auditRemark?: string }) {
-  return httpPost<void>(`/tool/tools/${id}/audit`, data)
+/** 更新工具状态（自动记录状态日志） */
+export function updateToolStatus(id: number, data: ToolStatusDTO) {
+  return put<void>(`/tool/${id}/status`, data)
 }
 
-export function bindToolImages(id: number, urls: string[]) {
-  return httpPost<ToolImage[]>(`/tool/tools/${id}/images`, { urls })
+/** 录入审核（管理员） */
+export function auditTool(id: number, data: ToolAuditDTO) {
+  return put<void>(`/tool/${id}/audit`, data)
 }
 
-export function removeToolImage(imageId: number) {
-  return httpDelete<void>(`/tool/images/${imageId}`)
-}
-
-export function changeToolStatus(id: number, data: { status: string; reason: string }) {
-  return httpPut<void>(`/tool/tools/${id}/status`, data)
+/** 工具状态变更日志 */
+export function getToolStatusLogs(id: number) {
+  return get<ToolStatusLog[]>(`/tool/${id}/status-logs`)
 }

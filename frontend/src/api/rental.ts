@@ -1,49 +1,56 @@
+import { download, get, post } from './request'
 import type {
   PageResult,
-  PayResult,
-  RentalCreateData,
-  RentalCreated,
-  RentalOrderItem,
-  RentalQuery,
-  ReturnData,
-  Settlement,
-  Suggestion,
+  RentalCreateDTO,
+  RentalCreateVO,
+  RentalOrderVO,
+  RentalPickupDTO,
+  RentalQueryDTO,
+  RentalReturnDTO,
+  TimeSlotVO,
 } from './types'
-import { http, httpGet, httpPost } from '../utils/request'
 
-export function createRental(data: RentalCreateData) {
-  return httpPost<RentalCreated>('/rental/orders', data)
+/** 查询工具可预约时段 */
+export function getAvailableTimes(toolId: number, date: string) {
+  return get<TimeSlotVO[]>('/rental/available-times', { toolId, date })
 }
 
-export function getSuggestion(params: { toolId: number; startTime: string; endTime: string }) {
-  return httpGet<Suggestion>('/rental/orders/suggestion', params)
+/** 创建预约 */
+export function createRental(data: RentalCreateDTO) {
+  return post<RentalCreateVO>('/rental', data)
 }
 
+/** 押金缴纳（支付沙箱） */
 export function payRental(id: number) {
-  return httpPost<PayResult>(`/rental/orders/${id}/pay`)
+  return post<void>(`/rental/${id}/pay`)
 }
 
+/** 取消预约（取件前 24 小时） */
 export function cancelRental(id: number) {
-  return httpPost<void>(`/rental/orders/${id}/cancel`)
+  return post<void>(`/rental/${id}/cancel`)
 }
 
-export function pickupRental(id: number, pickupPerson: string) {
-  return httpPost<void>(`/rental/orders/${id}/pickup`, { pickupPerson })
+/** 取件登记（工作人员） */
+export function pickupRental(id: number, data?: RentalPickupDTO) {
+  return post<void>(`/rental/${id}/pickup`, data)
 }
 
-export function returnRental(id: number, data: ReturnData) {
-  return httpPost<Settlement>(`/rental/orders/${id}/return`, data)
+/** 归还验收（工作人员） */
+export function returnRental(id: number, data: RentalReturnDTO) {
+  return post<void>(`/rental/${id}/return`, data)
 }
 
-export function myRentals(params: { page?: number; size?: number; status?: string }) {
-  return httpGet<PageResult<RentalOrderItem>>('/rental/orders/my', params)
+/** 租赁记录分页（居民=本人，工作人员全量） */
+export function pageRentals(query: RentalQueryDTO) {
+  return get<PageResult<RentalOrderVO>>('/rental/page', query)
 }
 
-export function listRentals(params: RentalQuery) {
-  return httpGet<PageResult<RentalOrderItem>>('/rental/orders', params)
+/** 租赁单详情 */
+export function getRental(id: number) {
+  return get<RentalOrderVO>(`/rental/${id}`)
 }
 
-/** Excel 导出（blob，信封不适用） */
-export function exportRentals(params: RentalQuery) {
-  return http<Blob>({ method: 'get', url: '/rental/orders/export', params, responseType: 'blob' })
+/** 导出租赁记录 Excel（工作人员） */
+export function exportRentals(query: RentalQueryDTO) {
+  return download('/rental/export', query)
 }

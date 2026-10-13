@@ -3,819 +3,814 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>社区工具房 · 前端演示</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>社区共享工具租赁系统</title>
 <style>
-:root{
-  --paper:#F4F6F2; --card:#FFFFFF; --ink:#1F2A24; --muted:#66736B; --line:rgba(31,42,36,.14);
-  --green:#1E6B4F; --green-soft:#E7F1EC; --yellow:#F7B32B; --yellow-soft:#FDF3DC;
-  --red:#C2402A; --red-soft:#F9E8E4; --gray-soft:#EDF0EC;
-  --mono:'Geist Mono',ui-monospace,monospace;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-text-size-adjust:100%}
-body{font-family:'Noto Sans SC',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.65}
-button{font:inherit;cursor:pointer}
-:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+  :root {
+    --ink: #1C3A35;
+    --ink-soft: #2A4C46;
+    --paper: #F2F4F1;
+    --card: #FFFFFF;
+    --safety: #E05206;
+    --steel: #5F6E68;
+    --line: #D8DED9;
+    --ok: #2F9E44;
+    --out: #1971C2;
+    --fix: #E05206;
+    --dead: #C92A2A;
+    --serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+    --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --mono: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 15px; }
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: #24312D;
+    line-height: 1.65;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--safety); outline-offset: 2px; }
 
-/* ---------- 头部 ---------- */
-header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
-.head-in{max-width:1080px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px}
-.brand-mark{width:28px;height:28px;background:var(--green);border-radius:6px;color:#fff;display:grid;place-items:center;font-size:15px}
-.brand small{font-weight:400;color:var(--muted);font-size:12px;margin-left:2px}
-.role-switch{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
-.role-switch button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:3px 12px;color:var(--muted)}
-.role-switch button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
-nav{border-top:1px solid var(--line)}
-.nav-in{max-width:1080px;margin:0 auto;padding:0 16px;display:flex;gap:2px;overflow-x:auto}
-.nav-in button{background:none;border:none;padding:10px 14px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
-.nav-in button[aria-current="page"]{color:var(--green);border-bottom-color:var(--green);font-weight:500}
+  /* ---------- 应用壳 ---------- */
+  .shell { display: flex; min-height: 100vh; }
+  .side {
+    width: 216px; flex: none;
+    background: var(--ink); color: #CFE0DA;
+    display: flex; flex-direction: column;
+    padding: 22px 0 18px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .brand {
+    font-family: var(--serif); font-weight: 700; font-size: 1.02rem;
+    color: #fff; padding: 0 22px 20px; line-height: 1.6;
+    border-bottom: 1px solid var(--ink-soft); margin-bottom: 14px;
+    letter-spacing: .01em;
+  }
+  .nav-group { padding: 0 12px; }
+  .nav-group .nav-label {
+    font-size: .74rem; color: #8FA8A0; padding: 12px 12px 6px;
+    letter-spacing: .12em;
+  }
+  .side a.nav-item {
+    display: block; padding: 9px 12px; border-radius: 6px;
+    font-size: .92rem; margin-bottom: 2px;
+  }
+  .side a.nav-item:hover { background: var(--ink-soft); }
+  .side a.nav-item[aria-current="page"] {
+    background: #fff; color: var(--ink); font-weight: 600;
+  }
+  .side .spacer { flex: 1; }
+  .role-switch {
+    margin: 14px 12px 0; padding-top: 14px;
+    border-top: 1px solid var(--ink-soft);
+  }
+  .role-switch p { font-size: .74rem; color: #8FA8A0; padding: 0 12px 6px; letter-spacing: .12em; }
+  .role-switch button {
+    display: block; width: 100%; text-align: left;
+    background: none; border: none; color: #CFE0DA;
+    padding: 8px 12px; border-radius: 6px; font-size: .9rem;
+  }
+  .role-switch button:hover { background: var(--ink-soft); }
+  .role-switch button.on { background: var(--safety); color: #fff; font-weight: 600; }
+  .side .who { padding: 12px 24px 0; font-size: .8rem; color: #8FA8A0; }
+  .side .who b { color: #fff; font-weight: 600; }
+  .side .logout {
+    background: none; border: none; color: #CFE0DA;
+    padding: 6px 24px; font-size: .8rem; text-align: left;
+  }
+  .side .logout:hover { color: #fff; text-decoration: underline; }
 
-main{max-width:1080px;margin:0 auto;padding:24px 16px 64px}
-h1{font-size:24px;line-height:1.3;margin-bottom:4px}
-.lead{color:var(--muted);margin-bottom:20px}
-section[hidden]{display:none}
+  .main { flex: 1; min-width: 0; padding: 30px 40px 60px; }
+  .page-title {
+    font-family: var(--serif); font-size: 1.5rem; font-weight: 700;
+    color: var(--ink); margin-bottom: 4px; letter-spacing: .02em;
+  }
+  .page-sub { color: var(--steel); font-size: .88rem; margin-bottom: 24px; }
+  .crumb { font-size: .85rem; color: var(--steel); margin-bottom: 14px; }
+  .crumb a { text-decoration: underline; text-underline-offset: 3px; }
 
-/* ---------- 工具柜货架 ---------- */
-.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:14px}
-.cubby{background:var(--card);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;position:relative}
-.cubby-top{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px dashed var(--line)}
-.code{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
-.tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 10px 2px 8px;border-radius:4px;position:relative}
-.tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--card);border:1.5px solid currentColor}
-.tag.ok{background:var(--green-soft);color:var(--green)}
-.tag.warn{background:var(--yellow-soft);color:#8A6110}
-.tag.bad{background:var(--red-soft);color:var(--red)}
-.tag.off{background:var(--gray-soft);color:var(--muted)}
-.cubby-icon{height:86px;display:grid;place-items:center;font-size:40px;border-bottom:1px dashed var(--line);background:linear-gradient(var(--paper),var(--card))}
-.cubby-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px;flex:1}
-.cubby-body h3{font-size:16px}
-.cubby-body .model{color:var(--muted);font-size:13px}
-.cubby-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding-top:10px}
-.price{font-family:var(--mono);font-size:15px;font-weight:500}
-.price small{font-family:'Noto Sans SC';color:var(--muted);font-size:12px;margin-left:2px}
+  /* ---------- 挂牌编号（视觉签名） ---------- */
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: .78rem;
+    border: 1px solid var(--line); border-radius: 4px;
+    padding: 2px 8px 2px 2px; background: #fff; color: #37443F;
+    letter-spacing: .02em;
+  }
+  .tag .seal {
+    font-family: var(--serif); font-size: .8rem; font-weight: 700;
+    width: 20px; height: 20px; display: inline-flex;
+    align-items: center; justify-content: center;
+    background: var(--ink); color: #fff; border-radius: 3px;
+  }
 
-/* ---------- 按钮 ---------- */
-.btn{background:var(--green);color:#fff;border:1px solid var(--green);border-radius:8px;padding:7px 16px;font-weight:500}
-.btn:hover{background:#175740}
-.btn:disabled{background:var(--gray-soft);border-color:var(--gray-soft);color:var(--muted);cursor:not-allowed}
-.btn.outline{background:var(--card);color:var(--green)}
-.btn.danger{background:var(--card);color:var(--red);border-color:var(--red)}
-.btn.sm{padding:4px 12px;font-size:13.5px;border-radius:6px}
-.link{background:none;border:none;color:var(--green);text-decoration:underline;padding:0}
+  /* ---------- 状态章 ---------- */
+  .chip {
+    display: inline-block; font-size: .76rem; font-weight: 600;
+    padding: 1px 9px; border-radius: 3px; line-height: 1.7;
+    background: #E7EBE8; color: var(--steel);
+  }
+  .chip.ok    { background: #E3F2E5; color: #1E7A32; }
+  .chip.out   { background: #E3EEF9; color: #14599B; }
+  .chip.fix   { background: #FDEAE0; color: #B44309; }
+  .chip.dead  { background: #FBE7E7; color: #A61E1E; }
+  .chip.warn  { background: #FBF3DC; color: #8A6D00; }
 
-/* ---------- 卡片与表单 ---------- */
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
-.grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
-label{display:block;font-size:13.5px;color:var(--muted);margin:12px 0 4px}
-input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
-textarea{min-height:84px;resize:vertical}
-.check{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
-.check label{margin:0;display:flex;gap:6px;align-items:center;color:var(--ink);font-size:14px}
-.check label svg{vertical-align:-2px}
-.check input{width:auto}
-.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;margin-top:6px}
-.slots button{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:6px 0;font-family:var(--mono);font-size:12.5px}
-.slots button[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
-.slots button:disabled{background:var(--gray-soft);color:#AAB3AC;cursor:not-allowed;text-decoration:line-through}
-.hint{font-size:13px;color:var(--muted);margin-top:8px}
-.hint.warn{color:var(--red)}
+  /* ---------- 卡片与表格 ---------- */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 18px 20px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 16px; }
+  .tool-card { display: block; transition: border-color .15s; }
+  .tool-card:hover { border-color: var(--ink); }
+  .tool-card .seal-lg {
+    font-family: var(--serif); font-size: 2rem; font-weight: 700;
+    width: 64px; height: 64px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--ink); color: #fff; margin-bottom: 12px;
+  }
+  .tool-card h3 { font-size: 1.02rem; font-weight: 600; margin: 8px 0 2px; }
+  .tool-card .spec { color: var(--steel); font-size: .8rem; margin-bottom: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tool-card .row { display: flex; align-items: center; justify-content: space-between; }
+  .tool-card .price { font-size: .88rem; color: #37443F; }
+  .tool-card .price b { font-size: 1.05rem; }
 
-/* ---------- 列表 ---------- */
-.row{display:flex;gap:14px;align-items:center;padding:14px 2px;border-bottom:1px dashed var(--line);flex-wrap:wrap}
-.row:last-child{border-bottom:none}
-.row .grow{flex:1;min-width:200px}
-.row h4{font-size:15px}
-.meta{color:var(--muted);font-size:13px}
-.money{font-family:var(--mono)}
-.empty{color:var(--muted);text-align:center;padding:40px 0}
-.empty .link{margin-left:6px}
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th { text-align: left; color: var(--steel); font-weight: 600;
+    padding: 8px 12px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:hover td { background: #FAFBFA; }
 
-/* ---------- AI ---------- */
-.chat{display:flex;flex-direction:column;gap:12px}
-.bubble{max-width:86%;padding:12px 16px;border-radius:12px}
-.bubble.q{align-self:flex-end;background:var(--green);color:#fff;border-bottom-right-radius:4px}
-.bubble.a{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
-.src{margin-top:10px;border-left:3px solid var(--green);padding:6px 12px;background:var(--paper);border-radius:0 6px 6px 0;font-size:13px}
-.src b{font-size:12.5px}
-.chat-bar{display:flex;gap:10px;margin-top:16px}
-.chat-bar input{flex:1}
+  /* ---------- 表单与按钮 ---------- */
+  .btn {
+    display: inline-block; border: 1px solid var(--line); background: #fff;
+    color: #37443F; border-radius: 6px; padding: 7px 16px; font-size: .88rem;
+  }
+  .btn:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: var(--ink-soft); }
+  .btn.accent { background: var(--safety); border-color: var(--safety); color: #fff; font-weight: 600; }
+  .btn.accent:hover { background: #C74705; }
+  .btn.sm { padding: 3px 10px; font-size: .8rem; }
 
-/* ---------- 弹层 / 提示 ---------- */
-dialog{margin:auto;border:none;border-radius:12px;padding:0;max-width:440px;width:92vw}
-dialog::backdrop{background:rgba(31,42,36,.35)}
-.dlg{padding:20px 22px}
-.dlg h3{margin-bottom:4px}
-.dlg-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
-#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;z-index:50}
-#toast.show{opacity:1}
-#toast.err{background:var(--red)}
-.kv{display:flex;gap:8px;font-size:13.5px;padding:2px 0}
-.kv b{color:var(--muted);font-weight:400;min-width:72px}
-.settle{background:var(--green-soft);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:14px}
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: .86rem; color: #37443F; margin-bottom: 5px; font-weight: 600; }
+  .field input, .field select, .field textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 12px; font-size: .92rem; font-family: inherit; background: #fff;
+  }
+  .field textarea { min-height: 96px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: 2px solid var(--ink); outline-offset: -1px;
+  }
+  .form-narrow { max-width: 420px; }
 
-@media (max-width:720px){
-  .grid2{grid-template-columns:1fr}
-  h1{font-size:21px}
-  .role-switch span{display:none}
-}
+  /* ---------- 登录页 ---------- */
+  .login-wrap {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0;
+  }
+  .login-box {
+    width: min(400px, calc(100vw - 40px));
+    background: var(--card); border: 1px solid var(--line);
+    border-top: 4px solid var(--safety); border-radius: 8px;
+    padding: 36px 36px 30px;
+  }
+  .login-box h1 {
+    font-family: var(--serif); font-size: 1.55rem; color: var(--ink);
+    text-align: center; letter-spacing: .06em; margin-bottom: 28px;
+  }
+  .login-foot { margin-top: 22px; text-align: center; color: var(--steel); font-size: .8rem;
+    font-family: var(--serif); letter-spacing: .2em; }
+
+  /* ---------- 详情 / 时间线 ---------- */
+  .detail { display: grid; grid-template-columns: 250px 1fr; gap: 24px; }
+  .detail .seal-xl {
+    font-family: var(--serif); font-size: 4rem; font-weight: 700;
+    height: 200px; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    background: var(--ink); color: #fff;
+  }
+  .detail .seal-xl small { font-size: .85rem; font-weight: 400; color: #B9CCC6; letter-spacing: .2em; }
+  .kv { display: grid; grid-template-columns: 92px 1fr; row-gap: 8px; font-size: .92rem; }
+  .kv dt { color: var(--steel); }
+  ol.steps { padding-left: 1.4em; }
+  ol.steps li { margin-bottom: 4px; }
+
+  .timeline { list-style: none; border-left: 3px solid var(--line); margin-left: 6px; }
+  .timeline li { position: relative; padding: 0 0 18px 20px; }
+  .timeline li::before {
+    content: ""; position: absolute; left: -8.5px; top: 5px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--steel); border: 2px solid #fff;
+  }
+  .timeline li.hot::before { background: var(--fix); }
+  .timeline li.done::before { background: var(--ok); }
+  .timeline .t { font-family: var(--mono); font-size: .76rem; color: var(--steel); }
+  .timeline li.hot .h, .timeline li.done .h { font-weight: 600; }
+  .timeline li.hot { border-left: 3px solid var(--fix); margin-left: -21.5px; padding-left: 38.5px; }
+  .timeline li.hot::before { left: 14px; }
+
+  /* ---------- 消息 / AI ---------- */
+  .msg-item { display: flex; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .msg-item:last-child { border-bottom: none; }
+  .msg-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--safety);
+    margin-top: 9px; flex: none; }
+  .msg-item.read .dot { background: transparent; }
+  .msg-item .t { font-family: var(--mono); font-size: .76rem; color: var(--steel); }
+
+  .chat { max-width: 680px; }
+  .chat .bubble { max-width: 78%; width: fit-content; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: .92rem; }
+  .chat .q { background: var(--ink); color: #fff; margin-left: auto; border-bottom-right-radius: 2px; }
+  .chat .a { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 2px; }
+  .chat .src { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chat .src span { font-size: .74rem; background: #EFF3F0; border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 8px; color: var(--steel); }
+  .chat-input { display: flex; gap: 10px; margin-top: 14px; }
+  .chat-input input { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; font-size: .92rem; }
+
+  /* ---------- 时段 ---------- */
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 18px; }
+  .slot { border: 1px solid var(--line); border-radius: 6px; background: #fff;
+    padding: 6px 12px; font-size: .84rem; font-family: var(--mono); }
+  .slot.on { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+  /* ---------- 提示 ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 22px; border-radius: 6px;
+    font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .25s;
+    z-index: 99;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ---------- 移动端 ---------- */
+  @media (max-width: 760px) {
+    .shell { flex-direction: column; }
+    .side { width: 100%; height: auto; position: static; padding: 12px 0; }
+    .brand { border-bottom: none; padding-bottom: 8px; }
+    .nav-group { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px; }
+    .nav-group .nav-label { display: none; }
+    .side a.nav-item { margin-bottom: 0; }
+    .role-switch { margin: 10px 12px 0; }
+    .main { padding: 22px 16px 60px; }
+    .detail { grid-template-columns: 1fr; }
+    .detail .seal-xl { height: 120px; font-size: 2.6rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="head-in">
-    <div class="brand"><span class="brand-mark">⚒</span>社区工具房<small>前端演示 · 数据为模拟</small></div>
-    <div class="role-switch" role="group" aria-label="演示角色切换">
-      <span>演示角色</span>
-      <button data-role="RESIDENT" aria-pressed="true">居民</button>
-      <button data-role="STAFF" aria-pressed="false">工作人员</button>
-      <button data-role="ADMIN" aria-pressed="false">管理员</button>
-    </div>
-  </div>
-  <nav><div class="nav-in" id="nav"></div></nav>
-</header>
-
-<main>
-  <section id="view-square">
-    <h1>工具广场</h1>
-    <p class="lead">社区服务站的共享工具，凭押金借用，用完归还。件件可查、状态实时。</p>
-    <div class="check" style="margin-bottom:14px" id="cat-filter"></div>
-    <div class="shelf" id="shelf"></div>
-  </section>
-
-  <section id="view-tool" hidden>
-    <p><button class="link" data-nav="square">← 返回广场</button></p>
-    <div class="grid2" style="margin-top:12px" id="tool-detail"></div>
-  </section>
-
-  <section id="view-my-rentals" hidden>
-    <h1>我的租赁</h1>
-    <p class="lead">待支付的付个押金就约成了；取件前 24 小时外可以免费取消。</p>
-    <div class="card" id="my-rental-list"></div>
-  </section>
-
-  <section id="view-repair" hidden>
-    <h1>损坏报修</h1>
-    <p class="lead">用的时候坏了别急，填一张报修单，工作人员会现场核验，非人为损坏费用社区承担。</p>
-    <div class="grid2">
-      <div class="card">
-        <h3>提交报修</h3>
-        <form id="repair-form">
-          <label for="rp-tool">损坏的工具</label>
-          <select id="rp-tool" required></select>
-          <label for="rp-part">损坏部位</label>
-          <input id="rp-part" required placeholder="例如：电机与电源线接口">
-          <label for="rp-desc">情况描述</label>
-          <textarea id="rp-desc" required placeholder="什么场景下坏的、现象是什么"></textarea>
-          <p class="hint">演示版不传图片，正式版支持 1-3 张凭证。</p>
-          <p style="margin-top:14px"><button class="btn" type="submit">提交报修</button></p>
-        </form>
-      </div>
-      <div class="card" id="my-repair-list"></div>
-    </div>
-  </section>
-
-  <section id="view-messages" hidden>
-    <h1>消息</h1>
-    <p class="lead">取件、归还、维修进度的提醒都会留档在这里。</p>
-    <div class="card" id="msg-list"></div>
-  </section>
-
-  <section id="view-ai" hidden>
-    <h1>AI 问答</h1>
-    <p class="lead">关于工具使用、安全操作和租赁规则的问题，答完附上资料出处。</p>
-    <div class="card chat" id="chat-box" aria-live="polite"></div>
-    <div class="chat-bar">
-      <input id="chat-input" placeholder="比如：电钻可以用来钻孔墙面吗？" aria-label="输入问题">
-      <button class="btn" id="chat-send">提问</button>
-    </div>
-  </section>
-
-  <section id="view-manage-tools" hidden>
-    <h1>工具管理</h1>
-    <p class="lead">新录入的工具要管理员审核通过才会出现在广场上。</p>
-    <div class="card" id="manage-tool-list"></div>
-  </section>
-
-  <section id="view-manage-rentals" hidden>
-    <h1>租赁办理</h1>
-    <p class="lead">取件核对取件人；归还时验收并试算退款。</p>
-    <div class="card" id="manage-rental-list"></div>
-  </section>
-
-  <section id="view-manage-repairs" hidden>
-    <h1>报修处理</h1>
-    <p class="lead">核验 → 维修 → 验收，每一步都会写进时间线并提醒报修人。</p>
-    <div class="card" id="manage-repair-list"></div>
-  </section>
-
-  <section id="view-settings" hidden>
-    <h1>系统设置</h1>
-    <p class="lead">逾期费率和默认提醒方式，改了立刻生效。</p>
-    <div class="card" style="max-width:440px" id="settings-box"></div>
-  </section>
-</main>
-
-<dialog id="dlg"><div class="dlg" id="dlg-body"></div></dialog>
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="app"></div>
+<div id="toast" role="status"></div>
 
 <script>
-/* =====================================================
-   模拟数据 —— 字段与 docs/API.md 完全一致。
-   接真实后端时：把下方 api() 换成 axios（信封解包已一致）。
-   ===================================================== */
-const now = new Date();
-const fmt = d => { const p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`; };
-const plus = (days, hours=0) => { const d = new Date(now); d.setDate(d.getDate()+days); d.setHours(d.getHours()+hours); return fmt(d); };
-const today = plus(0).slice(0,10);
-
-/* 分类图标：内联 SVG，不依赖系统 emoji 字体 */
-const ICON_PATHS = {
-  hammer: '<path d="M5 19 L12 12" fill="none"/><rect x="11" y="4" width="9" height="6" rx="1" fill="none"/>',
-  leaf: '<path d="M5 19 C 5 10 11 5 19 5 C 19 14 13 19 5 19 Z" fill="none"/><path d="M5 19 L19 5" fill="none"/>',
-  drop: '<path d="M12 3 C 8.5 8.5 6.5 11.5 6.5 14.5 a5.5 5.5 0 0 0 11 0 C 17.5 11.5 15.5 8.5 12 3 Z" fill="none"/>',
-  bolt: '<polygon points="13 2 6 13 11 13 9 22 18 10 12 10" fill="currentColor" stroke="none"/>',
-};
-const catIcon = (icon, size) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[icon] || ''}</svg>`;
-
-const DB = {
-  user: { id:4, username:'chenxm', realName:'陈晓明', phone:'138****0004', role:'RESIDENT' },
-  categories: [
-    { id:1, code:'REPAIR', name:'维修', icon:'hammer' },
-    { id:2, code:'GARDEN', name:'园艺', icon:'leaf' },
-    { id:3, code:'CLEAN', name:'清洁', icon:'drop' },
-    { id:4, code:'ELECTRIC', name:'电动', icon:'bolt' },
-  ],
-  tools: [
-    { id:1, toolCode:'SQ-G-REPAIR-0001', name:'家用电钻', model:'博世 GSB 600', categoryId:1, damageLevel:'NONE', depositAmount:100, status:'AVAILABLE', rentalCount:12, lastRepairTime:null, auditStatus:'APPROVED', description:'家用冲击电钻，含 15 支钻头套装。钻孔前请检查夹头是否锁紧。', storageArea:'A区-1号架' },
-    { id:2, toolCode:'SQ-G-REPAIR-0002', name:'木工圆锯', model:'牧田 4100NH', categoryId:1, damageLevel:'LIGHT', depositAmount:150, status:'AVAILABLE', rentalCount:8, lastRepairTime:plus(-20), auditStatus:'APPROVED', description:'配有护罩与备用锯片，仅限木材切割。', storageArea:'A区-2号架' },
-    { id:3, toolCode:'SQ-G-REPAIR-0003', name:'热风枪', model:'得伟 D26411', categoryId:1, damageLevel:'SEVERE', depositAmount:120, status:'REPAIRING', rentalCount:15, lastRepairTime:null, auditStatus:'APPROVED', description:'双档温控，贴膜除漆通用。', storageArea:'A区-3号架' },
-    { id:4, toolCode:'SQ-G-GARDEN-0001', name:'手推割草机', model:'本田 HRU196', categoryId:2, damageLevel:'NONE', depositAmount:200, status:'RESERVED', rentalCount:6, lastRepairTime:null, auditStatus:'APPROVED', description:'汽油动力，适合中型草坪，归还前请清理草屑。', storageArea:'B区-1号架' },
-    { id:5, toolCode:'SQ-G-GARDEN-0002', name:'省力修枝剪', model:'嘉丁拿 8809', categoryId:2, damageLevel:'NONE', depositAmount:30, status:'AVAILABLE', rentalCount:20, lastRepairTime:null, auditStatus:'APPROVED', description:'剪径 25mm，适合果树与绿篱。', storageArea:'B区-2号架' },
-    { id:6, toolCode:'SQ-G-CLEAN-0001', name:'高压清洗机', model:'凯驰 K2', categoryId:3, damageLevel:'NONE', depositAmount:180, status:'IN_USE', rentalCount:11, lastRepairTime:null, auditStatus:'APPROVED', description:'含 3 种喷头，勿对人畜喷射。', storageArea:'C区-1号架' },
-    { id:7, toolCode:'SQ-G-CLEAN-0002', name:'地毯清洗机', model:'必胜 86T3', categoryId:3, damageLevel:'MEDIUM', depositAmount:220, status:'AVAILABLE', rentalCount:4, lastRepairTime:plus(-10), auditStatus:'APPROVED', description:'喷抽一体，自带清洁液。', storageArea:'C区-2号架' },
-    { id:8, toolCode:'SQ-G-ELECTRIC-0001', name:'角磨机', model:'东成 S1M-FF-100A', categoryId:4, damageLevel:'LIGHT', depositAmount:130, status:'AVAILABLE', rentalCount:25, lastRepairTime:plus(-3), auditStatus:'APPROVED', description:'含切割/打磨片，必须佩戴护目镜。', storageArea:'D区-1号架' },
-    { id:9, toolCode:'SQ-G-REPAIR-0009', name:'激光测距仪', model:'得力 DL4056', categoryId:1, damageLevel:'NONE', depositAmount:60, status:'AVAILABLE', rentalCount:3, lastRepairTime:null, auditStatus:'PENDING', description:'量程 40 米，装修量房常用。', storageArea:'A区-4号架' },
-  ],
-  orders: [
-    { id:1, orderCode:'SQ-ZY-20261002-0001', toolId:4, userId:4, pickupPerson:'陈晓明', startTime:plus(2), endTime:plus(5), depositAmount:200, depositStatus:'PAID', status:'RESERVED', pickupTime:null, returnTime:null, acceptResult:null, overdueFee:0, compensationFee:0, cancelReason:null, createTime:plus(-1) },
-    { id:2, orderCode:'SQ-ZY-20260928-0002', toolId:6, userId:4, pickupPerson:'陈晓明', startTime:plus(-2), endTime:plus(1), depositAmount:180, depositStatus:'PAID', status:'PICKED_UP', pickupTime:plus(-2), returnTime:null, acceptResult:null, overdueFee:0, compensationFee:0, cancelReason:null, createTime:plus(-3) },
-    { id:3, orderCode:'SQ-ZY-20260910-0003', toolId:8, userId:4, pickupPerson:'陈晓明', startTime:plus(-12), endTime:plus(-10), depositAmount:130, depositStatus:'REFUNDED', status:'RETURNED', pickupTime:plus(-12), returnTime:plus(-10, -2), acceptResult:'NORMAL', overdueFee:0, compensationFee:0, cancelReason:null, createTime:plus(-13) },
-    { id:4, orderCode:'SQ-ZY-20260901-0004', toolId:2, userId:4, pickupPerson:'陈晓明', startTime:plus(-20), endTime:plus(-17), depositAmount:150, depositStatus:'REFUNDED', status:'RETURNED', pickupTime:plus(-20), returnTime:plus(-16, -6), acceptResult:'NORMAL', overdueFee:15, compensationFee:0, cancelReason:null, createTime:plus(-21) },
-  ],
-  repairs: [
-    { id:1, repairCode:'SQ-BX-20260924-0001', toolId:3, toolName:'热风枪', orderId:3, reporterId:4, damagePart:'出风口', description:'开机有异响，出风口变形。', status:'REPAIRING', handlerName:'张伟', estimatedDuration:'3 个工作日', repairFee:null, repairDescription:null, acceptResult:null, rejectReason:null,
-      images:[], progress:[ { id:1, content:'已提交报修，等待核验', operatorName:'陈晓明', createTime:plus(-2) }, { id:2, content:'现场核验确认损坏，转维修', operatorName:'李娜', createTime:plus(-2,1) }, { id:3, content:'已更换出风口部件，待测试', operatorName:'张伟', createTime:plus(-1) } ] },
-    { id:2, repairCode:'SQ-BX-20260818-0002', toolId:5, toolName:'省力修枝剪', orderId:null, reporterId:4, damagePart:'弹簧', description:'弹簧回弹无力。', status:'ACCEPTED', handlerName:'张伟', estimatedDuration:'1 天', repairFee:0, repairDescription:'更换弹簧，已恢复。', acceptResult:'PASS', rejectReason:null,
-      images:[], progress:[ { id:4, content:'已提交报修', operatorName:'陈晓明', createTime:plus(-25) }, { id:5, content:'核验属实并完成更换，验收通过', operatorName:'张伟', createTime:plus(-24) } ] },
-  ],
-  messages: [
-    { id:1, type:'PICKUP', title:'取件提醒', content:'您预约的手推割草机（SQ-ZY-20261002-0001）2 天后可取件，请携带预约单号到 B区-1号架 领取。', channel:'IN_APP', sendStatus:'SENT', sendTime:plus(0,1), bizCode:'SQ-ZY-20261002-0001', createTime:plus(0,1) },
-    { id:2, type:'REPAIR_DONE', title:'维修完成', content:'您报修的省力修枝剪已修复并重新上架，可以正常预约了。', channel:'IN_APP', sendStatus:'SENT', sendTime:plus(-24), bizCode:'SQ-BX-20260818-0002', createTime:plus(-24) },
-    { id:3, type:'DUE_SOON', title:'归还提醒', content:'您借用的高压清洗机明天到期，请按时归还到 C区-1号架。', channel:'IN_APP', sendStatus:'SENT', sendTime:plus(0,9), bizCode:'SQ-ZY-20260928-0002', createTime:plus(0,9) },
-  ],
-  configs: [
-    { configKey:'overdue_fee_per_day', configValue:'5.00', remark:'逾期费率（元/天）' },
-    { configKey:'default_remind_channel', configValue:'IN_APP', remark:'默认提醒方式：IN_APP / SMS' },
-  ],
-  seq: 100,
-};
-
-/* ---------- 模拟信封请求（对齐 Result{code,message,data}） ---------- */
-function api(method, url, body) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      try { resolve({ code:'A200', message:'Success', data: handle(method, url, body) }); }
-      catch (e) { reject({ code: e.code || 'S500', message: e.message }); }
-    }, 180);
-  });
-}
-function handle(method, url, body) {
-  const tool = id => DB.tools.find(t => t.id === Number(id));
-  const order = id => DB.orders.find(o => o.id === Number(id));
-  if (method === 'GET' && url === '/tool/tools') {
-    const q = body || {};
-    let list = DB.tools.filter(t => q.role !== 'STAFF' && q.role !== 'ADMIN' ? (t.auditStatus === 'APPROVED' && t.status !== 'DISCARDED' && t.status !== 'REPAIRING') : true);
-    if (q.categoryId) list = list.filter(t => t.categoryId === q.categoryId);
-    return list;
-  }
-  if (method === 'GET' && url.startsWith('/tool/tools/')) {
-    const t = tool(url.split('/')[3]);
-    if (!t) throw { code:'C404', message:'工具不存在' };
-    return { ...t, categoryName: DB.categories.find(c => c.id === t.categoryId).name,
-      images:[{ id:1, url:'', sort:0 }], busy: busyOf(t.id), auditRemark: t.auditStatus === 'REJECTED' ? '请补充操作示意图' : null };
-  }
-  if (method === 'POST' && url === '/rental/orders') {
-    const t = tool(body.toolId);
-    if (!t || t.status !== 'AVAILABLE') throw { code:'C409', message:'该工具当前不可预约' };
-    if (busyOf(t.id).some(b => body.startTime < b.end && body.endTime > b.start)) throw { code:'C409', message:'所选时段已被预约' };
-    const o = { id:++DB.seq, orderCode:`SQ-ZY-${today.replaceAll('-','')}-00${DB.seq%10}`, toolId:t.id, userId:DB.user.id,
-      pickupPerson: body.pickupPerson || DB.user.realName, startTime:body.startTime, endTime:body.endTime,
-      depositAmount:t.depositAmount, depositStatus:'UNPAID', status:'PENDING_PAYMENT', pickupTime:null, returnTime:null,
-      acceptResult:null, overdueFee:0, compensationFee:0, cancelReason:null, createTime:fmt(now) };
-    DB.orders.unshift(o);
-    return { id:o.id, orderCode:o.orderCode, depositAmount:o.depositAmount, status:o.status };
-  }
-  if (method === 'GET' && url === '/rental/orders/suggestion') {
-    const busy = busyOf(body.toolId);
-    for (let i = 0; i < 16; i++) {
-      const s = new Date(body.startTime); s.setMinutes(s.getMinutes() + 30 * i);
-      const e = new Date(s.getTime() + (new Date(body.endTime) - new Date(body.startTime)));
-      const ss = fmt(s), ee = fmt(e);
-      if (!busy.some(b => ss < b.end && ee > b.start) && !ss.startsWith(new Date().toISOString().slice(0,10))) continue;
-      if (!busy.some(b => ss < b.end && ee > b.start)) return { suggested:true, startTime:ss, endTime:ee };
-    }
-    return { suggested:false };
-  }
-  if (method === 'POST' && url.endsWith('/pay')) {
-    const o = order(url.split('/')[3]);
-    o.depositStatus = 'PAID'; o.status = 'RESERVED';
-    DB.messages.unshift({ id:++DB.seq, type:'PICKUP', title:'预约成功', content:`预约单 ${o.orderCode} 已确认，请在 ${o.startTime.slice(0,16)} 后到服务站取件。`, channel:'IN_APP', sendStatus:'SENT', sendTime:fmt(now), bizCode:o.orderCode, createTime:fmt(now) });
-    return { payCode:`SQ-PAY-${today.replaceAll('-','')}-00${DB.seq%10}`, amount:o.depositAmount, payTime:fmt(now) };
-  }
-  if (method === 'POST' && url.endsWith('/cancel')) {
-    const o = order(url.split('/')[3]);
-    if (o.status === 'RESERVED' && (new Date(o.startTime) - now) < 24 * 3600e3) throw { code:'C409', message:'距取件不足 24 小时，不可取消' };
-    o.status = 'CANCELLED'; o.depositStatus = 'REFUNDED'; o.cancelReason = '居民主动取消';
-    return null;
-  }
-  if (method === 'POST' && url.endsWith('/pickup')) { const o = order(url.split(/[/?]/)[3]); o.status='PICKED_UP'; o.pickupTime=fmt(now); o.pickupPerson=body.pickupPerson; tool(o.toolId).status='IN_USE'; return null; }
-  if (method === 'POST' && url.endsWith('/return')) {
-    const o = order(url.split('/')[3]);
-    const rate = Number(DB.configs.find(c => c.configKey === 'overdue_fee_per_day').configValue);
-    const lateH = Math.max(0, (now - new Date(o.endTime)) / 3600e3);
-    const overdue = Math.min(Math.ceil(lateH / 24) * rate, o.depositAmount);
-    const comp = Number(body.compensationFee || 0);
-    o.status = 'RETURNED'; o.returnTime = fmt(now); o.acceptResult = body.acceptResult;
-    o.overdueFee = overdue; o.compensationFee = comp; o.depositStatus = 'REFUNDED';
-    const t = tool(o.toolId); t.status = 'AVAILABLE'; t.damageLevel = body.damageLevel;
-    if (t.rentalCount != null) t.rentalCount++;
-    return { overdueFee:overdue, compensationFee:comp, refundAmount:Math.max(0, o.depositAmount - overdue - comp) };
-  }
-  if (method === 'POST' && url === '/repair/orders') {
-    const t = tool(body.toolId);
-    const r = { id:++DB.seq, repairCode:`SQ-BX-${today.replaceAll('-','')}-000${DB.seq%9+1}`, toolId:t.id, toolName:t.name, orderId:null,
-      reporterId:DB.user.id, damagePart:body.damagePart, description:body.description, status:'SUBMITTED', handlerName:null,
-      estimatedDuration:null, repairFee:null, repairDescription:null, acceptResult:null, rejectReason:null,
-      images:[], progress:[{ id:++DB.seq, content:'已提交报修，等待工作人员核验', operatorName:DB.user.realName, createTime:fmt(now) }] };
-    DB.repairs.unshift(r);
-    return { id:r.id, repairCode:r.repairCode };
-  }
-  if (method === 'POST' && url.endsWith('/verify')) {
-    const r = DB.repairs.find(x => x.id === Number(url.split('/')[3]));
-    r.status = body.result; r.rejectReason = body.rejectReason || null;
-    if (body.result === 'CONFIRMED') { tool(r.toolId).status = 'REPAIRING'; r.progress.push({ id:++DB.seq, content:'现场核验确认损坏，转维修', operatorName:'李娜', createTime:fmt(now) }); }
-    if (body.result === 'CHECKING') r.progress.push({ id:++DB.seq, content:'疑似损坏，需进一步检测', operatorName:'李娜', createTime:fmt(now) });
-    return null;
-  }
-  if (method === 'POST' && url.endsWith('/repair')) {
-    const r = DB.repairs.find(x => x.id === Number(url.split('/')[3]));
-    r.status = body.status === 'WAITING_PARTS' ? 'WAITING_PARTS' : 'REPAIRING';
-    r.handlerName = '张伟'; r.estimatedDuration = body.estimatedDuration || r.estimatedDuration;
-    r.progress.push({ id:++DB.seq, content: r.status === 'WAITING_PARTS' ? '等待配件到货' : '开始维修', operatorName:'张伟', createTime:fmt(now) });
-    return null;
-  }
-  if (method === 'POST' && url.endsWith('/progress')) {
-    const r = DB.repairs.find(x => x.id === Number(url.split('/')[3]));
-    r.progress.push({ id:++DB.seq, content:body.content, operatorName:'张伟', createTime:fmt(now) });
-    return null;
-  }
-  if (method === 'POST' && url.endsWith('/accept')) {
-    const r = DB.repairs.find(x => x.id === Number(url.split('/')[3]));
-    r.status = 'ACCEPTED'; r.acceptResult = body.result; r.repairFee = body.repairFee || 0; r.repairDescription = body.repairDescription;
-    r.progress.push({ id:++DB.seq, content:`验收${body.result === 'PASS' ? '通过' : body.result === 'PARTIAL' ? '部分合格（限用）' : '不合格，安排二次维修'}，工具已重新上架`, operatorName:'李娜', createTime:fmt(now) });
-    const t = tool(r.toolId);
-    if (body.result !== 'FAIL') { t.status = 'AVAILABLE'; t.damageLevel = body.damageLevel; }
-    DB.messages.unshift({ id:++DB.seq, type:'REPAIR_DONE', title:'维修完成', content:`您报修的${t.name}已处理完毕，工具已重新上架。`, channel:'IN_APP', sendStatus:'SENT', sendTime:fmt(now), bizCode:r.repairCode, createTime:fmt(now) });
-    return null;
-  }
-  if (method === 'PUT' && url.includes('/configs/')) {
-    DB.configs.find(c => c.configKey === url.split('/').pop()).configValue = body.configValue;
-    return null;
-  }
-  throw { code:'C404', message:'演示接口未覆盖：' + method + ' ' + url };
-}
-
-/* 占用时段：按工具 + 已有订单推（演示：1/2 号各有一段） */
-function busyOf(toolId) {
-  const d = n => { const x = new Date(now); x.setDate(x.getDate() + n); return fmt(x).slice(0, 10); };
-  const all = { 1:[{ start:`${d(0)} 09:00:00`, end:`${d(0)} 12:00:00` }], 2:[{ start:`${d(0)} 14:00:00`, end:`${d(0)} 18:00:00` }] };
-  return all[toolId] || [];
-}
-
-/* =====================================================
-   界面
-   ===================================================== */
-let role = 'RESIDENT', view = 'square', cat = null, detailId = null;
-const $ = s => document.querySelector(s);
-const money = n => '¥' + Number(n).toFixed(2);
-const STATUS = {
-  AVAILABLE:['可借出','ok'], RESERVED:['已预约','warn'], IN_USE:['使用中','warn'], REPAIRING:['维修中','off'], DISCARDED:['已报废','bad'], PENDING:['待审核','warn'],
-  PENDING_PAYMENT:['待支付','warn'], PICKED_UP:['使用中','warn'], RETURNED:['已归还','ok'], CANCELLED:['已取消','off'], OVERDUE:['逾期','bad'],
-  UNPAID:['押金未付','warn'], PAID:['押金已付','ok'], REFUNDING:['退款中','warn'], REFUNDED:['押金已退','ok'],
-  SUBMITTED:['待核验','warn'], CHECKING:['检测中','warn'], CONFIRMED:['已确认','warn'], WAITING_PARTS:['待配件','off'], FINISHED:['维修完成','ok'], ACCEPTED:['已验收','ok'], REJECTED:['已驳回','bad'],
-};
-const tag = s => { const [t, c] = STATUS[s] || [s, 'off']; return `<span class="tag ${c}">${t}</span>`; };
-const DAMAGE = { NONE:'全新', LIGHT:'轻微磨损', MEDIUM:'中度磨损', SEVERE:'严重损坏' };
-const toastMsg = (msg, err) => { const t = $('#toast'); t.textContent = msg; t.className = err ? 'show err' : 'show'; clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 2600); };
-const showDialog = html => { $('#dlg-body').innerHTML = html; $('#dlg').showModal(); };
-
-const NAV = [
-  ['square','广场', ['RESIDENT','STAFF','ADMIN']],
-  ['my-rentals','我的租赁', ['RESIDENT']],
-  ['repair','报修', ['RESIDENT']],
-  ['messages','消息', ['RESIDENT','STAFF','ADMIN']],
-  ['ai','AI 问答', ['RESIDENT','STAFF','ADMIN']],
-  ['manage-tools','工具管理', ['STAFF','ADMIN']],
-  ['manage-rentals','租赁办理', ['STAFF','ADMIN']],
-  ['manage-repairs','报修处理', ['STAFF','ADMIN']],
-  ['settings','系统设置', ['ADMIN']],
+/* ================= 数据（与种子数据一致） ================= */
+const TOOLS = [
+  { id: 1,  code: "SQ-G-WX-0001", name: "手电钻",     spec: "博世 GSB550（550W）",        cat: "维", catName: "维修工具", damage: 2, deposit: 200, status: "可用",   audit: "已通过", loc: "社区服务站 2 号工具柜", steps: ["操作前检查电源线是否破损，夹头是否夹紧钻头", "钻孔时垂直对准目标位置，缓慢按下开关，避免用力过猛", "禁止用于石材等坚硬材质", "使用后关闭开关，拔掉电源，清理钻头碎屑"] },
+  { id: 2,  code: "SQ-G-WX-0002", name: "电动螺丝刀", spec: "绿巨力充电式（3.6V）",       cat: "维", catName: "维修工具", damage: 2, deposit: 150, status: "已借出", audit: "已通过", loc: "社区服务站 2 号工具柜" },
+  { id: 3,  code: "SQ-G-WX-0003", name: "电动扳手",   spec: "得力 EDL-580（350N·m）",     cat: "维", catName: "维修工具", damage: 4, deposit: 150, status: "维修中", audit: "已通过", loc: "社区服务站 2 号工具柜" },
+  { id: 4,  code: "SQ-G-YY-0001", name: "修枝剪",     spec: "张小泉园林剪（210mm）",      cat: "园", catName: "园艺工具", damage: 3, deposit: 50,  status: "可用",   audit: "已通过", loc: "社区服务站 3 号工具柜" },
+  { id: 5,  code: "SQ-G-YY-0002", name: "割草机",     spec: "本田 UMK450（幅宽 450mm）",  cat: "园", catName: "园艺工具", damage: 2, deposit: 300, status: "可用",   audit: "已通过", loc: "社区服务站 3 号工具柜" },
+  { id: 6,  code: "SQ-G-YY-0003", name: "浇水喷壶",   spec: "乐扣 3L 气压式",             cat: "园", catName: "园艺工具", damage: 1, deposit: 20,  status: "可用",   audit: "需修改", loc: "社区服务站 3 号工具柜" },
+  { id: 7,  code: "SQ-G-QJ-0001", name: "高压洗车水枪", spec: "凯驰 K2（110bar）",         cat: "洁", catName: "清洁工具", damage: 2, deposit: 100, status: "可用",   audit: "已通过", loc: "社区服务站 1 号工具柜" },
+  { id: 8,  code: "SQ-G-QJ-0002", name: "家用吸尘器", spec: "小米无线 K10（120AW）",      cat: "洁", catName: "清洁工具", damage: 3, deposit: 120, status: "可用",   audit: "已通过", loc: "社区服务站 1 号工具柜" },
+  { id: 9,  code: "SQ-G-QT-0001", name: "家用折叠梯", spec: "稳固达四步铝梯（150kg）",    cat: "他", catName: "其他工具", damage: 2, deposit: 80,  status: "可用",   audit: "待审核", loc: "社区服务站 1 号工具柜" },
+  { id: 10, code: "SQ-G-QT-0002", name: "手推车",     spec: "金鸿平板车（300kg）",        cat: "他", catName: "其他工具", damage: 4, deposit: 100, status: "报废",   audit: "已通过", loc: "社区服务站 1 号工具柜" },
 ];
+const DAMAGE = { 1: "全新", 2: "轻微磨损", 3: "中度磨损", 4: "严重损坏" };
 
-function renderNav() {
-  $('#nav').innerHTML = NAV.filter(n => n[2].includes(role))
-    .map(([v, label]) => `<button data-nav="${v}" ${view === v ? 'aria-current="page"' : ''}>${label}</button>`).join('');
+let orders = [
+  { no: "SQ-ZY-20261017-0001", tool: "高压洗车水枪", code: "SQ-G-QJ-0001", span: "10-18 09:00 ~ 10-19 18:00", deposit: 100, pay: "已缴", status: "已预约", extra: "可于取件前 24 小时取消" },
+  { no: "SQ-ZY-20261017-0002", tool: "割草机",      code: "SQ-G-YY-0002", span: "10-19 09:00 ~ 10-21 18:00", deposit: 300, pay: "未缴", status: "待支付", extra: "缴纳押金后预约生效" },
+  { no: "SQ-ZY-20261016-0001", tool: "电动螺丝刀",  code: "SQ-G-WX-0002", span: "10-16 09:00 ~ 10-19 18:00", deposit: 150, pay: "已缴", status: "已取件", extra: "10-19 18:00 前归还" },
+  { no: "SQ-ZY-20261010-0001", tool: "高压洗车水枪", code: "SQ-G-QJ-0001", span: "10-10 09:00 ~ 10-12 18:00", deposit: 100, pay: "已退还 90 元", status: "已归还", extra: "逾期 1 天，扣逾期费 10 元" },
+  { no: "SQ-ZY-20260910-0001", tool: "手电钻",      code: "SQ-G-WX-0001", span: "09-10 09:00 ~ 09-12 18:00", deposit: 200, pay: "已退还 200 元", status: "已归还", extra: "验收完好" },
+];
+let repairs = [
+  { no: "SQ-BX-20261002-0001", tool: "电动扳手", code: "SQ-G-WX-0003", part: "电机及电源线接口", status: "维修中", result: null,
+    timeline: [ { t: "10-02 09:23", h: "提交报修", d: "插电后仅震动不转，接口处发黑" },
+                { t: "10-02 10:15", h: "核验确认", d: "确认损坏，转维修（李四）" },
+                { t: "10-02 14:00", h: "待配件", d: "碳刷配件采购中" },
+                { t: "10-04 14:20", h: "维修中", d: "配件到货，完成碳刷更换，待通电测试" } ] },
+  { no: "SQ-BX-20260823-0001", tool: "割草机", code: "SQ-G-YY-0002", part: "刀盘及传动轴", status: "已完成", result: "验收合格，已重新上架",
+    timeline: [ { t: "08-22 19:10", h: "提交报修", d: "刀盘卡死，传动轴异响" },
+                { t: "08-23 11:00", h: "核验确认", d: "确认损坏，转维修（李四）" },
+                { t: "08-24 16:30", h: "维修中", d: "更换刀盘与传动轴齿轮" },
+                { t: "08-26 09:45", h: "验收合格", d: "维修费 80 元由社区承担（李四）" } ] },
+];
+let users = [
+  { id: 1, username: "admin", name: "管理员", role: "系统管理员", status: "启用" },
+  { id: 2, username: "lisi", name: "李四", role: "社区工作人员", status: "启用" },
+  { id: 3, username: "zhangsan", name: "张三", role: "居民", status: "启用" },
+];
+let kbDocs = [
+  { name: "手电钻安全操作手册.pdf", size: "1.0 MB", chunks: 18, status: "完成" },
+  { name: "社区工具租赁管理规则.docx", size: "200 KB", chunks: 12, status: "完成" },
+  { name: "电动工具安全警示汇编.pdf", size: "3.0 MB", chunks: null, status: "解析中" },
+];
+let messages = [
+  { read: false, type: "取件提醒",   title: "您预约的高压洗车水枪明日 09:00 后可取件", time: "10-17 08:35", biz: "SQ-ZY-20261017-0001" },
+  { read: false, type: "取件提醒",   title: "您预约的电动螺丝刀今日 09:00 后可取件，请携带预约单号", time: "10-16 08:00", biz: "SQ-ZY-20261016-0001" },
+  { read: true,  type: "逾期提醒",   title: "您租赁的高压洗车水枪已逾期，逾期费按 5 元/天计，封顶押金", time: "10-13 09:00", biz: "SQ-ZY-20261010-0001" },
+  { read: true,  type: "维修完成",   title: "您报修的割草机已验收合格并重新上架", time: "08-26 10:00", biz: "SQ-BX-20260823-0001" },
+  { read: true,  type: "到期提醒",   title: "您租赁的手电钻将于今日 18:00 到期，请及时归还", time: "09-12 09:00", biz: "SQ-ZY-20260910-0001" },
+];
+const state = { role: "resident", chatLog: [
+  { q: true,  text: "手电钻可以用来钻混凝土墙吗？" },
+  { q: false, text: "不可以。手电钻禁止用于石材等坚硬材质，钻混凝土请改用冲击钻。使用前请检查电源线与夹头，钻孔时垂直对准、缓慢按下开关。",
+    src: ["手电钻安全操作手册 · 第 1 节", "社区工具租赁管理规则 · 第 4 条"] } ] };
+
+/* ================= 工具函数 ================= */
+const $app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const statusChip = s => {
+  const map = { "可用": "ok", "已借出": "out", "维修中": "fix", "报废": "dead",
+    "待支付": "warn", "已预约": "ok", "已取件": "out", "已归还": "", "已取消": "",
+    "维修完成": "ok", "已完成": "ok" };
+  return `<span class="chip ${map[s] || ""}">${esc(s)}</span>`;
+};
+const tagHtml = code => {
+  const seal = { "WX": "维", "YY": "园", "QJ": "洁", "QT": "他" }[code.slice(5, 7)] || "工";
+  return `<span class="tag"><span class="seal">${seal}</span>${code}</span>`;
+};
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
 }
-function go(v) {
-  view = v;
-  document.querySelectorAll('main > section').forEach(s => s.hidden = true);
-  const sec = $('#view-' + v);
-  if (sec) sec.hidden = false;
-  renderNav();
-  ({ square: renderSquare, 'tool': renderTool, 'my-rentals': renderMyRentals, repair: renderRepair,
-     messages: renderMessages, ai: renderAI, 'manage-tools': renderManageTools,
-     'manage-rentals': renderManageRentals, 'manage-repairs': renderManageRepairs, settings: renderSettings }[v] || (() => {}))();
+const go = h => { location.hash = h; };
+
+/* ================= 视图 ================= */
+const NAV = {
+  resident: [
+    ["工具广场", "#/tools"], ["我的租赁", "#/rentals"], ["损坏报修", "#/repairs"],
+    ["消息中心", "#/messages"], ["AI 问答", "#/ai"],
+  ],
+  staff: [
+    ["工具管理", "#/admin/tools"], ["租赁管理", "#/admin/rentals"], ["报修处理", "#/admin/repairs"],
+  ],
+  admin: [
+    ["工具管理", "#/admin/tools"], ["租赁管理", "#/admin/rentals"], ["报修处理", "#/admin/repairs"],
+    ["用户管理", "#/admin/users"], ["工具审核", "#/admin/audit"], ["知识库管理", "#/admin/kb"],
+  ],
+};
+
+function shell(html, active) {
+  const nav = NAV[state.role].map(([label, hash]) =>
+    `<a class="nav-item" href="${hash}" ${active === hash ? 'aria-current="page"' : ""}>${label}</a>`).join("");
+  return `<div class="shell">
+    <aside class="side">
+      <div class="brand">社区共享工具租赁系统</div>
+      <nav class="nav-group">
+        <div class="nav-label">${state.role === "resident" ? "居民服务" : state.role === "admin" ? "系统管理" : "社区工作台"}</div>
+        ${nav}
+      </nav>
+      <div class="spacer"></div>
+      <div class="role-switch">
+        <p>演示身份</p>
+        <button class="${state.role === "resident" ? "on" : ""}" onclick="setRole('resident')">居民端 · 张三</button>
+        <button class="${state.role === "staff" ? "on" : ""}" onclick="setRole('staff')">工作端 · 李四</button>
+        <button class="${state.role === "admin" ? "on" : ""}" onclick="setRole('admin')">管理员端 · 管理员</button>
+      </div>
+      <div class="who">登录为 <b>${state.role === "resident" ? "张三（居民）" : state.role === "admin" ? "管理员（系统管理员）" : "李四（工作人员）"}</b></div>
+      <button class="logout" onclick="go('#/login')">退出登录</button>
+    </aside>
+    <main class="main">${html}</main>
+  </div>`;
 }
 
-/* ---------- 广场 ---------- */
-function renderSquare() {
-  $('#cat-filter').innerHTML = `<label style="margin:0"><input type="radio" name="cat" value="" ${!cat?'checked':''}>全部</label>` +
-    DB.categories.map(c => `<label style="margin:0"><input type="radio" name="cat" value="${c.id}" ${cat==c.id?'checked':''}>${catIcon(c.icon, 15)} ${c.name}</label>`).join('');
-  $('#cat-filter').querySelectorAll('input').forEach(r => r.onchange = () => { cat = r.value ? Number(r.value) : null; renderSquare(); });
-  const list = DB.tools.filter(t => role !== 'RESIDENT' || (t.auditStatus === 'APPROVED' && t.status !== 'DISCARDED' && t.status !== 'REPAIRING'))
-    .filter(t => !cat || t.categoryId === cat);
-  $('#shelf').innerHTML = list.length ? list.map(t => {
-    const icon = DB.categories.find(c => c.id === t.categoryId);
-    const can = t.auditStatus === 'APPROVED' && t.status === 'AVAILABLE';
-    return `<div class="cubby">
-      <div class="cubby-top"><span class="code">${t.toolCode}</span>${tag(t.auditStatus === 'PENDING' ? 'PENDING' : t.status)}</div>
-      <button class="cubby-icon" data-tool="${t.id}" style="border:none;width:100%" aria-label="查看 ${t.name}">${catIcon(icon.icon, 56)}</button>
-      <div class="cubby-body">
-        <h3>${t.name}</h3>
-        <span class="model">${t.model} · ${DAMAGE[t.damageLevel]}</span>
-        <div class="cubby-foot">
-          <span class="price">${money(t.depositAmount)}<small>押金</small></span>
-          <button class="btn sm" data-tool="${t.id}" ${can ? '' : 'disabled'}>${can ? '借这一件' : '暂不可借'}</button>
+function viewLogin() {
+  return `<div class="login-wrap">
+    <form class="login-box" onsubmit="return doLogin(event)">
+      <h1>社区共享工具租赁系统</h1>
+      <div class="field"><label for="li-u">用户名</label><input id="li-u" name="username" autocomplete="username"></div>
+      <div class="field"><label for="li-p">密码</label><input id="li-p" name="password" type="password" autocomplete="current-password"></div>
+      <button class="btn primary" type="submit" style="width:100%;padding:10px;">登 录</button>
+      <div class="login-foot">社区服务站</div>
+    </form>
+  </div>`;
+}
+
+function viewTools() {
+  return shell(`
+    <h2 class="page-title">工具广场</h2>
+    <p class="page-sub">浏览社区服务站可借工具，点击查看详情与可约时段</p>
+    <div class="card" style="margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+      <input placeholder="按工具名称、型号搜索" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:.92rem;">
+      <select style="border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:.92rem;">
+        <option>全部类别</option><option>维修工具</option><option>园艺工具</option><option>清洁工具</option><option>其他工具</option>
+      </select>
+      <button class="btn" onclick="toast('已按当前条件筛选')">查询</button>
+    </div>
+    <div class="grid">
+      ${TOOLS.map(t => `
+        <a class="card tool-card" href="#/tool/${t.id}">
+          <div class="seal-lg">${t.cat}</div>
+          ${tagHtml(t.code)}
+          <h3>${esc(t.name)}</h3>
+          <div class="spec">${esc(t.spec)}</div>
+          <div class="row"><span>${statusChip(t.status)}</span>
+            <span class="price">押金 <b>¥${t.deposit}</b></span></div>
+        </a>`).join("")}
+    </div>`, "#/tools");
+}
+
+function toolDetail() {
+  const t = TOOLS[0]; // 演示固定为手电钻
+  return shell(`
+    <p class="crumb"><a href="#/tools">工具广场</a> / ${esc(t.name)}</p>
+    <div class="detail">
+      <div class="seal-xl">${t.cat}<small>${esc(t.catName)}</small></div>
+      <div>
+        <h2 class="page-title">${esc(t.name)}</h2>
+        <p class="page-sub">${tagHtml(t.code)} &nbsp; ${statusChip(t.status)}</p>
+        <div class="card" style="margin-bottom:16px;">
+          <dl class="kv">
+            <dt>型号规格</dt><dd>${esc(t.spec)}</dd>
+            <dt>损坏程度</dt><dd>${DAMAGE[t.damage]}</dd>
+            <dt>押金金额</dt><dd><b>¥${t.deposit}</b></dd>
+            <dt>存放区域</dt><dd>${esc(t.loc)}</dd>
+          </dl>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <h3 style="font-size:.95rem;margin-bottom:10px;">使用说明</h3>
+          <ol class="steps">${t.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+        </div>
+        <div class="card">
+          <h3 style="font-size:.95rem;">近期可约时段</h3>
+          <div class="slots">
+            <span class="slot on">10-18 09:00</span><span class="slot">10-18 14:00</span>
+            <span class="slot on">10-19 09:00</span><span class="slot">10-19 14:00</span>
+            <span class="slot">10-20 09:00</span><span class="slot">10-20 14:00</span>
+          </div>
+          <button class="btn accent" onclick="reserve(${t.id})">预约此工具</button>
         </div>
       </div>
-    </div>`;
-  }).join('') : '<p class="empty">这个分类下暂时没有可借的工具。</p>';
-  $('#shelf').querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { detailId = Number(b.dataset.tool); go('tool'); });
+    </div>`, "#/tools");
 }
 
-/* ---------- 工具详情 + 预约 ---------- */
-const SLOTS = []; for (let h = 8; h < 20; h += 2) SLOTS.push(`${String(h).padStart(2,'0')}:00`);
-let pickSlot = null, pickDays = 2, pickDay = 0;
-function renderTool() {
-  const t = DB.tools.find(x => x.id === detailId);
-  if (!t) return go('square');
-  const icon = DB.categories.find(c => c.id === t.categoryId);
-  const busy = busyOf(t.id);
-  $('#tool-detail').innerHTML = `
-    <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--green)">${catIcon(icon.icon, 120)}</div>
+function viewRentals() {
+  return shell(`
+    <h2 class="page-title">我的租赁</h2>
+    <p class="page-sub">预约、取件与归还记录</p>
+    <div class="card" style="padding:6px 20px;">
+      ${orders.map(o => `
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 0;border-bottom:1px solid var(--line);">
+          <span class="tag" style="font-family:var(--mono);">${o.no}</span>
+          <b style="min-width:100px;">${esc(o.tool)}</b>
+          <span style="font-family:var(--mono);font-size:.82rem;color:var(--steel);">${o.span}</span>
+          <span style="font-size:.85rem;color:var(--steel);">押金 ¥${o.deposit} · ${esc(o.pay)}</span>
+          ${statusChip(o.status)}
+          <span style="flex:1;"></span>
+          ${o.status === "待支付" ? `<button class="btn sm accent" onclick="payOrder('${o.no}')">缴纳押金</button>` : ""}
+          ${o.status === "已预约" ? `<button class="btn sm" onclick="cancelOrder('${o.no}')">取消预约</button>` : ""}
+        </div>
+        ${o.extra ? `<div style="font-size:.8rem;color:var(--steel);padding:0 0 12px;">${esc(o.extra)}</div>` : ""}
+      `).join("")}
+    </div>`, "#/rentals");
+}
+
+function viewRepairs() {
+  return shell(`
+    <h2 class="page-title">损坏报修</h2>
+    <p class="page-sub">租赁期间发现工具损坏，提交报修并跟踪维修进度</p>
+    <div style="margin-bottom:16px;"><button class="btn accent" onclick="go('#/repair/new')">提交报修申请</button></div>
+    ${repairs.map(r => `
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:14px;">
+          <span class="tag" style="font-family:var(--mono);">${r.no}</span>
+          <b>${esc(r.tool)}</b><span style="font-size:.85rem;color:var(--steel);">${esc(r.part)}</span>
+          ${statusChip(r.status)}
+        </div>
+        <ul class="timeline">
+          ${r.timeline.map((s, i) => {
+            const last = i === r.timeline.length - 1;
+            const cls = /验收/.test(s.h) ? "done" : (last && r.status === "维修中" ? "hot" : "");
+            return `<li class="${cls}"><span class="t">${s.t}</span><div class="h">${esc(s.h)}</div><div style="font-size:.86rem;color:var(--steel);">${esc(s.d)}</div></li>`;
+          }).join("")}
+        </ul>
+        ${r.result ? `<div style="font-size:.86rem;color:#1E7A32;">${esc(r.result)}</div>` : ""}
+      </div>`).join("")}
+  `, "#/repairs");
+}
+
+function viewRepairNew() {
+  return shell(`
+    <p class="crumb"><a href="#/repairs">损坏报修</a> / 提交报修申请</p>
+    <h2 class="page-title">提交报修申请</h2>
+    <p class="page-sub">报修单号由系统按 SQ-BX-YYYYMMDD-XXXX 生成</p>
+    <div class="card form-narrow">
+      <div class="field"><label>关联租赁单</label>
+        <select><option>SQ-ZY-20261016-0001 · 电动螺丝刀</option></select></div>
+      <div class="field"><label>损坏部位</label><input placeholder="如：电机及电源线接口"></div>
+      <div class="field"><label>损坏描述</label><textarea placeholder="损坏发生场景、现象等"></textarea></div>
+      <div class="field"><label>损坏证明材料（1-3 张）</label><input type="file" multiple></div>
+      <button class="btn accent" onclick="submitRepair()">提交报修</button>
+    </div>`, "#/repairs");
+}
+
+function viewMessages() {
+  return shell(`
+    <h2 class="page-title">消息中心</h2>
+    <p class="page-sub">取件、到期、逾期与维修完成提醒</p>
+    <div class="card" style="padding:6px 20px;">
+      ${messages.map(m => `
+        <div class="msg-item ${m.read ? "read" : ""}">
+          <span class="dot"></span>
+          <span class="chip">${esc(m.type)}</span>
+          <div style="flex:1;">
+            <div>${esc(m.title)}</div>
+            <div class="t">${m.time} · 关联 ${m.biz}</div>
+          </div>
+          ${m.read ? "" : `<button class="btn sm" onclick="readMsg(this)">标为已读</button>`}
+        </div>`).join("")}
+    </div>`, "#/messages");
+}
+
+function viewAi() {
+  return shell(`
+    <h2 class="page-title">AI 问答</h2>
+    <p class="page-sub">工具使用、安全操作与租赁规则咨询，回答附知识库来源</p>
+    <div class="chat card" style="min-height:320px;">
+      ${state.chatLog.map(m => m.q
+        ? `<div class="bubble q">${esc(m.text)}</div>`
+        : `<div class="bubble a">${esc(m.text)}${m.src ? `<div class="src">${m.src.map(s => `<span>${esc(s)}</span>`).join("")}</div>` : ""}</div>`).join("")}
+    </div>
+    <form class="chat-input" onsubmit="return askAi(event)">
+      <input id="ai-q" placeholder="输入问题，例如：逾期费用怎么计算？" aria-label="输入问题">
+      <button class="btn primary">发送</button>
+    </form>`, "#/ai");
+}
+
+function viewAdminTools() {
+  return shell(`
+    <h2 class="page-title">工具管理</h2>
+    <p class="page-sub">录入、审核与状态维护</p>
+    <div style="margin-bottom:16px;"><button class="btn primary" onclick="toast('打开工具录入表单')">录入新工具</button></div>
+    <div class="card" style="padding:4px 12px;overflow-x:auto;">
+      <table>
+        <thead><tr><th>编号</th><th>名称</th><th>损坏程度</th><th>押金</th><th>状态</th><th>审核</th><th>操作</th></tr></thead>
+        <tbody>
+          ${TOOLS.map(t => `
+            <tr>
+              <td>${tagHtml(t.code)}</td>
+              <td><b>${esc(t.name)}</b><div style="font-size:.78rem;color:var(--steel);">${esc(t.spec)}</div></td>
+              <td>${DAMAGE[t.damage]}</td>
+              <td>¥${t.deposit}</td>
+              <td>${statusChip(t.status)}</td>
+              <td>${t.audit === "已通过" ? '<span class="chip ok">已通过</span>' : t.audit === "待审核" ? '<span class="chip warn">待审核</span>' : '<span class="chip fix">需修改</span>'}</td>
+              <td style="white-space:nowrap;">
+                ${t.status === "可用" ? `<button class="btn sm" onclick="offTool(this, '${t.code}')">下架</button>` : ""}
+              </td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`, "#/admin/tools");
+}
+
+function viewAdminRentals() {
+  return shell(`
+    <h2 class="page-title">租赁管理</h2>
+    <p class="page-sub">全部租赁单：取件登记与归还验收</p>
+    <div class="card" style="padding:4px 12px;overflow-x:auto;">
+      <table>
+        <thead><tr><th>预约单号</th><th>租赁人</th><th>工具</th><th>租赁时段</th><th>押金</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td style="font-family:var(--mono);font-size:.8rem;">SQ-ZY-20261017-0001</td><td>张三</td><td>高压洗车水枪</td><td style="font-family:var(--mono);font-size:.8rem;">10-18 ~ 10-19</td><td>¥100 · 已缴</td><td>${statusChip("已预约")}</td><td><button class="btn sm primary" onclick="pickupOrder(this)">取件登记</button></td></tr>
+          <tr><td style="font-family:var(--mono);font-size:.8rem;">SQ-ZY-20261017-0002</td><td>张三</td><td>割草机</td><td style="font-family:var(--mono);font-size:.8rem;">10-19 ~ 10-21</td><td>¥300 · 未缴</td><td>${statusChip("待支付")}</td><td>—</td></tr>
+          <tr><td style="font-family:var(--mono);font-size:.8rem;">SQ-ZY-20261016-0001</td><td>张三</td><td>电动螺丝刀</td><td style="font-family:var(--mono);font-size:.8rem;">10-16 ~ 10-19</td><td>¥150 · 已缴</td><td>${statusChip("已取件")}</td><td><button class="btn sm accent" onclick="returnOrder(this)">归还验收</button></td></tr>
+          <tr><td style="font-family:var(--mono);font-size:.8rem;">SQ-ZY-20261010-0001</td><td>张三</td><td>高压洗车水枪</td><td style="font-family:var(--mono);font-size:.8rem;">10-10 ~ 10-12</td><td>¥100 · 已退还</td><td>${statusChip("已归还")}</td><td>逾期 1 天 · 扣 10 元</td></tr>
+          <tr><td style="font-family:var(--mono);font-size:.8rem;">SQ-ZY-20260910-0001</td><td>张三</td><td>手电钻</td><td style="font-family:var(--mono);font-size:.8rem;">09-10 ~ 09-12</td><td>¥200 · 已退还</td><td>${statusChip("已归还")}</td><td>验收完好</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px;"><button class="btn" onclick="toast('已导出租赁记录 Excel')">导出 Excel</button></p>`, "#/admin/rentals");
+}
+
+function viewAdminRepairs() {
+  const r = repairs[0];
+  return shell(`
+    <h2 class="page-title">报修处理</h2>
+    <p class="page-sub">核验报修、更新维修进度、维修验收</p>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;">
+        <span class="tag" style="font-family:var(--mono);">${r.no}</span>
+        <b>${esc(r.tool)}</b><span style="font-size:.85rem;color:var(--steel);">${esc(r.part)} · 报修人 张三</span>
+        ${statusChip(r.status)}
+      </div>
+      <p style="font-size:.88rem;color:var(--steel);margin:8px 0 14px;">${esc(r.timeline[0].d)}</p>
+      ${r.status === "维修中" ? `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn accent" onclick="addProgress(this)">更新进度：维修完成</button>
+        <button class="btn" onclick="acceptRepair(this)">维修验收：合格</button>
+      </div>` : `<p style="color:#1E7A32;font-size:.88rem;">${esc(r.result)}</p>`}
+    </div>
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <h2 style="font-size:20px">${t.name}</h2>${tag(t.status)}
-      </div>
-      <p class="code" style="margin:4px 0 10px">${t.toolCode} · ${t.model}</p>
-      <div class="kv"><b>损坏程度</b>${DAMAGE[t.damageLevel]}</div>
-      <div class="kv"><b>存放区域</b>${t.storageArea}</div>
-      <div class="kv"><b>累计借用</b>${t.rentalCount} 次</div>
-      ${t.lastRepairTime ? `<div class="kv"><b>最近维修</b>${t.lastRepairTime.slice(0,10)}</div>` : ''}
-      <p style="margin-top:10px;color:var(--muted);font-size:14px">${t.description}</p>
-      ${role === 'RESIDENT' && t.auditStatus === 'APPROVED' && t.status === 'AVAILABLE' ? `
-      <h3 style="margin-top:18px;font-size:15px">选个时段（30 分钟粒度）</h3>
-      <div class="check">
-        <label><input type="radio" name="pd" value="0" ${pickDay === 0 ? 'checked' : ''}>今天</label>
-        <label><input type="radio" name="pd" value="1" ${pickDay === 1 ? 'checked' : ''}>明天</label>
-        <label style="margin:0">借
-          <select id="pick-days" style="width:auto"><option value="2">2 天</option><option value="4">4 天</option><option value="7">7 天</option></select>
-        </label>
-      </div>
-      <div class="slots">${SLOTS.map(s => {
-        const start = new Date(plus(Number(document.querySelector('input[name=pd]:checked')?.value || 0))); start.setHours(Number(s.slice(0,2)), 0, 0, 0);
-        const end = new Date(start.getTime() + 2 * 3600e3);
-        const conflict = busy.some(b => start < new Date(b.end) && end > new Date(b.start)) || start < now;
-        return `<button data-slot="${s}" ${conflict ? 'disabled' : ''}>${s.slice(0,5)}</button>`;
-      }).join('')}</div>
-      <p class="hint" id="slot-hint">灰色表示已被预约或已过期。押金 ${money(t.depositAmount)}，归还验收后原路退回。</p>
-      ${SLOTS.every(sl => { const st = new Date(plus(Number(document.querySelector('input[name=pd]:checked')?.value || 0))); st.setHours(Number(sl.slice(0,2)),0,0,0); return st < now || busy.some(b => st < new Date(b.end) && new Date(st.getTime()+2*3600e3) > new Date(b.start)); }) ? '<p class="hint warn">今天可借的时段已过，请勾选「明天」。</p>' : ''}
-      <p style="margin-top:12px"><button class="btn" id="reserve-btn" disabled>选择时段后预约</button></p>`
-      : `<p class="hint" style="margin-top:16px">${t.status === 'REPAIRING' ? '维修中，修好上架后可再预约。' : t.auditStatus === 'PENDING' ? '录入信息待管理员审核。' : '当前已被预约或借用。'}</p>`}
-    </div>`;
-  document.querySelectorAll('input[name=pd]').forEach(r => r.onchange = () => { pickDay = Number(r.value); pickSlot = null; renderTool(); });
-  const days = $('#pick-days'); if (days) days.onchange = () => { pickDays = Number(days.value); };
-  $('#tool-detail').querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
-    pickSlot = b.dataset.slot;
-    $('#tool-detail').querySelectorAll('[data-slot]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-    $('#reserve-btn').disabled = false;
-    $('#reserve-btn').textContent = `预约 ${pickDay === 0 ? '今天' : '明天'} ${pickSlot} 起 · 押金 ${money(t.depositAmount)}`;
-  });
-  const btn = $('#reserve-btn');
-  if (btn) btn.onclick = () => reserve(t);
+      <h3 style="font-size:.95rem;margin-bottom:12px;">处理记录</h3>
+      <ul class="timeline">
+        ${r.timeline.map((s, i) => {
+          const last = i === r.timeline.length - 1;
+          const cls = /验收/.test(s.h) ? "done" : (last && r.status === "维修中" ? "hot" : "");
+          return `<li class="${cls}"><span class="t">${s.t}</span><div class="h">${esc(s.h)}</div><div style="font-size:.86rem;color:var(--steel);">${esc(s.d)}</div></li>`;
+        }).join("")}
+      </ul>
+    </div>`, "#/admin/repairs");
+}
+
+/* ================= 路由与动作 ================= */
+function viewAdminUsers() {
+  return shell(`
+    <h2 class="page-title">用户管理</h2>
+    <p class="page-sub">调整用户角色，启用或停用账号</p>
+    <div class="card" style="padding:4px 12px;overflow-x:auto;">
+      <table>
+        <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          ${users.map(u => `
+            <tr>
+              <td style="font-family:var(--mono);font-size:.84rem;">${esc(u.username)}</td>
+              <td><b>${esc(u.name)}</b></td>
+              <td>
+                <select onchange="changeRole(this, ${u.id})" style="border:1px solid var(--line);border-radius:5px;padding:3px 8px;font-size:.84rem;">
+                  ${["居民", "社区工作人员", "系统管理员"].map(r =>
+                    `<option ${r === u.role ? "selected" : ""}>${r}</option>`).join("")}
+                </select>
+              </td>
+              <td>${u.status === "启用" ? '<span class="chip ok">启用</span>' : '<span class="chip dead">停用</span>'}</td>
+              <td>${u.status === "启用"
+                ? `<button class="btn sm" onclick="toggleUser(this, ${u.id})">停用</button>`
+                : `<button class="btn sm primary" onclick="toggleUser(this, ${u.id})">启用</button>`}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`, "#/admin/users");
+}
+
+function viewAdminAudit() {
+  const pending = TOOLS.filter(t => t.audit !== "已通过");
+  return shell(`
+    <h2 class="page-title">工具审核</h2>
+    <p class="page-sub">录入信息的审核：通过后工具对居民可见</p>
+    ${pending.length ? pending.map(t => `
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;">
+          ${tagHtml(t.code)}
+          <b>${esc(t.name)}</b>
+          <span style="font-size:.85rem;color:var(--steel);">${esc(t.spec)}</span>
+          <span style="font-size:.85rem;">押金 ¥${t.deposit}</span>
+          ${t.audit === "待审核" ? '<span class="chip warn">待审核</span>' : '<span class="chip fix">需修改</span>'}
+        </div>
+        ${t.audit === "需修改" ? `<p style="font-size:.85rem;color:#B44309;margin:8px 0 0;">修改意见：请补充喷壶口径规格照片后重新提交审核</p>` : ""}
+        <div style="margin-top:12px;display:flex;gap:10px;">
+          <button class="btn sm primary" onclick="auditTool('${t.code}')">审核通过</button>
+          <button class="btn sm" onclick="rejectTool('${t.code}')">退回修改</button>
+        </div>
+      </div>`).join("")
+    : `<div class="card" style="color:var(--steel);">暂无待审核工具，新录入的工具会出现在这里</div>`}
+  `, "#/admin/audit");
+}
+
+function viewAdminKb() {
+  return shell(`
+    <h2 class="page-title">知识库管理</h2>
+    <p class="page-sub">AI 问答的知识来源：上传手册与规则文档，解析后入向量库</p>
+    <div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <input type="file" id="kb-file" style="font-size:.86rem;">
+      <button class="btn accent" onclick="uploadKb()">上传并解析</button>
+    </div>
+    <div class="card" style="padding:4px 12px;">
+      <table>
+        <thead><tr><th>文档名称</th><th>大小</th><th>切分片段</th><th>解析状态</th><th>操作</th></tr></thead>
+        <tbody>
+          ${kbDocs.map((d, i) => `
+            <tr>
+              <td><b>${esc(d.name)}</b></td>
+              <td>${d.size}</td>
+              <td>${d.chunks ?? "—"}</td>
+              <td>${d.status === "完成" ? '<span class="chip ok">完成</span>' : '<span class="chip warn">解析中</span>'}</td>
+              <td><button class="btn sm" onclick="removeKb(${i})">删除</button></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`, "#/admin/kb");
+}
+
+const ROUTES = {
+  "#/login": viewLogin,
+  "#/tools": viewTools,
+  "#/tool-detail": toolDetail,
+  "#/rentals": viewRentals,
+  "#/repairs": viewRepairs,
+  "#/repair/new": viewRepairNew,
+  "#/messages": viewMessages,
+  "#/ai": viewAi,
+  "#/admin/tools": viewAdminTools,
+  "#/admin/rentals": viewAdminRentals,
+  "#/admin/repairs": viewAdminRepairs,
+  "#/admin/users": viewAdminUsers,
+  "#/admin/audit": viewAdminAudit,
+  "#/admin/kb": viewAdminKb,
+};
+const ADMIN_ONLY = ["#/admin/users", "#/admin/audit", "#/admin/kb"];
+
+function render() {
+  let route = location.hash || "#/login";
+  if (route.startsWith("#/tool/")) route = "#/tool-detail";
+  if (ADMIN_ONLY.includes(route)) state.role = "admin";
+  else if (route.startsWith("#/admin") && state.role === "resident") state.role = "staff";
+  const fn = ROUTES[route] || viewLogin;
+  $app.innerHTML = fn();
   window.scrollTo(0, 0);
 }
-async function reserve(t) {
-  const start = new Date(); start.setDate(start.getDate() + pickDay); start.setHours(Number(pickSlot.slice(0,2)), 0, 0, 0);
-  const end = new Date(start.getTime() + pickDays * 24 * 3600e3);
-  try {
-    await api('POST', '/rental/orders', { toolId:t.id, startTime:fmt(start), endTime:fmt(end) });
-    toastMsg('预约单已生成，去「我的租赁」支付押金');
-    go('my-rentals');
-  } catch (e) {
-    if (e.code === 'C409') {
-      const s = await api('GET', '/rental/orders/suggestion', { toolId:t.id, startTime:fmt(start), endTime:fmt(end) }).then(r => r.data);
-      showDialog(`<h3>这个时段刚被约走了</h3>
-        <p class="meta" style="margin-top:8px">${s.suggested ? `最近的空档是 <b class="money">${s.startTime.slice(5,16)}</b> 起，要用这个时间吗？` : '近两天没有空档了，可以过两天再来看看。'}</p>
-        <div class="dlg-actions">
-          <button class="btn outline" onclick="dlg.close()">先不约</button>
-          ${s.suggested ? '<button class="btn" id="use-sugg">用推荐时段</button>' : ''}
-        </div>`);
-      const u = $('#use-sugg');
-      if (u) u.onclick = () => {
-        dlg.close();
-        const st = new Date(s.startTime), en = new Date(s.endTime);
-        api('POST', '/rental/orders', { toolId:t.id, startTime:fmt(st), endTime:fmt(en) })
-          .then(() => { toastMsg('已按推荐时段预约成功'); go('my-rentals'); });
-      };
-    } else toastMsg(e.message, true);
-  }
+window.addEventListener("hashchange", render);
+
+function setRole(r) {
+  state.role = r;
+  const h = location.hash;
+  if (r === "resident" && h.startsWith("#/admin")) go("#/tools");
+  else if (r === "staff" && ADMIN_ONLY.includes(h)) go("#/admin/tools");
+  else render();
+}
+function doLogin(e) { e.preventDefault(); state.role = "resident"; go("#/tools"); return false; }
+function reserve() { toast("预约申请已提交，等待缴纳押金"); go("#/rentals"); }
+function payOrder(no) {
+  const o = orders.find(x => x.no === no);
+  if (o) { o.status = "已预约"; o.pay = "已缴"; o.extra = "可于取件前 24 小时取消"; }
+  toast("押金缴纳成功，预约已生效"); render();
+}
+function cancelOrder(no) {
+  const o = orders.find(x => x.no === no);
+  if (o) { o.status = "已取消"; o.pay = "已退还 " + o.deposit + " 元"; o.extra = "押金已原路退还"; }
+  toast("预约已取消，押金原路退还"); render();
+}
+function submitRepair() { toast("报修申请已提交，等待工作人员核验"); go("#/repairs"); }
+function readMsg(btn) {
+  const item = btn.closest(".msg-item");
+  item.classList.add("read"); btn.remove();
+  toast("已标为已读");
+}
+function askAi(e) {
+  e.preventDefault();
+  const input = document.getElementById("ai-q");
+  const q = input.value.trim();
+  if (!q) return false;
+  state.chatLog.push({ q: true, text: q });
+  state.chatLog.push({ q: false, text: "根据社区工具租赁规则：逾期费用按 5 元/天计算，累计不超过该工具押金金额。归还验收时由工作人员核算并从押金中扣除。",
+    src: ["社区工具租赁管理规则 · 第 6 条"] });
+  render(); return false;
+}
+function auditTool(code) {
+  const t = TOOLS.find(x => x.code === code); if (t) t.audit = "已通过";
+  render(); toast("审核通过，工具已上架");
+}
+function rejectTool(code) {
+  const t = TOOLS.find(x => x.code === code); if (t) t.audit = "需修改";
+  render(); toast("已退回修改");
+}
+function changeRole(sel, id) {
+  const u = users.find(x => x.id === id); if (u) u.role = sel.value;
+  toast(`已将 ${u.name} 的角色调整为${u.role}`);
+}
+function toggleUser(btn, id) {
+  const u = users.find(x => x.id === id); if (!u) return;
+  u.status = u.status === "启用" ? "停用" : "启用";
+  render(); toast(`账号 ${u.username} 已${u.status}`);
+}
+function uploadKb() {
+  kbDocs.unshift({ name: "新上传文档.pdf", size: "—", chunks: null, status: "解析中" });
+  render(); toast("文档已上传，解析中");
+}
+function removeKb(i) {
+  kbDocs.splice(i, 1);
+  render(); toast("文档已删除，向量同步清除");
+}
+function offTool(btn, code) {
+  const t = TOOLS.find(x => x.code === code);
+  if (t) { t.status = "下架"; render(); }
+  toast("工具已下架");
+}
+function pickupOrder(btn) { btn.closest("td").innerHTML = statusChip("已取件"); toast("取件登记完成"); }
+function returnOrder(btn) { btn.closest("td").innerHTML = "验收完好 · 已重新上架"; toast("归还验收完成，押金已退"); }
+function addProgress(btn) {
+  const r = repairs[0];
+  r.timeline.push({ t: "10-05 15:40", h: "维修完成", d: "通电测试正常，待验收" });
+  render(); toast("维修进度已更新");
+}
+function acceptRepair(btn) {
+  const r = repairs[0];
+  r.status = "已完成"; r.result = "验收合格，已重新上架";
+  r.timeline.push({ t: "10-06 09:30", h: "验收合格", d: "工具恢复可用（李四）" });
+  render(); toast("验收完成，工具重新上架");
 }
 
-/* ---------- 我的租赁 ---------- */
-function renderMyRentals() {
-  const mine = DB.orders.filter(o => o.userId === DB.user.id);
-  $('#my-rental-list').innerHTML = mine.length ? mine.map(o => {
-    const t = DB.tools.find(x => x.id === o.toolId);
-    return `<div class="row">
-      <div class="grow">
-        <h4>${t.name} <span class="code">${o.orderCode}</span></h4>
-        <div class="meta">${o.startTime.slice(5,16)} → ${o.endTime.slice(5,16)} · 押金 <span class="money">${money(o.depositAmount)}</span></div>
-        ${o.overdueFee ? `<div class="meta">逾期费 <span class="money">${money(o.overdueFee)}</span>${o.compensationFee ? ` · 赔偿 <span class="money">${money(o.compensationFee)}</span>` : ''}</div>` : ''}
-      </div>
-      ${tag(o.status)} ${tag(o.depositStatus)}
-      ${o.status === 'PENDING_PAYMENT' ? `<button class="btn sm" data-pay="${o.id}">支付押金 ${money(o.depositAmount)}</button>
-        <button class="btn danger sm" data-cancel="${o.id}">取消</button>` : ''}
-      ${o.status === 'RESERVED' ? `<button class="btn danger sm" data-cancel="${o.id}">取消预约</button>` : ''}
-      ${o.status === 'PICKED_UP' ? '<span class="meta">到期请归还到存放区域</span>' : ''}
-    </div>`;
-  }).join('') : '<p class="empty">还没有租过工具。<button class="link" data-nav="square">去广场挑一件</button></p>';
-  $('#my-rental-list').querySelectorAll('[data-pay]').forEach(b => b.onclick = async () => {
-    const r = await api('POST', `/rental/orders/${b.dataset.pay}/pay`).then(r => r.data);
-    toastMsg(`押金 ${money(r.amount)} 支付成功，预约生效`); renderMyRentals();
-  });
-  $('#my-rental-list').querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => {
-    showDialog(`<h3>取消这条预约？</h3><p class="meta" style="margin-top:8px">押金会原路退回。取件前 24 小时内无法取消。</p>
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">再想想</button>
-      <button class="btn danger" id="do-cancel">确认取消</button></div>`);
-    $('#do-cancel').onclick = () => api('POST', `/rental/orders/${b.dataset.cancel}/cancel`)
-      .then(() => { dlg.close(); toastMsg('已取消，押金原路退回'); renderMyRentals(); })
-      .catch(e => { dlg.close(); toastMsg(e.message, true); });
-  });
-}
-
-/* ---------- 报修（居民） ---------- */
-function renderRepair() {
-  $('#rp-tool').innerHTML = DB.tools.filter(t => t.auditStatus === 'APPROVED').map(t => `<option value="${t.id}">${t.name}（${t.toolCode}）</option>`).join('');
-  const mine = DB.repairs.filter(r => r.reporterId === DB.user.id);
-  $('#my-repair-list').innerHTML = `<h3 style="margin-bottom:6px">我的报修单</h3>` + (mine.length ? mine.map(r => `
-    <div class="row">
-      <div class="grow">
-        <h4>${r.toolName} <span class="code">${r.repairCode}</span></h4>
-        <div class="meta">${r.damagePart} · ${r.description}</div>
-        ${r.status === 'REJECTED' ? `<div class="meta">核验意见：${r.rejectReason}</div>` : ''}
-        ${r.acceptResult ? `<div class="meta">验收：${{PASS:'合格',FAIL:'不合格',PARTIAL:'部分合格（限用）'}[r.acceptResult]}${r.repairFee ? ` · 维修费 <span class="money">${money(r.repairFee)}</span>` : ' · 费用社区承担'}</div>` : ''}
-      </div>
-      ${tag(r.status)}
-      <button class="btn outline sm" data-rp="${r.id}">时间线（${r.progress.length}）</button>
-    </div>`).join('') : '<p class="empty">没有报修记录。</p>');
-  $('#my-repair-list').querySelectorAll('[data-rp]').forEach(b => b.onclick = () => showTimeline(DB.repairs.find(r => r.id === Number(b.dataset.rp))));
-  $('#repair-form').onsubmit = async e => {
-    e.preventDefault();
-    const r = await api('POST', '/repair/orders', {
-      toolId: Number($('#rp-tool').value), damagePart: $('#rp-part').value, description: $('#rp-desc').value,
-    }).then(x => x.data);
-    toastMsg(`报修单 ${r.repairCode} 已提交`);
-    $('#rp-part').value = ''; $('#rp-desc').value = '';
-    renderRepair();
-  };
-}
-function showTimeline(r) {
-  showDialog(`<h3>${r.toolName} · 维修时间线</h3>
-    <div style="margin-top:10px">${r.progress.map(p => `<div class="kv" style="align-items:flex-start"><b>${p.createTime.slice(5,16)}</b><span>${p.content}（${p.operatorName}）</span></div>`).join('')}</div>
-    <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">关闭</button></div>`);
-}
-
-/* ---------- 消息 ---------- */
-function renderMessages() {
-  $('#msg-list').innerHTML = DB.messages.length ? DB.messages.map(m => `<div class="row">
-    <div class="grow"><h4>${m.title}</h4><div class="meta">${m.content}</div></div>
-    <span class="meta">${m.createTime.slice(5,16)}</span><span class="meta">${{PICKUP:'取件',DUE_SOON:'到期',OVERDUE:'逾期',REPAIR_DONE:'维修'}[m.type]}</span>
-  </div>`).join('') : '<p class="empty">暂无消息。</p>';
-}
-
-/* ---------- AI 问答 ---------- */
-const KB = [
-  { k:['电钻','钻'], a:'可以钻混凝土墙面（本机带冲击档），但禁止切割石材等金属以外的坚硬材质。钻孔时请垂直对准目标、缓慢按下开关。', s:['家用电钻安全操作手册：2. 钻孔时垂直对准目标位置，缓慢按下开关；3. 禁止用于金属以外的坚硬材质（如石材）。'] },
-  { k:['逾期','超时','费用'], a:'逾期费按 5 元/天计算，最高不超过押金总额。归还验收时从押金里扣除，剩余部分原路退回。', s:['社区工具租赁规则：逾期归还按 5 元/天收取逾期费，累计不超过押金金额。'] },
-  { k:['取消','退'], a:'取件时间前 24 小时以上可以取消预约，押金全额原路退回；不足 24 小时无法取消。', s:['社区工具租赁规则：取件前 24 小时外可免费取消，押金原路退还。'] },
-  { k:['割草','草'], a:'手推割草机适合中小型草坪，使用前请清理石块，归还前请清理机身草屑并归还到 B区-1号架。', s:['割草机操作手册：使用前清理作业区石块；归还前清理草屑。'] },
-];
-function renderAI() {
-  if (!$('#chat-box').children.length) {
-    $('#chat-box').innerHTML = '<div class="bubble a">您好，我是社区工具房的问答助手。关于工具怎么用、能不能借、逾期怎么算，都可以问我，回答会附上资料出处。</div>';
-  }
-  $('#chat-send').onclick = ask;
-  $('#chat-input').onkeydown = e => { if (e.key === 'Enter') ask(); };
-}
-async function ask() {
-  const q = $('#chat-input').value.trim();
-  if (!q) return;
-  $('#chat-input').value = '';
-  $('#chat-box').insertAdjacentHTML('beforeend', `<div class="bubble q"></div>`);
-  $('#chat-box').lastElementChild.textContent = q;
-  const hit = KB.find(x => x.k.some(k => q.includes(k)));
-  await new Promise(r => setTimeout(r, 500));
-  $('#chat-box').insertAdjacentHTML('beforeend', hit
-    ? `<div class="bubble a">${hit.a}<div class="src"><b>来源 · ${hit.s[0].split('：')[0]}</b><br>${hit.s[0].split('：').slice(1).join('：')}</div></div>`
-    : `<div class="bubble a">这个问题我暂时没有查到资料。可以换个问法，或联系服务站工作人员（值班电话在公告栏）。</div>`);
-  $('#chat-box').scrollTop = $('#chat-box').scrollHeight;
-}
-
-/* ---------- 管理：工具 ---------- */
-function renderManageTools() {
-  $('#manage-tool-list').innerHTML = DB.tools.map(t => `<div class="row">
-    <div class="grow"><h4>${t.name} <span class="code">${t.toolCode}</span></h4>
-      <div class="meta">${DAMAGE[t.damageLevel]} · ${t.storageArea} · 押金 <span class="money">${money(t.depositAmount)}</span> · 借出 ${t.rentalCount} 次</div>
-      ${t.auditStatus === 'REJECTED' ? `<div class="meta">审核意见：${t.auditRemark || ''}</div>` : ''}</div>
-    ${tag(t.auditStatus === 'PENDING' ? 'PENDING' : t.status)}
-    ${t.auditStatus === 'PENDING' && role === 'ADMIN' ? `
-      <button class="btn sm" data-audit="${t.id}:APPROVED">审核通过</button>
-      <button class="btn danger sm" data-audit="${t.id}:REJECTED">退回修改</button>` : ''}
-    ${t.auditStatus === 'APPROVED' && t.status !== 'DISCARDED' ? `<select data-status="${t.id}" style="width:auto" aria-label="变更状态">
-      ${['AVAILABLE','REPAIRING','DISCARDED'].map(s => `<option ${s === t.status ? 'selected' : ''} value="${s}">${STATUS[s][0]}</option>`).join('')}
-    </select>` : ''}
-  </div>`).join('');
-  $('#manage-tool-list').querySelectorAll('[data-audit]').forEach(b => b.onclick = () => {
-    const [id, result] = b.dataset.audit.split(':');
-    const t = DB.tools.find(x => x.id === Number(id));
-    t.auditStatus = result; if (result === 'REJECTED') t.auditRemark = '请补充操作示意图';
-    toastMsg(result === 'APPROVED' ? `已通过，${t.name} 上架可见` : '已退回，待工作人员修改');
-    renderManageTools();
-  });
-  $('#manage-tool-list').querySelectorAll('[data-status]').forEach(s => s.onchange = () => {
-    const t = DB.tools.find(x => x.id === Number(s.dataset.status));
-    if (s.value === 'DISCARDED' && !confirm(`确认报废 ${t.name}？报废后不可恢复。`)) { renderManageTools(); return; }
-    t.status = s.value; toastMsg(`${t.name} 状态已更新为「${STATUS[s.value][0]}」`); renderManageTools();
-  });
-}
-
-/* ---------- 管理：租赁办理 ---------- */
-function renderManageRentals() {
-  const list = DB.orders.filter(o => ['RESERVED','PICKED_UP','OVERDUE'].includes(o.status));
-  $('#manage-rental-list').innerHTML = list.length ? list.map(o => {
-    const t = DB.tools.find(x => x.id === o.toolId);
-    const late = o.status !== 'RESERVED' && now > new Date(o.endTime);
-    return `<div class="row">
-      <div class="grow"><h4>${t.name} <span class="code">${o.orderCode}</span></h4>
-        <div class="meta">${o.userName || '陈晓明'} · ${o.startTime.slice(5,16)} → ${o.endTime.slice(5,16)} · 取件人 ${o.pickupPerson}</div></div>
-      ${late ? tag('OVERDUE') : ''}${tag(o.status)}
-      ${o.status === 'RESERVED' ? `<button class="btn sm" data-pickup="${o.id}">登记取件</button>` : ''}
-      ${o.status === 'PICKED_UP' || o.status === 'OVERDUE' ? `<button class="btn sm" data-return="${o.id}">归还验收</button>` : ''}
-    </div>`;
-  }).join('') : '<p class="empty">没有待办理的租赁单。</p>';
-  $('#manage-rental-list').querySelectorAll('[data-pickup]').forEach(b => b.onclick = () => {
-    const o = DB.orders.find(x => x.id === Number(b.dataset.pickup));
-    showDialog(`<h3>登记取件</h3><label for="pk">取件人</label><input id="pk" value="${o.pickupPerson}">
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button>
-      <button class="btn" id="pk-ok">确认取件</button></div>`);
-    $('#pk-ok').onclick = () => api('POST', `/rental/orders/${o.id}/pickup`, { pickupPerson: $('#pk').value })
-      .then(() => { dlg.close(); toastMsg('取件完成，工具转「使用中」'); renderManageRentals(); });
-  });
-  $('#manage-rental-list').querySelectorAll('[data-return]').forEach(b => b.onclick = () => {
-    const o = DB.orders.find(x => x.id === Number(b.dataset.return));
-    const t = DB.tools.find(x => x.id === o.toolId);
-    showDialog(`<h3>归还验收 · ${t.name}</h3>
-      <label for="rv-accept">验收结果</label>
-      <select id="rv-accept"><option value="NORMAL">完好（无新增损坏）</option><option value="MINOR_DAMAGED">轻微损坏（无需赔偿）</option><option value="SEVERE_DAMAGED">严重损坏（需赔偿）</option></select>
-      <label for="rv-dmg">重估损坏程度</label>
-      <select id="rv-dmg">${Object.keys(DAMAGE).map(k => `<option value="${k}" ${k === t.damageLevel ? 'selected' : ''}>${DAMAGE[k]}</option>`).join('')}</select>
-      <label for="rv-comp">赔偿金额（元）</label>
-      <input id="rv-comp" type="number" min="0" value="0">
-      <div class="settle" id="rv-settle">押金 ${money(o.depositAmount)}，逾期费与赔偿结算后从押金中扣除。</div>
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button>
-      <button class="btn" id="rv-ok">确认归还</button></div>`);
-    const calc = () => {
-      const lateH = Math.max(0, (now - new Date(o.endTime)) / 3600e3);
-      const overdue = Math.min(Math.ceil(lateH / 24) * Number(DB.configs[0].configValue), o.depositAmount);
-      const refund = Math.max(0, o.depositAmount - overdue - Number($('#rv-comp').value || 0));
-      $('#rv-settle').textContent = `逾期费 ${money(overdue)} · 赔偿 ${money(Number($('#rv-comp').value || 0))} · 退还押金 ${money(refund)}`;
-    };
-    $('#rv-comp').oninput = calc; calc();
-    $('#rv-ok').onclick = () => api('POST', `/rental/orders/${o.id}/return`, {
-      acceptResult: $('#rv-accept').value, damageLevel: $('#rv-dmg').value, compensationFee: Number($('#rv-comp').value || 0),
-    }).then(r => { dlg.close(); const s = r.data; toastMsg(`已归还结算：退还押金 ${money(s.refundAmount)}`); renderManageRentals(); });
-  });
-}
-
-/* ---------- 管理：报修处理 ---------- */
-function renderManageRepairs() {
-  const open = DB.repairs.filter(r => r.status !== 'ACCEPTED' && r.status !== 'REJECTED');
-  $('#manage-repair-list').innerHTML = open.length ? open.map(r => `<div class="row">
-    <div class="grow"><h4>${r.toolName} <span class="code">${r.repairCode}</span></h4>
-      <div class="meta">${r.damagePart} · ${r.description} · 报修人 ${r.reporterId === DB.user.id ? DB.user.realName : '刘芳'}</div></div>
-    ${tag(r.status)}
-    ${r.status === 'SUBMITTED' ? `<button class="btn sm" data-verify="${r.id}:CONFIRMED">核验属实</button>
-      <button class="btn outline sm" data-verify="${r.id}:CHECKING">转检测</button>
-      <button class="btn danger sm" data-verify="${r.id}:REJECTED">驳回</button>` : ''}
-    ${['CONFIRMED','WAITING_PARTS'].includes(r.status) ? `<button class="btn sm" data-start="${r.id}">开始维修</button>` : ''}
-    ${r.status === 'REPAIRING' ? `<button class="btn outline sm" data-part="${r.id}">待配件</button>
-      <button class="btn outline sm" data-note="${r.id}">更新进度</button>
-      <button class="btn sm" data-accept="${r.id}">验收</button>` : ''}
-    <button class="btn outline sm" data-rp="${r.id}">时间线（${r.progress.length}）</button>
-  </div>`).join('') : '<p class="empty">没有待处理的报修单，处理得很及时。</p>';
-  const R = id => DB.repairs.find(x => x.id === Number(id));
-  $('#manage-repair-list').querySelectorAll('[data-verify]').forEach(b => b.onclick = () => {
-    const [id, result] = b.dataset.verify.split(':');
-    if (result === 'REJECTED') {
-      showDialog(`<h3>驳回报修</h3><label for="rj">核验意见</label><input id="rj" placeholder="例如：现场核验为正常现象，非损坏">
-        <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button><button class="btn danger" id="rj-ok">确认驳回</button></div>`);
-      $('#rj-ok').onclick = () => api('POST', `/repair/orders/${id}/verify`, { result:'REJECTED', rejectReason: $('#rj').value })
-        .then(() => { dlg.close(); toastMsg('已驳回并通知报修人'); renderManageRepairs(); });
-    } else {
-      api('POST', `/repair/orders/${id}/verify`, { result }).then(() => { toastMsg('已核验，工具转「维修中」'); renderManageRepairs(); });
-    }
-  });
-  $('#manage-repair-list').querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
-    const id = b.dataset.start;
-    showDialog(`<h3>开始维修</h3><label for="est">预计时长</label><input id="est" value="3 个工作日">
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button><button class="btn" id="st-ok">开始</button></div>`);
-    $('#st-ok').onclick = () => api('POST', `/repair/orders/${id}/repair`, { handlerId:2, estimatedDuration: $('#est').value })
-      .then(() => { dlg.close(); toastMsg('维修已开始'); renderManageRepairs(); });
-  });
-  $('#manage-repair-list').querySelectorAll('[data-part]').forEach(b => b.onclick = () =>
-    api('POST', `/repair/orders/${b.dataset.part}/repair`, { status:'WAITING_PARTS' }).then(() => { toastMsg('已标记待配件'); renderManageRepairs(); }));
-  $('#manage-repair-list').querySelectorAll('[data-note]').forEach(b => b.onclick = () => {
-    showDialog(`<h3>更新维修进度</h3><label for="nt">进度说明</label><input id="nt" placeholder="例如：配件已到货，完成接口更换">
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button><button class="btn" id="nt-ok">保存</button></div>`);
-    $('#nt-ok').onclick = () => api('POST', `/repair/orders/${b.dataset.note}/progress`, { content: $('#nt').value })
-      .then(() => { dlg.close(); toastMsg('进度已更新并写入时间线'); renderManageRepairs(); });
-  });
-  $('#manage-repair-list').querySelectorAll('[data-accept]').forEach(b => b.onclick = () => {
-    const r = R(b.dataset.accept);
-    showDialog(`<h3>修后验收 · ${r.toolName}</h3>
-      <label for="ac-r">验收结果</label>
-      <select id="ac-r"><option value="PASS">合格（恢复可用）</option><option value="PARTIAL">部分合格（限用）</option><option value="FAIL">不合格（二次维修/报废）</option></select>
-      <label for="ac-d">重估损坏程度</label>
-      <select id="ac-d">${Object.keys(DAMAGE).map(k => `<option value="${k}">${DAMAGE[k]}</option>`).join('')}</select>
-      <label for="ac-f">维修费（元，非人为损坏填 0）</label>
-      <input id="ac-f" type="number" min="0" value="0">
-      <label for="ac-m">维修说明</label><input id="ac-m" value="更换配件，运转正常">
-      <div class="dlg-actions"><button class="btn outline" onclick="dlg.close()">取消</button><button class="btn" id="ac-ok">提交验收</button></div>`);
-    $('#ac-ok').onclick = () => api('POST', `/repair/orders/${r.id}/accept`, {
-      result: $('#ac-r').value, damageLevel: $('#ac-d').value, repairFee: Number($('#ac-f').value), repairDescription: $('#ac-m').value,
-    }).then(() => { dlg.close(); toastMsg('验收完成，已通知报修人'); renderManageRepairs(); });
-  });
-  $('#manage-repair-list').querySelectorAll('[data-rp]').forEach(b => b.onclick = () => showTimeline(R(b.dataset.rp)));
-}
-
-/* ---------- 设置 ---------- */
-function renderSettings() {
-  $('#settings-box').innerHTML = DB.configs.map(c => `
-    <label for="cf-${c.configKey}">${c.remark || c.configKey}</label>
-    <input id="cf-${c.configKey}" value="${c.configValue}" data-key="${c.configKey}">`).join('') +
-    '<p style="margin-top:14px"><button class="btn" id="save-cfg">保存设置</button></p>';
-  $('#save-cfg').onclick = async () => {
-    for (const input of $('#settings-box').querySelectorAll('[data-key]'))
-      await api('PUT', `/configs/${input.dataset.key}`, { configValue: input.value });
-    toastMsg('设置已保存，立即生效');
-  };
-}
-
-/* ---------- 全局 ---------- */
-document.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => go(b.dataset.nav)));
-document.addEventListener('click', e => { const b = e.target.closest('[data-nav]'); if (b && !b.closest('#nav')) go(b.dataset.nav); });
-$('#nav').addEventListener('click', e => { const b = e.target.closest('[data-nav]'); if (b) go(b.dataset.nav); });
-document.querySelectorAll('.role-switch button').forEach(b => b.onclick = () => {
-  role = b.dataset.role;
-  DB.user.role = role;
-  document.querySelectorAll('.role-switch button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-  go(['manage-tools','manage-rentals','manage-repairs','settings'].includes(view) && !NAV.find(n => n[0] === view && n[2].includes(role)) ? 'square' : view);
-});
-go('square');
+render();
 </script>
 </body>
 </html>

@@ -1,46 +1,41 @@
+import { get, post } from './request'
 import type {
   PageResult,
-  RepairCreateData,
-  RepairCreated,
-  RepairDetail,
-  RepairItem,
-  RepairQuery,
+  RepairAcceptDTO,
+  RepairCreateDTO,
+  RepairCreateVO,
+  RepairOrderVO,
+  RepairProgressDTO,
+  RepairQueryDTO,
+  RepairVerifyDTO,
 } from './types'
-import { httpGet, httpPost } from '../utils/request'
 
-export function createRepair(data: RepairCreateData) {
-  return httpPost<RepairCreated>('/repair/orders', data)
+/** 提交报修申请 */
+export function createRepair(data: RepairCreateDTO) {
+  return post<RepairCreateVO>('/repair', data)
 }
 
-export function myRepairs(params: { page?: number; size?: number; status?: string }) {
-  return httpGet<PageResult<RepairItem>>('/repair/orders/my', params)
+/** 报修单分页 */
+export function pageRepairs(query: RepairQueryDTO) {
+  return get<PageResult<RepairOrderVO>>('/repair/page', query)
 }
 
-export function listRepairs(params: RepairQuery) {
-  return httpGet<PageResult<RepairItem>>('/repair/orders', params)
-}
-
+/** 报修单详情（含维修进度） */
 export function getRepair(id: number) {
-  return httpGet<RepairDetail>(`/repair/orders/${id}`)
+  return get<RepairOrderVO>(`/repair/${id}`)
 }
 
-export function verifyRepair(id: number, data: { result: string; rejectReason?: string }) {
-  return httpPost<void>(`/repair/orders/${id}/verify`, data)
+/** 现场核验（工作人员） */
+export function verifyRepair(id: number, data: RepairVerifyDTO) {
+  return post<void>(`/repair/${id}/verify`, data)
 }
 
-export function startRepair(id: number, data: { handlerId?: number; estimatedDuration?: string; status?: string }) {
-  return httpPost<void>(`/repair/orders/${id}/repair`, data)
+/** 更新维修进度（工作人员） */
+export function updateRepairProgress(id: number, data: RepairProgressDTO) {
+  return post<void>(`/repair/${id}/progress`, data)
 }
 
-export function addRepairProgress(id: number, content: string) {
-  return httpPost<void>(`/repair/orders/${id}/progress`, { content })
-}
-
-export function acceptRepair(id: number, data: {
-  result: string
-  repairDescription: string
-  repairFee?: number
-  damageLevel: string
-}) {
-  return httpPost<void>(`/repair/orders/${id}/accept`, data)
+/** 维修验收（工作人员） */
+export function acceptRepair(id: number, data: RepairAcceptDTO) {
+  return post<void>(`/repair/${id}/accept`, data)
 }

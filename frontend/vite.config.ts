@@ -7,10 +7,10 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    port: 5800,
+    port: 5050,
     proxy: {
       '/api': {
-        target: 'http://localhost:8800',
+        target: 'http://localhost:9090',
         changeOrigin: true,
       },
     },

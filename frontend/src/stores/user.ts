@@ -1,25 +1,13 @@
 import { defineStore } from 'pinia'
-import type { UserInfo } from '../api/types'
+import type { LoginVO } from '../api/types'
 
-/** 登录态（persistedstate 持久化到 localStorage） */
+// 登录态：整体持久化到 localStorage，请求拦截器自动携带 token
 export const useUserStore = defineStore('user', {
-  state: () => ({
+  state: (): LoginVO => ({
     token: '',
-    user: null as UserInfo | null,
+    userId: 0,
+    realName: '',
+    role: 0,
   }),
-  getters: {
-    role: (state) => state.user?.role ?? '',
-    isLoggedIn: (state) => state.token !== '',
-  },
-  actions: {
-    setLogin(token: string, user: UserInfo) {
-      this.token = token
-      this.user = user
-    },
-    clear() {
-      this.token = ''
-      this.user = null
-    },
-  },
   persist: true,
 })
