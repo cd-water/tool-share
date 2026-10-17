@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社区共享工具租赁系统 · 系统架构</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2F4F1;
+    --ink: #1C3A35;
+    --muted: #5F6E68;
+    --soft: #7C8A84;
+    --rule: rgba(28, 58, 53, 0.12);
+    --accent: #E05206;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 40px 40px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { max-width: 1160px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-family: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    margin: 0 0 6px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+  .diagram { overflow-x: auto; }
+  svg { width: 100%; height: auto; display: block; min-width: 860px; }
+  .colophon {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--soft);
+  }
+  @media (max-width: 760px) {
+    body { padding: 32px 16px; }
+    h1 { font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Architecture</p>
+  <h1>社区共享工具租赁系统</h1>
+  <p class="subtitle">系统架构 · 前后端分离 · 中间件与 AI 服务 · 端口标注为本地默认值</p>
+
+  <div class="diagram">
+    <svg role="img" aria-labelledby="toolshare-architecture-title toolshare-architecture-desc" viewBox="0 140 1160 730" xmlns="http://www.w3.org/2000/svg">
+      <title id="toolshare-architecture-title">社区共享工具租赁系统架构图</title>
+      <desc id="toolshare-architecture-desc">浏览器通过 HTTP 调用 Spring Boot 应用；应用以同步连接访问 MySQL、Redis、MinIO，与 RabbitMQ 收发异步消息，并通过 Qdrant、Ollama 与 DeepSeek 完成知识库问答；数据存储与 AI 服务分为两个区域。</desc>
+
+      <defs>
+        <style>
+          .name { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 12px; font-weight: 600; fill: #1C3A35; }
+          .appname { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; font-weight: 600; fill: #1C3A35; }
+          .tech { font-family: 'Geist Mono', monospace; font-size: 8px; fill: #7C8A84; }
+          .alabel { font-family: 'Geist Mono', monospace; font-size: 8px; fill: #5F6E68; letter-spacing: 0.05em; }
+          .chip { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 11px; font-weight: 500; fill: #3A4A45; }
+          .zone { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 12px; font-weight: 500; fill: #7C8A84; }
+          .section { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 11px; font-weight: 500; fill: #5F6E68; }
+        </style>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#5F6E68"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#E05206"/>
+        </marker>
+        <marker id="arrow-start" markerWidth="8" markerHeight="6" refX="1" refY="3" orient="auto">
+          <polygon points="8 0, 0 3, 8 6" fill="#5F6E68"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#F2F4F1"/>
+
+      <!-- ===== 区域（先画，作背景） ===== -->
+      <g>
+        <rect x="800" y="180" width="324" height="420" rx="8" fill="rgba(28,58,53,0.02)" stroke="rgba(28,58,53,0.10)" stroke-width="0.8"/>
+        <rect x="816" y="182" width="56" height="16" rx="2" fill="#F2F4F1"/>
+        <text class="zone" x="820" y="194">数据存储</text>
+
+        <rect x="60" y="400" width="280" height="336" rx="8" fill="rgba(28,58,53,0.02)" stroke="rgba(28,58,53,0.10)" stroke-width="0.8"/>
+        <rect x="76" y="402" width="116" height="16" rx="2" fill="#F2F4F1"/>
+        <text class="zone" x="80" y="414">AI 服务与外部依赖</text>
+      </g>
+
+      <!-- ===== 连接线（先画线，后画盒） ===== -->
+      <g fill="none">
+        <!-- 浏览器 → 应用（主链路） -->
+        <line x1="280" y1="320" x2="420" y2="320" stroke="#E05206" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+        <!-- 应用 → MySQL -->
+        <line x1="720" y1="252" x2="824" y2="252" stroke="#5F6E68" stroke-width="1.1" marker-end="url(#arrow)"/>
+        <!-- 应用 → Redis -->
+        <line x1="720" y1="344" x2="824" y2="344" stroke="#5F6E68" stroke-width="1.1" marker-end="url(#arrow)"/>
+        <!-- 应用 ⇄ RabbitMQ（异步） -->
+        <line x1="720" y1="436" x2="824" y2="436" stroke="#5F6E68" stroke-width="1" stroke-dasharray="4,3" marker-start="url(#arrow-start)" marker-end="url(#arrow)"/>
+        <!-- 应用 → MinIO -->
+        <line x1="720" y1="528" x2="824" y2="528" stroke="#5F6E68" stroke-width="1.1" marker-end="url(#arrow)"/>
+        <!-- 应用 → Qdrant -->
+        <line x1="420" y1="472" x2="316" y2="472" stroke="#5F6E68" stroke-width="1.1" marker-end="url(#arrow)"/>
+        <!-- 应用 → Ollama -->
+        <line x1="420" y1="564" x2="316" y2="564" stroke="#5F6E68" stroke-width="1.1" marker-end="url(#arrow)"/>
+        <!-- 应用 → DeepSeek（外部，异步语义） -->
+        <line x1="420" y1="656" x2="316" y2="656" stroke="#5F6E68" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- ===== 连接标注 ===== -->
+      <g>
+        <rect x="322" y="300" width="56" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="350" y="309" text-anchor="middle">HTTP /api</text>
+
+        <rect x="750" y="232" width="44" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="772" y="241" text-anchor="middle">SQL</text>
+        <rect x="732" y="324" width="80" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="772" y="333" text-anchor="middle">SESSION / LOCK</text>
+        <rect x="744" y="416" width="56" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="772" y="425" text-anchor="middle">ASYNC MQ</text>
+        <rect x="750" y="508" width="44" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="772" y="517" text-anchor="middle">OBJECT</text>
+
+        <rect x="346" y="452" width="44" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="368" y="461" text-anchor="middle">VECTOR</text>
+        <rect x="350" y="544" width="36" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="368" y="553" text-anchor="middle">EMBED</text>
+        <rect x="354" y="636" width="28" height="12" rx="2" fill="#F2F4F1"/><text class="alabel" x="368" y="645" text-anchor="middle">CHAT</text>
+      </g>
+
+      <!-- ===== 浏览器 ===== -->
+      <g>
+        <rect x="60" y="260" width="220" height="120" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="260" width="220" height="120" rx="6" fill="#E8ECE9" stroke="#7C8A84" stroke-width="1"/>
+        <text class="name" x="76" y="292">浏览器</text>
+        <text class="tech" x="76" y="312">Vue 3 · Element Plus · Pinia</text>
+        <text class="tech" x="76" y="328">Vite dev · :5050 → /api 代理</text>
+        <line x1="76" y1="344" x2="264" y2="344" stroke="rgba(28,58,53,0.10)" stroke-width="1"/>
+        <text class="tech" x="76" y="362">居民 / 工作人员 / 管理员</text>
+      </g>
+
+      <!-- ===== 核心应用（唯一焦点） ===== -->
+      <g>
+        <rect x="420" y="240" width="300" height="440" rx="6" fill="#F2F4F1"/>
+        <rect x="420" y="240" width="300" height="440" rx="6" fill="#FEF3EF" stroke="#E05206" stroke-width="1.2"/>
+        <line x1="420" y1="300" x2="720" y2="300" stroke="rgba(224,82,6,0.22)" stroke-width="1"/>
+
+        <text class="appname" x="436" y="268">Spring Boot 应用</text>
+        <text class="tech" x="436" y="286">Java 21 · REST /api · sa-token</text>
+
+        <text class="section" x="436" y="324">业务模块</text>
+
+        <!-- 模块四行两列 -->
+        <rect x="436" y="336" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="448" y="365">用户与权限</text>
+        <rect x="576" y="336" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="588" y="365">工具信息</text>
+
+        <rect x="436" y="398" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="448" y="427">租赁预约</text>
+        <rect x="576" y="398" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="588" y="427">损坏报修</text>
+
+        <rect x="436" y="460" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="448" y="489">消息提醒</text>
+        <rect x="576" y="460" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="588" y="489">AI 问答</text>
+
+        <rect x="436" y="522" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="448" y="551">通用文件</text>
+        <rect x="576" y="522" width="128" height="48" rx="4" fill="#F7F9F6" stroke="rgba(28,58,53,0.15)" stroke-width="1"/>
+        <text class="chip" x="588" y="551">公共支撑</text>
+
+        <line x1="436" y1="586" x2="704" y2="586" stroke="rgba(28,58,53,0.10)" stroke-width="1"/>
+        <text class="tech" x="436" y="606">MyBatis-Plus · Flyway · RabbitMQ</text>
+        <text class="tech" x="436" y="622">MinIO SDK · Spring AI · EasyExcel</text>
+        <text class="tech" x="436" y="646">Result 统一响应 · 全局异常 · 校验</text>
+      </g>
+
+      <!-- ===== 数据存储 ===== -->
+      <g>
+        <!-- MySQL -->
+        <rect x="824" y="216" width="280" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="824" y="216" width="280" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="840" y="246">MySQL 8</text>
+        <text class="tech" x="840" y="266">mysql:3306 · 业务数据 · Flyway</text>
+
+        <!-- Redis -->
+        <rect x="824" y="308" width="280" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="824" y="308" width="280" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="840" y="338">Redis 7</text>
+        <text class="tech" x="840" y="358">redis:6379 · 会话 · 分布式锁 · 单号</text>
+
+        <!-- RabbitMQ -->
+        <rect x="824" y="400" width="280" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="824" y="400" width="280" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="840" y="430">RabbitMQ 4</text>
+        <text class="tech" x="840" y="450">rabbitmq:5672 · 延迟消息 · 提醒</text>
+
+        <!-- MinIO -->
+        <rect x="824" y="492" width="280" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="824" y="492" width="280" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="840" y="522">MinIO</text>
+        <text class="tech" x="840" y="542">minio:9000 · 图片与知识库文档</text>
+      </g>
+
+      <!-- ===== AI 服务 ===== -->
+      <g>
+        <!-- Qdrant -->
+        <rect x="84" y="436" width="232" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="84" y="436" width="232" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="100" y="466">Qdrant</text>
+        <text class="tech" x="100" y="486">qdrant:6334 · 向量检索</text>
+
+        <!-- Ollama -->
+        <rect x="84" y="528" width="232" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="84" y="528" width="232" height="72" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <text class="name" x="100" y="558">Ollama</text>
+        <text class="tech" x="100" y="578">ollama:11434 · bge-m3 向量化</text>
+
+        <!-- DeepSeek（外部依赖） -->
+        <rect x="84" y="620" width="232" height="72" rx="6" fill="#F2F4F1"/>
+        <rect x="84" y="620" width="232" height="72" rx="6" fill="rgba(28,58,53,0.03)" stroke="rgba(28,58,53,0.30)" stroke-width="1" stroke-dasharray="4,3"/>
+        <text class="name" x="100" y="650">DeepSeek API</text>
+        <text class="tech" x="100" y="670">api.deepseek.com · 对话模型</text>
+      </g>
+
+      <!-- ===== 图例 ===== -->
+      <line x1="60" y1="820" x2="1124" y2="820" stroke="rgba(28,58,53,0.12)" stroke-width="0.8"/>
+      <text x="60" y="844" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.14em" fill="#7C8A84">LEGEND</text>
+      <line x1="120" y1="840" x2="156" y2="840" stroke="#5F6E68" stroke-width="1.1"/>
+      <text x="166" y="844" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">同步调用</text>
+      <line x1="260" y1="840" x2="296" y2="840" stroke="#5F6E68" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="306" y="844" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">异步 / 外部依赖</text>
+      <rect x="470" y="834" width="12" height="12" rx="2" fill="#FEF3EF" stroke="#E05206" stroke-width="1"/>
+      <text x="492" y="844" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">核心应用</text>
+    </svg>
+  </div>
+
+  <p class="colophon">Architecture · tool-share · Spring Boot 4.1 · Vue 3 · MySQL / Redis / RabbitMQ / MinIO / Qdrant / Ollama</p>
+</div>
+</body>
+</html>

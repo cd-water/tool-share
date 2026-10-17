@@ -14,6 +14,53 @@
 - **三级角色**：居民 / 社区工作人员 / 系统管理员
 - **六大业务模块**：工具信息 · 租赁预约 · 租赁记录 · 损坏报修 · 消息提醒 · AI 问答
 
+## 系统架构
+
+```mermaid
+flowchart LR
+    browser["浏览器<br/>Vue 3 · Element Plus"]
+    app["Spring Boot 应用<br/>Java 21 · REST /api · sa-token"]
+    browser -->|HTTP /api| app
+
+    subgraph data["数据存储"]
+        mysql[("MySQL 8<br/>业务数据")]
+        redis[("Redis 7<br/>会话 · 锁 · 单号")]
+        mq["RabbitMQ 4<br/>延迟消息"]
+        minio[("MinIO<br/>图片与文档")]
+    end
+
+    subgraph ai["AI 服务与外部依赖"]
+        qdrant[("Qdrant<br/>向量检索")]
+        ollama["Ollama<br/>bge-m3 向量化"]
+        deepseek["DeepSeek API<br/>对话模型"]
+    end
+
+    app -->|SQL| mysql
+    app -->|SESSION / LOCK| redis
+    app <-->|ASYNC MQ| mq
+    app -->|OBJECT| minio
+    app -->|VECTOR| qdrant
+    app -->|EMBED| ollama
+    app -.->|CHAT| deepseek
+```
+
+## 数据模型
+
+```mermaid
+erDiagram
+    user ||--o{ rental_order : "发起租赁"
+    user ||--o{ repair_order : "提交报修"
+    user ||--o{ message : "接收提醒"
+    user ||--o{ kb_document : "上传文档"
+    tool ||--o{ tool_status_log : "状态变更"
+    tool ||--o{ rental_order : "被租赁"
+    tool ||--o{ repair_order : "被报修"
+    rental_order ||--o{ repair_order : "派生"
+    repair_order ||--o{ repair_progress : "维修进度"
+```
+
+完整字段与 DDL 见 [docs/schema.sql](docs/schema.sql)；可交互的架构图与 ER 图见 [docs/diagrams/](docs/diagrams/)。
+
 ## 快速开始
 
 前置要求：JDK 21 · pnpm · Docker（含 Compose）
@@ -98,6 +145,7 @@ tool-share/
 
 ## 文档
 
+- [开发环境准备](docs/SETUP.md)
 - [需求文档 PRD](docs/PRD.md) · [附录（单据模板）](docs/附录.md)
 - [接口文档 API.md](docs/API.md)
 - [演示原型 demo.html](docs/demo.html)（浏览器直接打开）
