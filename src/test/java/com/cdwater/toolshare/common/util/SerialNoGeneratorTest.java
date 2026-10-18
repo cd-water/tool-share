@@ -20,7 +20,7 @@ class SerialNoGeneratorTest {
     void next_matchesFormatAndIncrements() {
         String a = generator.next("SQ-TEST-");
         String b = generator.next("SQ-TEST-");
-        assertTrue(a.matches("SQ-TEST-\\d{8}\\d{4}"), "格式应为 前缀+日期+序号: " + a);
+        assertTrue(a.matches("SQ-TEST-\\d{8}-\\d{4}"), "格式应为 前缀+日期+序号: " + a);
         assertEquals(Integer.parseInt(a.substring(a.length() - 4)) + 1,
                 Integer.parseInt(b.substring(b.length() - 4)), "同前缀日内序号应递增");
     }
