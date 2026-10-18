@@ -14,19 +14,19 @@ spring:
     import: optional:classpath:application-local.yml
   # MySQL
   datasource:
-    url: jdbc:mysql://localhost:3306/${MYSQL_DATABASE:tool_share}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3806/${MYSQL_DATABASE:tool_share}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
     password: ${MYSQL_ROOT_PASSWORD:toolmysql}
   # Redis
   data:
     redis:
       host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      port: ${REDIS_PORT:6879}
       password: ${REDIS_PASSWORD:toolredis}
   # RabbitMQ
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
+    port: ${RABBITMQ_PORT:6172}
     username: ${RABBITMQ_DEFAULT_USER:toolrabbitmq}
     password: ${RABBITMQ_DEFAULT_PASS:toolrabbitmq}
     virtual-host: /
@@ -38,12 +38,12 @@ spring:
       chat:
         model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
       embedding:
-        base-url: ${OLLAMA_BASE_URL:http://localhost:11434/v1}
+        base-url: ${OLLAMA_BASE_URL:http://localhost:11934/v1}
         model: bge-m3
     vectorstore:
       qdrant:
         host: ${QDRANT_HOST:localhost}
-        port: 6334 # gRPC 端口
+        port: 6834 # gRPC 端口
         use-tls: false
         api-key: ${QDRANT_API_KEY:toolqdrant}
         collection-name: tool_share
@@ -67,7 +67,7 @@ mybatis-plus:
 
 # MinIO 对象存储（自定义配置项）
 minio:
-  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9500}
   access-key: ${MINIO_ROOT_USER:toolminio}
   secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
   bucket: ${MINIO_BUCKET:tool-share}
