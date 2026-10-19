@@ -12,7 +12,7 @@ import type {
   Tool,
 } from '../api/types'
 
-export const USE_MOCK = false
+export const USE_MOCK = true
 
 // ---------- 账号（与 V2__init_seed.sql 一致） ----------
 const USERS: { username: string; password: string; vo: LoginVO }[] = [
