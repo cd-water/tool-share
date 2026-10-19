@@ -24,6 +24,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'ai', component: () => import('../views/ai/index.vue'), meta: { title: 'AI 问答' } },
       // 工作人员/管理员端
       { path: 'admin/tools', component: () => import('../views/admin/tools.vue'), meta: { title: '工具管理', roles: [1, 2] } },
+      { path: 'admin/tools/new', component: () => import('../views/admin/tool-form.vue'), meta: { title: '工具录入', roles: [1, 2] } },
       { path: 'admin/rentals', component: () => import('../views/admin/rentals.vue'), meta: { title: '租赁管理', roles: [1, 2] } },
       { path: 'admin/repairs', component: () => import('../views/admin/repairs.vue'), meta: { title: '报修处理', roles: [1, 2] } },
       { path: 'admin/users', component: () => import('../views/admin/users.vue'), meta: { title: '用户管理', roles: [2] } },

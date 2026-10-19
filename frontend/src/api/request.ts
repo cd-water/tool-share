@@ -83,5 +83,10 @@ export function upload<T>(url: string, form: FormData): Promise<T> {
 
 /** 文件下载（Excel 导出等），返回 Blob */
 export function download(url: string, params?: object): Promise<Blob> {
-  return request.get(url, { params, responseType: 'blob' }).then((r) => r.data)
+  return withMock(
+    'GET',
+    url,
+    params,
+    () => request.get(url, { params, responseType: 'blob' }).then((r) => r.data),
+  )
 }
