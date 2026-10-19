@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
+import { matchMock, USE_MOCK } from '../mock'
 
 const request = axios.create({
   baseURL: '/api',
@@ -36,29 +37,48 @@ request.interceptors.response.use(
   },
 )
 
+/** 请求层 mock 开关：命中 src/mock 的接口不发起真实请求 */
+async function withMock<T>(
+  method: string,
+  url: string,
+  payload: object | undefined,
+  real: () => Promise<T>,
+): Promise<T> {
+  if (USE_MOCK) {
+    try {
+      const { hit, data } = await matchMock(method, url, payload)
+      if (hit) return data as T
+    } catch (error) {
+      ElMessage.error((error as Error).message || '请求失败')
+      throw error
+    }
+  }
+  return real()
+}
+
 /** GET，query 参数序列化为 URL 参数，返回已解包的 data */
 export function get<T>(url: string, params?: object): Promise<T> {
-  return request.get(url, { params }) as Promise<T>
+  return withMock('GET', url, params, () => request.get(url, { params }) as Promise<T>)
 }
 
 /** POST，body 为 JSON，返回已解包的 data */
 export function post<T>(url: string, data?: object): Promise<T> {
-  return request.post(url, data) as Promise<T>
+  return withMock('POST', url, data, () => request.post(url, data) as Promise<T>)
 }
 
 /** PUT，body 为 JSON，返回已解包的 data */
 export function put<T>(url: string, data?: object): Promise<T> {
-  return request.put(url, data) as Promise<T>
+  return withMock('PUT', url, data, () => request.put(url, data) as Promise<T>)
 }
 
 /** DELETE，返回已解包的 data */
 export function del<T>(url: string): Promise<T> {
-  return request.delete(url) as Promise<T>
+  return withMock('DELETE', url, undefined, () => request.delete(url) as Promise<T>)
 }
 
 /** 文件上传（multipart/form-data） */
 export function upload<T>(url: string, form: FormData): Promise<T> {
-  return request.post(url, form) as Promise<T>
+  return withMock('POST', url, form, () => request.post(url, form) as Promise<T>)
 }
 
 /** 文件下载（Excel 导出等），返回 Blob */
