@@ -8,6 +8,7 @@ import type {
   LoginVO,
   PageResult,
   RentalCreateVO,
+  RentalOrderVO,
   TimeSlotVO,
   Tool,
 } from '../api/types'
@@ -148,10 +149,86 @@ interface MockRental {
   pickupName: string
   /** 1待支付 2已预约 3已取件 4已归还 5已取消 */
   status: number
+  userId: number
+  depositAmount: number
+  /** 1未缴 2已缴 3已退还 */
+  depositStatus: number
+  /** 0未验收 1完好 2轻微损坏 3严重损坏 */
+  acceptResult: number
+  overdueFee: number
+  depositRefundAmount: number
+  cancelTime: string
+  returnTime: string
+  createTime: string
+  updateTime: string
 }
 
-const rentals: MockRental[] = []
-let nextRentalId = 1
+function seedRental(
+  partial: Pick<MockRental, 'id' | 'orderNo' | 'toolId' | 'startTime' | 'endTime' | 'status'> &
+    Partial<MockRental>,
+): MockRental {
+  return {
+    pickupName: '张三',
+    userId: 3,
+    depositAmount: 0,
+    depositStatus: 1,
+    acceptResult: 0,
+    overdueFee: 0,
+    depositRefundAmount: 0,
+    cancelTime: '',
+    returnTime: '',
+    createTime: partial.startTime,
+    updateTime: partial.startTime,
+    ...partial,
+  }
+}
+
+const rentals: MockRental[] = [
+  seedRental({
+    id: 101, orderNo: 'SQ-ZY-20261019-0008', toolId: 6,
+    startTime: '2026-10-20T09:00:00', endTime: '2026-10-20T12:00:00',
+    status: 1, depositAmount: 60, createTime: '2026-10-19T14:30:00',
+  }),
+  seedRental({
+    id: 102, orderNo: 'SQ-ZY-20261016-0001', toolId: 1,
+    startTime: '2026-10-16T09:00:00', endTime: '2026-10-19T08:00:00',
+    status: 3, depositAmount: 200, depositStatus: 2, createTime: '2026-10-16T08:10:00',
+  }),
+  seedRental({
+    id: 103, orderNo: 'SQ-ZY-20261010-0001', toolId: 7,
+    startTime: '2026-10-10T09:00:00', endTime: '2026-10-12T18:00:00',
+    status: 4, depositAmount: 100, depositStatus: 3, acceptResult: 1,
+    depositRefundAmount: 100, returnTime: '2026-10-12T17:40:00',
+    createTime: '2026-10-10T08:20:00',
+  }),
+  seedRental({
+    id: 104, orderNo: 'SQ-ZY-20260928-0002', toolId: 5,
+    startTime: '2026-09-29T08:00:00', endTime: '2026-09-30T18:00:00',
+    status: 4, depositAmount: 300, depositStatus: 3, acceptResult: 2,
+    overdueFee: 20, depositRefundAmount: 280, returnTime: '2026-10-01T09:30:00',
+    createTime: '2026-09-28T19:00:00',
+  }),
+  seedRental({
+    id: 105, orderNo: 'SQ-ZY-20261005-0005', toolId: 9,
+    startTime: '2026-10-06T09:00:00', endTime: '2026-10-07T18:00:00',
+    status: 5, depositAmount: 80, depositStatus: 3,
+    depositRefundAmount: 80, cancelTime: '2026-10-05T20:00:00',
+    createTime: '2026-10-05T18:00:00',
+  }),
+  // 距取件不足 24 小时，用于验证取消失败提示
+  seedRental({
+    id: 106, orderNo: 'SQ-ZY-20261018-0002', toolId: 2,
+    startTime: '2026-10-20T08:00:00', endTime: '2026-10-20T18:00:00',
+    status: 2, depositAmount: 150, depositStatus: 2, createTime: '2026-10-18T09:00:00',
+  }),
+  // 距取件超过 24 小时，用于验证取消成功
+  seedRental({
+    id: 107, orderNo: 'SQ-ZY-20261017-0001', toolId: 8,
+    startTime: '2026-10-25T09:00:00', endTime: '2026-10-26T18:00:00',
+    status: 2, depositAmount: 120, depositStatus: 2, createTime: '2026-10-17T10:00:00',
+  }),
+]
+let nextRentalId = 200
 
 function sleep(ms = 250) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -226,6 +303,60 @@ function pageTools(payload: Record<string, unknown>): PageResult<Tool> {
   }
 }
 
+function nowText() {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function rentalVO(rental: MockRental): RentalOrderVO {
+  const tool = TOOLS.find((t) => t.id === rental.toolId)
+  return {
+    id: rental.id,
+    orderNo: rental.orderNo,
+    toolId: rental.toolId,
+    toolCode: tool?.toolCode ?? '',
+    toolName: tool?.name ?? '',
+    userId: rental.userId,
+    userName: '张三',
+    userPhone: '138****0003',
+    pickupName: rental.pickupName,
+    startTime: rental.startTime,
+    endTime: rental.endTime,
+    depositAmount: rental.depositAmount,
+    depositStatus: rental.depositStatus,
+    status: rental.status,
+    cancelTime: rental.cancelTime,
+    returnTime: rental.returnTime,
+    acceptResult: rental.acceptResult,
+    overdueFee: rental.overdueFee,
+    depositRefundAmount: rental.depositRefundAmount,
+    createTime: rental.createTime,
+    updateTime: rental.updateTime,
+  }
+}
+
+function pageRentals(payload: Record<string, unknown>): PageResult<RentalOrderVO> {
+  const userName = String(payload.userName ?? '').trim()
+  const toolCode = String(payload.toolCode ?? '').trim().toLowerCase()
+  const acceptResult = Number(payload.acceptResult ?? 0)
+
+  let rows = rentals
+    .map(rentalVO)
+    .sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''))
+  if (userName) rows = rows.filter((r) => r.userName.includes(userName))
+  if (toolCode) rows = rows.filter((r) => r.toolCode.toLowerCase().includes(toolCode))
+  if (acceptResult) rows = rows.filter((r) => r.acceptResult === acceptResult)
+
+  const page = Math.max(1, Number(payload.page) || 1)
+  const size = Math.max(1, Number(payload.size) || 10)
+  return {
+    total: rows.length,
+    records: rows.slice((page - 1) * size, page * size),
+    page,
+    size,
+  }
+}
+
 /**
  * 命中 mock 时返回 { hit: true, data }，未命中返回 { hit: false }（继续走真实 axios）。
  * 抛出 Error 表示模拟业务失败。
@@ -273,7 +404,8 @@ export async function matchMock(
     const endTime = String(body.endTime ?? '')
     const pickupName = String(body.pickupName ?? '')
 
-    if (!TOOLS.some((t) => t.id === toolId)) throw new Error('工具不存在')
+    const tool = TOOLS.find((t) => t.id === toolId)
+    if (!tool) throw new Error('工具不存在')
     if (!startTime || !endTime) throw new Error('预约时段不能为空')
 
     const conflict = rentals.find(
@@ -296,9 +428,41 @@ export async function matchMock(
 
     const id = nextRentalId++
     const orderNo = `SQ-ZY-${todayCompact()}-${String(id).padStart(4, '0')}`
-    rentals.push({ id, orderNo, toolId, startTime, endTime, pickupName, status: 1 })
+    const now = nowText()
+    rentals.push({
+      id,
+      orderNo,
+      toolId,
+      startTime,
+      endTime,
+      pickupName,
+      status: 1,
+      userId: 3,
+      depositAmount: tool.deposit,
+      depositStatus: 1,
+      acceptResult: 0,
+      overdueFee: 0,
+      depositRefundAmount: 0,
+      cancelTime: '',
+      returnTime: '',
+      createTime: now,
+      updateTime: now,
+    })
     const data: RentalCreateVO = { id, orderNo }
     return { hit: true, data }
+  }
+
+  if (method === 'GET' && url === '/rental/page') {
+    await sleep()
+    return { hit: true, data: pageRentals(body) }
+  }
+
+  const rentalDetail = url.match(/^\/rental\/(\d+)$/)
+  if (method === 'GET' && rentalDetail) {
+    await sleep()
+    const rental = rentals.find((r) => r.id === Number(rentalDetail[1]))
+    if (!rental) throw new Error('预约单不存在')
+    return { hit: true, data: rentalVO(rental) }
   }
 
   const rentalPay = url.match(/^\/rental\/(\d+)\/pay$/)
@@ -307,6 +471,24 @@ export async function matchMock(
     const rental = rentals.find((r) => r.id === Number(rentalPay[1]))
     if (!rental) throw new Error('预约单不存在')
     rental.status = 2
+    rental.depositStatus = 2
+    rental.updateTime = nowText()
+    return { hit: true, data: null }
+  }
+
+  const rentalCancel = url.match(/^\/rental\/(\d+)\/cancel$/)
+  if (method === 'POST' && rentalCancel) {
+    await sleep()
+    const rental = rentals.find((r) => r.id === Number(rentalCancel[1]))
+    if (!rental) throw new Error('预约单不存在')
+    if (rental.status !== 1 && rental.status !== 2) throw new Error('当前状态不可取消')
+    const hours = (new Date(rental.startTime).getTime() - Date.now()) / 3_600_000
+    if (hours < 24) throw new Error('取件前 24 小时内不可取消预约')
+    rental.status = 5
+    rental.depositStatus = 3
+    rental.depositRefundAmount = rental.depositAmount
+    rental.cancelTime = nowText()
+    rental.updateTime = rental.cancelTime
     return { hit: true, data: null }
   }
 
