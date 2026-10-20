@@ -54,7 +54,7 @@ public class RepairController {
     /** 现场核验 */
     @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
     @PostMapping("/{id}/verify")
-    public Result<Void> verify(@PathVariable Long id, @RequestBody RepairVerifyDTO dto) {
+    public Result<Void> verify(@PathVariable Long id, @Valid @RequestBody RepairVerifyDTO dto) {
         repairService.verify(id, dto);
         return Result.success();
     }
@@ -62,7 +62,7 @@ public class RepairController {
     /** 更新维修进度 */
     @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
     @PostMapping("/{id}/progress")
-    public Result<Void> progress(@PathVariable Long id, @RequestBody RepairProgressDTO dto) {
+    public Result<Void> progress(@PathVariable Long id, @Valid @RequestBody RepairProgressDTO dto) {
         repairService.progress(id, dto);
         return Result.success();
     }
@@ -70,7 +70,7 @@ public class RepairController {
     /** 维修验收 */
     @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
     @PostMapping("/{id}/accept")
-    public Result<Void> accept(@PathVariable Long id, @RequestBody RepairAcceptDTO dto) {
+    public Result<Void> accept(@PathVariable Long id, @Valid @RequestBody RepairAcceptDTO dto) {
         repairService.accept(id, dto);
         return Result.success();
     }
