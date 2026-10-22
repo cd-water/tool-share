@@ -7,13 +7,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.common.enums.ResultCode;
 import com.cdwater.toolshare.common.exception.BizException;
 import com.cdwater.toolshare.common.result.PageResult;
+import com.cdwater.toolshare.config.NotifyMessage;
 import com.cdwater.toolshare.notify.dto.NotifyConfigDTO;
 import com.cdwater.toolshare.notify.dto.NotifyQueryDTO;
 import com.cdwater.toolshare.notify.entity.Message;
 import com.cdwater.toolshare.notify.entity.NotifyConfig;
 import com.cdwater.toolshare.notify.mapper.MessageMapper;
 import com.cdwater.toolshare.notify.mapper.NotifyConfigMapper;
-import com.cdwater.toolshare.notify.mq.NotifyMqMessage;
 import com.cdwater.toolshare.notify.service.NotifyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -109,7 +109,7 @@ public class NotifyServiceImpl implements NotifyService {
     }
 
     @Override
-    public void saveMqMessage(NotifyMqMessage message) {
+    public void saveMqMessage(NotifyMessage message) {
         int channel = getConfig().getChannel();
         Message entity = new Message();
         entity.setUserId(message.getUserId());

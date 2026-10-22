@@ -4,7 +4,7 @@ import com.cdwater.toolshare.common.result.PageResult;
 import com.cdwater.toolshare.notify.dto.NotifyConfigDTO;
 import com.cdwater.toolshare.notify.dto.NotifyQueryDTO;
 import com.cdwater.toolshare.notify.entity.Message;
-import com.cdwater.toolshare.notify.mq.NotifyMqMessage;
+import com.cdwater.toolshare.config.NotifyMessage;
 
 /**
  * 消息提醒业务接口
@@ -29,5 +29,5 @@ public interface NotifyService {
     /**
      * MQ 提醒消息存档：渠道取配置值，系统内消息置已发送，短信渠道记待发送
      */
-    void saveMqMessage(NotifyMqMessage message);
+    void saveMqMessage(NotifyMessage message);
 }
