@@ -173,7 +173,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { chat } from '../../api/ai'
+import { chatStream } from '../../api/ai'
 import type { ChatSourceVO } from '../../api/types'
 
 interface ChatMessage {
@@ -253,25 +253,32 @@ function onKeydown(e: KeyboardEvent) {
 async function ask(question: string) {
   sending.value = true
   scrollToBottom()
-  try {
-    const result = await chat({ question })
-    messages.value.push({
-      role: 'ai',
-      text: result.answer,
-      sources: result.sources ?? [],
-    })
-  } catch {
-    messages.value.push({
-      role: 'ai',
-      text: '',
-      error: true,
-      question,
-    })
-  } finally {
-    sending.value = false
-    saveHistory()
-    scrollToBottom()
+  messages.value.push({ role: 'ai', text: '', sources: [] })
+  const target = messages.value[messages.value.length - 1]
+  let failed = false
+  await chatStream(question, {
+    onSources: (sources) => {
+      target.sources = sources ?? []
+    },
+    onDelta: (text) => {
+      target.text += text
+    },
+    onError: (message) => {
+      failed = true
+      target.text = ''
+      target.error = true
+      target.question = question
+      ElMessage.error(message)
+    },
+  })
+  if (!failed && !target.text && !target.error) {
+    // 服务端无任何有效帧即断开：按失败处理，保留重试入口
+    target.error = true
+    target.question = question
   }
+  sending.value = false
+  saveHistory()
+  scrollToBottom()
 }
 
 function send(preset?: string) {
