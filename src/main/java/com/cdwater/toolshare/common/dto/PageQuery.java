@@ -17,7 +17,7 @@ public class PageQuery {
 
     /** 每页条数 */
     @Min(value = 1, message = "每页条数最小为 1")
-    @Max(value = 100, message = "每页条数最大为 100")
+    @Max(value = 200, message = "每页条数最大为 200")
     private long size = 10;
 
     /**

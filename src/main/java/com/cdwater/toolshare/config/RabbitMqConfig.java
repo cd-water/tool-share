@@ -61,9 +61,10 @@ public class RabbitMqConfig {
 
     /**
      * JSON 序列化消息体；Boot 会把它同时应用到 RabbitTemplate 与消费者容器。
+     * 信任本项目包，否则消费端按 __TypeId__ 反序列化 NotifyMessage 时被 trusted-packages 拦截。
      */
     @Bean
     public MessageConverter messageConverter() {
-        return new JacksonJsonMessageConverter();
+        return new JacksonJsonMessageConverter("com.cdwater.toolshare");
     }
 }
