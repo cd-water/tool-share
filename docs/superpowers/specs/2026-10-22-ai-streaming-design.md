@@ -14,7 +14,7 @@
   - `event: delta`，data 为增量文本 —— 多帧
   - `event: done`，data `[DONE]` —— 终止帧
   - `event: error`，data 为错误消息 —— 流中途异常
-- **实现不走 QuestionAnswerAdvisor**：流式下 advisor 的检索结果出现时机不可靠。改为先 `vectorStore.similaritySearch(SearchRequest.topK(4))` 取片段，拼入 system 提示词（要求仅依据资料回答），再 `chatClient.prompt().system(...).user(question).stream()`。sources 与上下文同源、仅检索一次
+- **实现不走 QuestionAnswerAdvisor**：流式下 advisor 的检索结果出现时机不可靠。改为先 `vectorStore.similaritySearch(SearchRequest.topK(5))` 取片段（复用现有 `TOP_K` 常量，与非流式 chat 行为一致），拼入 system 提示词（要求仅依据资料回答），再 `chatClient.prompt().system(...).user(question).stream()`。sources 与上下文同源、仅检索一次
 - 原 `/api/ai/chat` 保持不动；API.md 增补 stream 端点一节（契约只增不改）
 - 配置 `spring.mvc.async.request-timeout: 120s`
 - 权限：登录即可（与非流式一致）
