@@ -105,6 +105,7 @@
             <div class="msg-main">
               <div class="bubble">
                 <template v-if="msg.error">
+                  <template v-if="msg.text">{{ msg.text }}</template>
                   回答失败，请稍后重试
                   <button type="button" class="retry-btn" @click="retry(index)">点击重试</button>
                 </template>
@@ -255,7 +256,7 @@ async function ask(question: string) {
   scrollToBottom()
   messages.value.push({ role: 'ai', text: '', sources: [] })
   const target = messages.value[messages.value.length - 1]
-  let failed = false
+  let doneReceived = false
   await chatStream(question, {
     onSources: (sources) => {
       target.sources = sources ?? []
@@ -263,16 +264,15 @@ async function ask(question: string) {
     onDelta: (text) => {
       target.text += text
     },
+    onDone: () => {
+      doneReceived = true
+    },
     onError: (message) => {
-      failed = true
-      target.text = ''
-      target.error = true
-      target.question = question
       ElMessage.error(message)
     },
   })
-  if (!failed && !target.text && !target.error) {
-    // 服务端无任何有效帧即断开：按失败处理，保留重试入口
+  // done 帧是唯一完成判据：请求失败、断流、超时一律进错误气泡（保留已到文本与重试入口）
+  if (!doneReceived) {
     target.error = true
     target.question = question
   }

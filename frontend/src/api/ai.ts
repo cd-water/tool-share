@@ -51,7 +51,15 @@ export async function chatStream(question: string, handlers: ChatStreamHandlers)
   const decoder = new TextDecoder()
   let buffer = ''
   for (;;) {
-    const { done, value } = await reader.read()
+    let chunk: ReadableStreamReadResult<Uint8Array>
+    try {
+      chunk = await reader.read()
+    } catch {
+      // 流建立后连接中断（后端/代理重启、休眠唤醒等），交给 onError 收尾
+      handlers.onError?.('网络异常，连接中断')
+      return
+    }
+    const { done, value } = chunk
     if (done) break
     buffer += decoder.decode(value, { stream: true })
     const frames = buffer.split('\n\n')

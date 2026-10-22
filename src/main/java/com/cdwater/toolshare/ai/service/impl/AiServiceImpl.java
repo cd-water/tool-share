@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -179,21 +180,24 @@ public class AiServiceImpl implements AiService {
     @Override
     public Flux<ServerSentEvent<String>> chatStream(ChatDTO dto) {
         return Flux.defer(() -> {
-            List<Document> docs = vectorStore.similaritySearch(
-                    SearchRequest.builder().topK(TOP_K).build());
-            Flux<String> answer = chatClientBuilder.build().prompt()
-                    .system(SYSTEM_TEMPLATE.formatted(contextOf(docs)))
-                    .user(dto.getQuestion())
-                    .stream()
-                    .content();
-            return Flux.concat(
-                    Flux.just(frame("sources", jsonOf(toSources(docs)))),
-                    answer.map(chunk -> frame("delta", jsonOf(chunk))),
-                    Flux.just(frame("done", "[DONE]")));
-        }).onErrorResume(e -> {
-            log.error("流式问答失败: {}", dto.getQuestion(), e);
-            return Flux.just(frame("error", jsonOf("回答生成失败，请稍后重试")));
-        });
+                    List<Document> docs = vectorStore.similaritySearch(
+                            SearchRequest.builder().topK(TOP_K).build());
+                    Flux<String> answer = chatClientBuilder.build().prompt()
+                            .system(SYSTEM_TEMPLATE.formatted(contextOf(docs)))
+                            .user(dto.getQuestion())
+                            .stream()
+                            .content();
+                    return Flux.concat(
+                            Flux.just(frame("sources", jsonOf(toSources(docs)))),
+                            answer.map(chunk -> frame("delta", jsonOf(chunk))),
+                            Flux.just(frame("done", "[DONE]")));
+                })
+                // 上游 90s 无输出即转错误发 error 帧（须小于 MVC 120s 异步超时，否则容器先掐断、无 error 帧）
+                .timeout(Duration.ofSeconds(90))
+                .onErrorResume(e -> {
+                    log.error("流式问答失败: {}", dto.getQuestion(), e);
+                    return Flux.just(frame("error", jsonOf("回答生成失败，请稍后重试")));
+                });
     }
 
     /**
