@@ -14,6 +14,7 @@ down: backend-down frontend-down infra-down ## 停止中间件 + 前后端（数
 
 infra: ## 启动中间件（等待健康检查通过）
 	cd deploy/docker && docker compose up -d --wait mysql redis rabbitmq minio qdrant ollama
+	docker exec tool-share-minio sh -c "mc alias set -q init http://localhost:9000 $${MINIO_ROOT_USER:-toolminio} $${MINIO_ROOT_PASSWORD:-toolminio} >/dev/null && mc mb --ignore-existing init/tool-share"
 
 infra-down: ## 停止中间件（数据卷保留）
 	cd deploy/docker && docker compose stop

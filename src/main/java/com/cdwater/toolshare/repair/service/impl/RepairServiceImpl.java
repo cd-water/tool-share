@@ -49,6 +49,7 @@ public class RepairServiceImpl implements RepairService {
 
     private static final int VERIFY_CONFIRMED = 1;
     private static final int TOOL_STATUS_REPAIRING = 3;
+    private static final int REPAIR_STATUS_WAITING_PARTS = 1;
     private static final int REPAIR_STATUS_REPAIRING = 2;
     private static final int REPAIR_STATUS_COMPLETED = 3;
     private static final int TOOL_STATUS_AVAILABLE = 1;
@@ -120,11 +121,16 @@ public class RepairServiceImpl implements RepairService {
     @Transactional
     public void verify(Long id, RepairVerifyDTO dto) {
         RepairOrder order = getOrder(id);
-        repairOrderMapper.update(null, new LambdaUpdateWrapper<RepairOrder>()
+        LambdaUpdateWrapper<RepairOrder> update = new LambdaUpdateWrapper<RepairOrder>()
                 .eq(RepairOrder::getId, id)
                 .set(RepairOrder::getVerifyBy, StpUtil.getLoginIdAsLong())
                 .set(RepairOrder::getVerifyTime, LocalDateTime.now())
-                .set(RepairOrder::getVerifyResult, dto.getVerifyResult()));
+                .set(RepairOrder::getVerifyResult, dto.getVerifyResult());
+        // 确认损坏即进入维修流程初始状态（待配件），否则单据无「更新进度」入口
+        if (dto.getVerifyResult() == VERIFY_CONFIRMED) {
+            update.set(RepairOrder::getRepairStatus, REPAIR_STATUS_WAITING_PARTS);
+        }
+        repairOrderMapper.update(null, update);
 
         if (dto.getVerifyResult() == VERIFY_CONFIRMED) {
             updateToolStatus(order.getToolId(), TOOL_STATUS_REPAIRING,

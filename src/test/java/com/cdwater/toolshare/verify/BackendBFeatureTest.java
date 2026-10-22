@@ -143,7 +143,7 @@ class BackendBFeatureTest {
         assertEquals("A200", created.path("code").asText());
         long repairId = created.path("data").path("id").asLong();
         String repairNo = created.path("data").path("repairNo").asText();
-        assertTrue(repairNo.matches("SQ-BX-\\d{12}"), "单号格式: " + repairNo);
+        assertTrue(repairNo.matches("SQ-BX-\\d{8}-\\d{4}"), "单号格式: " + repairNo);
 
         // 别人的租赁单不能报修
         expectCode(post("/api/repair")
@@ -198,6 +198,9 @@ class BackendBFeatureTest {
                 .content("{\"verifyResult\":1,\"remark\":\"电机损坏\"}"), "A200");
         verify(toolService).updateStatus(eq(3L),
                 argThat(dto -> Objects.equals(dto.getStatus(), 3)));
+        // 核验确认后单据必须进入维修流程初始状态（待配件），否则前端无「更新进度」入口
+        assertEquals(1, repairOrderMapper.selectById(repairId).getRepairStatus(),
+                "核验确认损坏后 repair_status 应初始化为 1（待配件）");
 
         // 进度：维修中 → 回写状态与开始时间
         expectCode(post("/api/repair/" + repairId + "/progress")
