@@ -8,6 +8,7 @@ import com.cdwater.toolshare.rental.dto.RentalReturnDTO;
 import com.cdwater.toolshare.rental.vo.RentalCreateVO;
 import com.cdwater.toolshare.rental.vo.RentalOrderVO;
 import com.cdwater.toolshare.rental.vo.TimeSlotVO;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,5 +34,5 @@ public interface RentalService {
 
     RentalOrderVO detail(Long id);
 
-    void export(RentalQueryDTO query);
+    void export(RentalQueryDTO query, HttpServletResponse response);
 }

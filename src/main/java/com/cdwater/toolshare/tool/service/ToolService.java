@@ -26,6 +26,11 @@ public interface ToolService {
 
     void updateStatus(Long id, ToolStatusDTO dto);
 
+    /**
+     * 归还验收后重估损坏程度（供 rental 模块联动调用，不改变状态、不写状态日志）
+     */
+    void updateDamageLevel(Long id, Integer damageLevel);
+
     void audit(Long id, ToolAuditDTO dto);
 
     List<ToolStatusLog> statusLogs(Long id);

@@ -13,6 +13,7 @@ import com.cdwater.toolshare.rental.service.RentalService;
 import com.cdwater.toolshare.rental.vo.RentalCreateVO;
 import com.cdwater.toolshare.rental.vo.RentalOrderVO;
 import com.cdwater.toolshare.rental.vo.TimeSlotVO;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -99,11 +100,10 @@ public class RentalController {
         return Result.success(rentalService.detail(id));
     }
 
-    /** 导出租赁记录 Excel（实现阶段改为文件流响应） */
+    /** 导出租赁记录 Excel（文件流响应） */
     @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
     @GetMapping("/export")
-    public Result<Void> export(@Valid RentalQueryDTO query) {
-        rentalService.export(query);
-        return Result.success();
+    public void export(@Valid RentalQueryDTO query, HttpServletResponse response) {
+        rentalService.export(query, response);
     }
 }

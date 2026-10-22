@@ -30,6 +30,6 @@ public class SerialNoGenerator {
         if (seq != null && seq == 1L) {
             redisTemplate.expire(key, Duration.ofDays(2));
         }
-        return prefix + date + "%04d".formatted(seq);
+        return prefix + date + "-" + "%04d".formatted(seq);
     }
 }
