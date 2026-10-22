@@ -21,8 +21,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Flux;
 
 /**
  * AI 问答接口（RAG 知识库）
@@ -61,5 +63,11 @@ public class AiController {
     @PostMapping("/chat")
     public Result<ChatVO> chat(@Valid @RequestBody ChatDTO dto) {
         return Result.success(aiService.chat(dto));
+    }
+
+    /** RAG 流式问答（SSE：sources → delta* → done，异常发 error 帧） */
+    @PostMapping("/chat/stream")
+    public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody ChatDTO dto) {
+        return aiService.chatStream(dto);
     }
 }

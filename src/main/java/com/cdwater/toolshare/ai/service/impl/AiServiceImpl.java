@@ -27,10 +27,13 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Flux;
 import software.amazon.awssdk.core.sync.RequestBody;
+import tools.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -58,6 +61,7 @@ public class AiServiceImpl implements AiService {
     private final VectorStore vectorStore;
     private final ChatClient.Builder chatClientBuilder;
     private final S3Client s3Client;
+    private final ObjectMapper objectMapper;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -172,6 +176,60 @@ public class AiServiceImpl implements AiService {
         return vo;
     }
 
+    @Override
+    public Flux<ServerSentEvent<String>> chatStream(ChatDTO dto) {
+        return Flux.defer(() -> {
+            List<Document> docs = vectorStore.similaritySearch(
+                    SearchRequest.builder().topK(TOP_K).build());
+            Flux<String> answer = chatClientBuilder.build().prompt()
+                    .system(SYSTEM_TEMPLATE.formatted(contextOf(docs)))
+                    .user(dto.getQuestion())
+                    .stream()
+                    .content();
+            return Flux.concat(
+                    Flux.just(frame("sources", jsonOf(toSources(docs)))),
+                    answer.map(chunk -> frame("delta", jsonOf(chunk))),
+                    Flux.just(frame("done", "[DONE]")));
+        }).onErrorResume(e -> {
+            log.error("流式问答失败: {}", dto.getQuestion(), e);
+            return Flux.just(frame("error", jsonOf("回答生成失败，请稍后重试")));
+        });
+    }
+
+    /**
+     * 流式提示词：仅依据检索片段回答，无资料如实说明（与非流式 advisor 行为对齐）
+     */
+    private static final String SYSTEM_TEMPLATE = """
+            你是社区共享工具租赁系统的智能助手，请依据以下知识库资料回答居民问题，
+            资料中没有的内容请如实说明没有相关资料。资料：
+            %s
+            """;
+
+    private ServerSentEvent<String> frame(String event, String data) {
+        return ServerSentEvent.builder(data).event(event).build();
+    }
+
+    /** 检索片段拼上下文，与 toSources 同源 */
+    private String contextOf(List<Document> docs) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < docs.size(); i++) {
+            Document doc = docs.get(i);
+            Object fileName = doc.getMetadata().get("fileName");
+            sb.append("【片段").append(i + 1)
+                    .append(fileName == null ? "" : "·" + fileName)
+                    .append("】\n").append(doc.getText()).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    private String jsonOf(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return "\"\"";
+        }
+    }
+
     private Map<String, Object> metadataOf(Long documentId, String fileName) {
         Map<String, Object> metadata = new HashMap<>();
         // Qdrant 存储会把 Long 元数据转成字符串，按字符串存/删才能命中过滤条件
@@ -199,9 +257,15 @@ public class AiServiceImpl implements AiService {
         if (!(retrieved instanceof List<?> list)) {
             return List.of();
         }
-        return list.stream()
+        return toSources(list.stream()
                 .filter(Document.class::isInstance)
                 .map(Document.class::cast)
+                .toList());
+    }
+
+    /** Document → 来源片段（流式与非流式共用） */
+    private List<ChatSourceVO> toSources(List<Document> docs) {
+        return docs.stream()
                 .map(document -> {
                     ChatSourceVO source = new ChatSourceVO();
                     source.setContent(document.getText());

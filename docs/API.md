@@ -92,6 +92,7 @@
 | GET | /api/ai/documents | 知识库文档分页 | 工作人员 | query: `page, size` | PageResult |
 | DELETE | /api/ai/documents/{id} | 删除文档（同步删 Qdrant 向量） | 管理员 | - | null |
 | POST | /api/ai/chat | RAG 问答，返回答案与知识库来源片段 | 居民/工作人员 | body: `{question}` | `{answer, sources: [{content, documentName}]}` |
+| POST | /api/ai/chat/stream | RAG 流式问答（SSE，`text/event-stream`） | 居民/工作人员 | body: `{question}` | 帧序列：`sources`（JSON 数组，首帧）→ `delta`（JSON 字符串，多帧增量）→ `done`（`[DONE]`）；流中途异常发 `error`（JSON 字符串） |
 
 ## 7. 通用文件模块 `/api/file`
 

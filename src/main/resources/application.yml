@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: tool-share
+  # MVC 异步请求超时（AI 流式问答等长连接）
+  mvc:
+    async:
+      request-timeout: 120s
   # 文件上传大小限制
   servlet:
     multipart:
