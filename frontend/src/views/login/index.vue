@@ -34,6 +34,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { login } from '../../api/user'
+import { homeOf } from '../../router'
 
 const router = useRouter()
 const route = useRoute()
@@ -55,7 +56,7 @@ async function handleLogin() {
   try {
     const vo = await login(form)
     ElMessage.success(`欢迎，${vo.realName}`)
-    router.push((route.query.redirect as string) || '/tools')
+    router.push((route.query.redirect as string) || homeOf(vo.role))
   } finally {
     loading.value = false
   }

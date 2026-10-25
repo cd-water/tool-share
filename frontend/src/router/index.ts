@@ -3,6 +3,11 @@ import type { RouteRecordRaw } from 'vue-router'
 import BasicLayout from '../layouts/BasicLayout.vue'
 import { useUserStore } from '../stores/user'
 
+/** 各角色登录后的首页：居民 → 工具广场，工作人员/管理员 → 工具管理（管理员含工作人员页面） */
+export function homeOf(role: number): string {
+  return role === 0 ? '/tools' : '/admin/tools'
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -12,7 +17,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: BasicLayout,
-    redirect: '/tools',
+    redirect: () => (useUserStore().token ? homeOf(useUserStore().role) : '/login'),
     children: [
       // 居民端
       { path: 'tools', component: () => import('../views/tool/index.vue'), meta: { title: '工具广场' } },
@@ -45,14 +50,14 @@ router.beforeEach((to) => {
   if (!to.meta.public && !userStore.token) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
-  // 已登录访问登录页 → 回首页
+  // 已登录访问登录页 → 回角色首页
   if (to.path === '/login' && userStore.token) {
-    return { path: '/tools' }
+    return { path: homeOf(userStore.role) }
   }
-  // 角色不符 → 回工具广场
+  // 角色不符 → 回角色首页
   const roles = to.meta.roles as number[] | undefined
   if (roles && !roles.includes(userStore.role)) {
-    return { path: '/tools' }
+    return { path: homeOf(userStore.role) }
   }
 })
 

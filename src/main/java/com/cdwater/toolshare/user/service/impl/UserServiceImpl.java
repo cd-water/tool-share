@@ -74,13 +74,7 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new BizException(ResultCode.NOT_FOUND.getCode(), "用户不存在");
         }
-        UserVO vo = new UserVO();
-        vo.setId(user.getId());
-        vo.setUsername(user.getUsername());
-        vo.setRealName(user.getRealName());
-        vo.setPhone(DesensitizeUtil.maskPhone(user.getPhone()));
-        vo.setRole(user.getRole());
-        return vo;
+        return toVO(user);
     }
 
     @Override
