@@ -5,12 +5,12 @@
         <div>
           <h1>知识库管理</h1>
           <p class="sub">
-            上传工具手册、安全指引与租赁规则文档，解析后供 AI 问答检索（上传 / 删除仅管理员）
+            上传工具手册、安全指引与租赁规则文档，解析后供 AI 问答检索
           </p>
         </div>
       </div>
 
-      <div v-if="isAdmin" class="upload-card">
+      <div class="upload-card">
         <div
           class="upload-zone"
           :class="{ dragover: dragOver, busy: uploading }"
@@ -52,8 +52,6 @@
         />
       </div>
 
-      <div v-else class="readonly-tip">仅管理员可上传或删除知识库文档，当前为只读查看。</div>
-
       <div v-loading="loading" class="list-wrap">
         <div v-if="!loading && !records.length" class="empty-box">
           <p class="empty-desc">{{ failed ? '加载失败，请稍后重试' : '暂无知识库文档' }}</p>
@@ -94,7 +92,7 @@
                   <span class="time">{{ fmtDateTime(row.createTime) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column v-if="isAdmin" label="操作" width="90" align="right">
+              <el-table-column label="操作" width="90" align="right">
                 <template #default="{ row }">
                   <button
                     type="button"
@@ -133,7 +131,7 @@
                 <span class="mc-k">上传时间</span>
                 <span class="mc-v">{{ fmtDateTime(row.createTime) }}</span>
               </div>
-              <div v-if="isAdmin" class="mc-actions">
+              <div class="mc-actions">
                 <button
                   type="button"
                   class="link-btn danger"
@@ -165,11 +163,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox, vLoading } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { deleteKbDocument, pageKbDocuments, uploadKbDocument } from '../../api/ai'
-import { useUserStore } from '../../stores/user'
 import type { KbDocument } from '../../api/types'
 
 const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.txt', '.md']
@@ -181,9 +178,6 @@ const KB_STATUS: Record<number, [string, string]> = {
   3: ['失败', 't-danger'],
 }
 const statusTag = (v: number) => KB_STATUS[v] ?? ['未知', 't-gray']
-
-const userStore = useUserStore()
-const isAdmin = computed(() => userStore.role === 2)
 
 const fileInput = ref<HTMLInputElement>()
 const records = ref<KbDocument[]>([])

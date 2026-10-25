@@ -21,8 +21,8 @@
 ### 认证
 
 - 请求头 `Authorization: <token>`（sa-token，登录后颁发，30 天有效）。
-- 当前为空实现阶段，后端暂未启用拦截器；下表"角色"列为最终要求：
-  `公开` 无需登录 · `登录` 任意角色 · `居民` / `工作人员` / `管理员` 需对应角色。
+- 下表"角色"列为权限要求：`公开` 无需登录 · `登录` 任意角色 · `居民` / `工作人员` / `管理员` 需对应角色。
+- 三角色职责分离：居民端页面仅居民可见；工作人员=工具/租赁/报修运营；管理员=用户管理/工具审核/知识库管理。
 
 ---
 
@@ -33,9 +33,9 @@
 | POST | /api/user/login | 登录，返回 token | 公开 | body: `{username, password}` | `{token, userId, realName, role}` |
 | POST | /api/user/register | 居民注册 | 公开 | body: `{username, password, realName, phone, idCard}` | null |
 | GET | /api/user/me | 当前登录用户信息 | 登录 | - | `{id, username, realName, phone, role}` |
-| GET | /api/user/page | 用户分页 | 工作人员 | query: `page, size, realName?, role?` | PageResult |
+| GET | /api/user/page | 用户分页 | 管理员 | query: `page, size, realName?, role?` | PageResult |
 | PUT | /api/user/{id}/role | 修改用户角色 | 管理员 | body: `{role}` | null |
-| PUT | /api/user/{id}/status | 启用/停用用户 | 工作人员 | body: `{status}` | null |
+| PUT | /api/user/{id}/status | 启用/停用用户 | 管理员 | body: `{status}` | null |
 
 ## 2. 工具信息模块 `/api/tool`
 
@@ -89,7 +89,7 @@
 | 方法 | 路径 | 说明 | 角色 | 入参 | 出参 data |
 |---|---|---|---|---|---|
 | POST | /api/ai/documents | 上传知识库文档（Tika 解析后入 Qdrant） | 管理员 | multipart: `file` | `KbDocument`（新记录） |
-| GET | /api/ai/documents | 知识库文档分页 | 工作人员 | query: `page, size` | PageResult |
+| GET | /api/ai/documents | 知识库文档分页 | 管理员 | query: `page, size` | PageResult |
 | DELETE | /api/ai/documents/{id} | 删除文档（同步删 Qdrant 向量） | 管理员 | - | null |
 | POST | /api/ai/chat | RAG 问答，返回答案与知识库来源片段 | 居民/工作人员 | body: `{question}` | `{answer, sources: [{content, documentName}]}` |
 | POST | /api/ai/chat/stream | RAG 流式问答（SSE，`text/event-stream`） | 居民/工作人员 | body: `{question}` | 帧序列：`sources`（JSON 数组，首帧）→ `delta`（JSON 字符串，多帧增量）→ `done`（`[DONE]`）；流中途异常发 `error`（JSON 字符串） |

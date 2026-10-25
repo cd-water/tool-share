@@ -1,7 +1,6 @@
 package com.cdwater.toolshare.tool.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.cdwater.toolshare.common.constant.RoleConstant;
 import com.cdwater.toolshare.common.result.PageResult;
 import com.cdwater.toolshare.common.result.Result;
@@ -48,14 +47,14 @@ public class ToolController {
     }
 
     /** 创建工具（编号自动生成） */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping
     public Result<ToolCreateVO> create(@Valid @RequestBody ToolDTO dto) {
         return Result.success(toolService.create(dto));
     }
 
     /** 更新工具信息 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody ToolDTO dto) {
         toolService.update(id, dto);
@@ -63,7 +62,7 @@ public class ToolController {
     }
 
     /** 更新工具状态（自动记录状态日志） */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestBody ToolStatusDTO dto) {
         toolService.updateStatus(id, dto);
@@ -79,7 +78,7 @@ public class ToolController {
     }
 
     /** 工具状态变更日志 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @GetMapping("/{id}/status-logs")
     public Result<List<ToolStatusLog>> statusLogs(@PathVariable Long id) {
         return Result.success(toolService.statusLogs(id));

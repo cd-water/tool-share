@@ -1,7 +1,6 @@
 package com.cdwater.toolshare.ai.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.cdwater.toolshare.ai.dto.ChatDTO;
 import com.cdwater.toolshare.ai.entity.KbDocument;
 import com.cdwater.toolshare.ai.service.AiService;
@@ -45,7 +44,7 @@ public class AiController {
     }
 
     /** 知识库文档分页 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.ADMIN)
     @GetMapping("/documents")
     public Result<PageResult<KbDocument>> documents(@Valid PageQuery query) {
         return Result.success(aiService.documents(query));

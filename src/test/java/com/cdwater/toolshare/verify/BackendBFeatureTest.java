@@ -237,7 +237,7 @@ class BackendBFeatureTest {
         String admin = login("admin");
 
         JsonNode page = perform(get("/api/user/page")
-                .header("Authorization", staff)
+                .header("Authorization", admin)
                 .param("page", "1").param("size", "10")
                 .param("realName", "张"));
         assertEquals("A200", page.path("code").asText());
@@ -256,9 +256,14 @@ class BackendBFeatureTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"role\":1}"), "C403");
 
+        // 用户管理收归管理员：工作人员调用户分页/启停均无权限
+        expectCode(get("/api/user/page")
+                .header("Authorization", staff)
+                .param("page", "1").param("size", "10"), "C403");
+
         // 停用后拒绝登录，再启用恢复
         expectCode(put("/api/user/3/status")
-                .header("Authorization", staff)
+                .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":0}"), "A200");
         expectCode(post("/api/user/login")
@@ -268,7 +273,7 @@ class BackendBFeatureTest {
                         """), "C403");
 
         expectCode(put("/api/user/3/status")
-                .header("Authorization", staff)
+                .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":1}"), "A200");
         login("zhangsan");
@@ -328,7 +333,6 @@ class BackendBFeatureTest {
     @Test
     void aiRagFlow() throws Exception {
         String admin = login("admin");
-        String staff = login("lisi");
         String resident = login("zhangsan");
 
         when(chatModel.getOptions()).thenReturn(ChatOptions.builder().build());
@@ -351,7 +355,7 @@ class BackendBFeatureTest {
         assertTrue(uploaded.path("chunkCount").asInt() >= 1);
 
         JsonNode docs = perform(get("/api/ai/documents")
-                .header("Authorization", staff)
+                .header("Authorization", admin)
                 .param("page", "1").param("size", "10"));
         assertEquals("A200", docs.path("code").asText());
         assertTrue(containsRecord(docs, "id", docId));
@@ -377,7 +381,7 @@ class BackendBFeatureTest {
         assertTrue(remaining.isEmpty(), "删除后不应再检索到该文档片段");
 
         JsonNode after = perform(get("/api/ai/documents")
-                .header("Authorization", staff)
+                .header("Authorization", admin)
                 .param("page", "1").param("size", "10"));
         assertFalse(containsRecord(after, "id", docId));
     }

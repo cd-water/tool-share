@@ -1,7 +1,6 @@
 package com.cdwater.toolshare.user.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.cdwater.toolshare.common.constant.RoleConstant;
 import com.cdwater.toolshare.common.result.PageResult;
 import com.cdwater.toolshare.common.result.Result;
@@ -53,7 +52,7 @@ public class UserController {
     }
 
     /** 用户分页 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.ADMIN)
     @GetMapping("/page")
     public Result<PageResult<UserVO>> page(@Valid UserQueryDTO query) {
         return Result.success(userService.page(query));
@@ -68,7 +67,7 @@ public class UserController {
     }
 
     /** 启用/停用用户 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.ADMIN)
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @Valid @RequestBody UserStatusDTO dto) {
         userService.updateStatus(id, dto);

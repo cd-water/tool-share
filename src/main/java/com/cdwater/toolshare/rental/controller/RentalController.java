@@ -1,7 +1,6 @@
 package com.cdwater.toolshare.rental.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.cdwater.toolshare.common.constant.RoleConstant;
 import com.cdwater.toolshare.common.result.PageResult;
 import com.cdwater.toolshare.common.result.Result;
@@ -73,7 +72,7 @@ public class RentalController {
     }
 
     /** 取件登记 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping("/{id}/pickup")
     public Result<Void> pickup(@PathVariable Long id, @RequestBody(required = false) RentalPickupDTO dto) {
         rentalService.pickup(id, dto);
@@ -81,7 +80,7 @@ public class RentalController {
     }
 
     /** 归还验收 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping("/{id}/return")
     public Result<Void> returnTool(@PathVariable Long id, @RequestBody RentalReturnDTO dto) {
         rentalService.returnTool(id, dto);
@@ -101,7 +100,7 @@ public class RentalController {
     }
 
     /** 导出租赁记录 Excel（文件流响应） */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @GetMapping("/export")
     public void export(@Valid RentalQueryDTO query, HttpServletResponse response) {
         rentalService.export(query, response);

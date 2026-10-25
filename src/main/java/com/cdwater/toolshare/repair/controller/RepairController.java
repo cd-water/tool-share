@@ -1,7 +1,6 @@
 package com.cdwater.toolshare.repair.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.cdwater.toolshare.common.constant.RoleConstant;
 import com.cdwater.toolshare.common.result.PageResult;
 import com.cdwater.toolshare.common.result.Result;
@@ -52,7 +51,7 @@ public class RepairController {
     }
 
     /** 现场核验 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping("/{id}/verify")
     public Result<Void> verify(@PathVariable Long id, @Valid @RequestBody RepairVerifyDTO dto) {
         repairService.verify(id, dto);
@@ -60,7 +59,7 @@ public class RepairController {
     }
 
     /** 更新维修进度 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping("/{id}/progress")
     public Result<Void> progress(@PathVariable Long id, @Valid @RequestBody RepairProgressDTO dto) {
         repairService.progress(id, dto);
@@ -68,7 +67,7 @@ public class RepairController {
     }
 
     /** 维修验收 */
-    @SaCheckRole(value = {RoleConstant.STAFF, RoleConstant.ADMIN}, mode = SaMode.OR)
+    @SaCheckRole(RoleConstant.STAFF)
     @PostMapping("/{id}/accept")
     public Result<Void> accept(@PathVariable Long id, @Valid @RequestBody RepairAcceptDTO dto) {
         repairService.accept(id, dto);

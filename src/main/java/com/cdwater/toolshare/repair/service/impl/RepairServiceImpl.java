@@ -196,7 +196,7 @@ public class RepairServiceImpl implements RepairService {
     }
 
     private boolean isStaff() {
-        return StpUtil.hasRole(RoleConstant.STAFF) || StpUtil.hasRole(RoleConstant.ADMIN);
+        return StpUtil.hasRole(RoleConstant.STAFF);
     }
 
     private void updateToolStatus(Long toolId, Integer status, String remark) {

@@ -426,14 +426,14 @@ public class RentalServiceImpl implements RentalService {
     }
 
     /**
-     * 居民只返回本人 id；工作人员/管理员返回 null 表示全量。
+     * 居民只返回本人 id；工作人员返回 null 表示全量。
      */
     private Long currentResidentId() {
         return isResident() ? StpUtil.getLoginIdAsLong() : null;
     }
 
     private boolean isResident() {
-        return !StpUtil.hasRole(RoleConstant.STAFF) && !StpUtil.hasRole(RoleConstant.ADMIN);
+        return !StpUtil.hasRole(RoleConstant.STAFF);
     }
 
     private void maskPhone(RentalOrderVO vo) {

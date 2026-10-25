@@ -27,7 +27,7 @@ import { useUserStore } from '../stores/user'
 const user = useUserStore()
 const router = useRouter()
 
-// 角色对应导航：0居民 1工作人员 2管理员（管理员含工作人员全部页面）
+// 角色对应导航：0居民 1工作人员 2管理员（三角色职责分离，互不继承）
 const NAVS: Record<number, { label: string; path: string }[]> = {
   0: [
     { label: '工具广场', path: '/tools' },
@@ -42,9 +42,6 @@ const NAVS: Record<number, { label: string; path: string }[]> = {
     { label: '报修处理', path: '/admin/repairs' },
   ],
   2: [
-    { label: '工具管理', path: '/admin/tools' },
-    { label: '租赁管理', path: '/admin/rentals' },
-    { label: '报修处理', path: '/admin/repairs' },
     { label: '用户管理', path: '/admin/users' },
     { label: '工具审核', path: '/admin/audit' },
     { label: '知识库管理', path: '/admin/kb' },
