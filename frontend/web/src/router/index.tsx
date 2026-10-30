@@ -1,28 +1,11 @@
-import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
+import { RequireAuth } from '@/components/RequireAuth'
 import AppLayout from '@/layouts/AppLayout'
-import LoginView from '@/views/LoginView'
-import PlaceholderPage from '@/views/PlaceholderPage'
-import { useAuthStore } from '@/stores/auth'
-
-function RequireAuth() {
-  const tokenValue = useAuthStore((s) => s.tokenValue)
-  const location = useLocation()
-
-  if (!tokenValue) {
-    return (
-      <Navigate
-        to="/login"
-        state={{ from: location.pathname + location.search }}
-        replace
-      />
-    )
-  }
-
-  return <Outlet />
-}
+import LoginPage from '@/pages/LoginPage'
+import PlaceholderPage from '@/pages/PlaceholderPage'
 
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginView /> },
+  { path: '/login', element: <LoginPage /> },
   {
     element: <RequireAuth />,
     children: [

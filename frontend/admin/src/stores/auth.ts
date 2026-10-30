@@ -1,21 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { } from 'pinia-plugin-persistedstate'
-import http from '@/utils/request'
+import { authApi } from '@/api/auth'
 
-interface LoginVO {
-  tokenName: string
-  tokenValue: string
-}
-
-interface AdminVO {
-  id: number
-  username: string
-}
-
-/**
- * 认证状态：persist: true 落 localStorage（key='auth'），刷新不丢登录态。
- */
 export const useAuthStore = defineStore(
   'auth',
   () => {
@@ -23,31 +9,31 @@ export const useAuthStore = defineStore(
     const username = ref('')
     const isLoggedIn = computed(() => tokenValue.value !== '')
 
-    async function login(name: string, password: string) {
-      const data = await http.post<LoginVO>('/admin/login', {
-        username: name,
-        password,
-      })
+    async function login(username: string, password: string) {
+      const data = await authApi.login(username, password)
       tokenValue.value = data.tokenValue
       await fetchInfo()
     }
 
     async function fetchInfo() {
-      const data = await http.get<AdminVO>('/admin/info')
+      const data = await authApi.info()
       username.value = data.username
     }
 
-    /** 无论后端登出是否成功，都清空本地凭证 */
+    function reset() {
+      tokenValue.value = ''
+      username.value = ''
+    }
+
     async function logout() {
       try {
-        await http.post<void>('/admin/logout')
+        await authApi.logout()
       } finally {
-        tokenValue.value = ''
-        username.value = ''
+        reset()
       }
     }
 
-    return { tokenValue, username, isLoggedIn, login, fetchInfo, logout }
+    return { tokenValue, username, isLoggedIn, login, fetchInfo, logout, reset }
   },
   { persist: true },
 )

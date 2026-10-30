@@ -1,9 +1,10 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
-// 官方按需样式入口（含 base 等依赖），替代单文件 theme-chalk 引用
-import 'element-plus/es/components/message/style/css'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
+
+const SUCCESS_CODE = 'A200'
+const UNAUTHORIZED_CODE = 'C401'
 
 interface Result<T> {
   code: string
@@ -25,17 +26,13 @@ instance.interceptors.request.use((config) => {
 })
 
 instance.interceptors.response.use(
-  // 运行时返回解包后的 data（非 AxiosResponse），axios 类型无法表达，显式 any
   (resp): any => {
     const body = resp.data as Result<unknown>
-    if (body.code === 'A200') {
+    if (body.code === SUCCESS_CODE) {
       return body.data
     }
-    if (body.code === 'C401') {
-      // 凭证失效：清本地并回登录页（已在登录页则不再跳，避免循环）
-      const auth = useAuthStore()
-      auth.tokenValue = ''
-      auth.username = ''
+    if (body.code === UNAUTHORIZED_CODE) {
+      useAuthStore().reset()
       if (router.currentRoute.value.path !== '/login') {
         router.push({
           path: '/login',
@@ -53,7 +50,6 @@ instance.interceptors.response.use(
   },
 )
 
-/** 注意：拦截器返回解包后的 data 而非 AxiosResponse，此处类型为运行时行为的显式声明 */
 const http = {
   get<T = void>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return instance.get(url, config) as unknown as Promise<T>

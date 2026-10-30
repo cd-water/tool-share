@@ -11,6 +11,8 @@ declare module 'vue-router' {
   }
 }
 
+const DEFAULT_REDIRECT = '/menu-1'
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -18,11 +20,12 @@ const router = createRouter({
     {
       path: '/',
       component: AdminLayout,
-      redirect: '/menu-1',
+      redirect: DEFAULT_REDIRECT,
+      meta: { requiresAuth: true },
       children: [
-        { path: 'menu-1', component: PlaceholderView, meta: { requiresAuth: true, title: '菜单1' } },
-        { path: 'menu-2', component: PlaceholderView, meta: { requiresAuth: true, title: '菜单2' } },
-        { path: 'menu-3', component: PlaceholderView, meta: { requiresAuth: true, title: '菜单3' } },
+        { path: 'menu-1', component: PlaceholderView, meta: { title: '菜单1' } },
+        { path: 'menu-2', component: PlaceholderView, meta: { title: '菜单2' } },
+        { path: 'menu-3', component: PlaceholderView, meta: { title: '菜单3' } },
       ],
     },
   ],
@@ -30,11 +33,11 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+  if (to.matched.some((record) => record.meta.requiresAuth) && !auth.isLoggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (to.path === '/login' && auth.isLoggedIn) {
-    return '/menu-1'
+    return DEFAULT_REDIRECT
   }
 })
 

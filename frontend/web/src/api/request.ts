@@ -2,6 +2,9 @@ import axios, { type AxiosRequestConfig } from 'axios'
 import { toast } from '@/components/ui/toast'
 import { useAuthStore } from '@/stores/auth'
 
+const SUCCESS_CODE = 'A200'
+const UNAUTHORIZED_CODE = 'C401'
+
 interface Result<T> {
   code: string
   message: string
@@ -22,13 +25,12 @@ instance.interceptors.request.use((config) => {
 })
 
 instance.interceptors.response.use(
-  // 拦截器解包后返回 data，axios 类型无法表达，显式 any
   (resp): any => {
     const body = resp.data as Result<unknown>
-    if (body.code === 'A200') {
+    if (body.code === SUCCESS_CODE) {
       return body.data
     }
-    if (body.code === 'C401') {
+    if (body.code === UNAUTHORIZED_CODE) {
       useAuthStore.getState().clear()
       toast.add({ title: '登录已过期，请重新登录', type: 'error' })
     } else {
@@ -49,28 +51,6 @@ const http = {
   post<T = void>(url: string, data?: unknown): Promise<T> {
     return instance.post(url, data) as unknown as Promise<T>
   },
-}
-
-export interface LoginVO {
-  tokenName: string
-  tokenValue: string
-}
-
-export interface UserVO {
-  id: number
-  phone: string
-  nickname: string
-  avatar: string
-}
-
-export const userApi = {
-  sendCode: (phone: string) => http.post<void>('/user/send-code', { phone }),
-  loginByCode: (phone: string, code: string) =>
-    http.post<LoginVO>('/user/login/by-code', { phone, code }),
-  loginByPwd: (phone: string, password: string) =>
-    http.post<LoginVO>('/user/login/by-pwd', { phone, password }),
-  logout: () => http.post<void>('/user/logout'),
-  info: () => http.get<UserVO>('/user/info'),
 }
 
 export default http

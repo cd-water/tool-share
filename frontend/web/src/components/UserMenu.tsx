@@ -1,6 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, LogOut } from 'lucide-react'
-import { useNavigate } from 'react-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -8,27 +6,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { userApi } from '@/lib/api'
-import { useUserInfo } from '@/lib/queries'
+import { useLogout } from '@/hooks/useLogout'
+import { useUserInfo } from '@/hooks/useUserInfo'
 import { useAuthStore } from '@/stores/auth'
 
 export function UserMenu() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const logoutMutation = useLogout()
   const nickname = useAuthStore((s) => s.nickname)
   const avatar = useAuthStore((s) => s.avatar)
   const { data } = useUserInfo()
 
   const displayName = nickname || data?.nickname || '用户'
-
-  const logoutMutation = useMutation({
-    mutationFn: () => userApi.logout(),
-    onSettled: () => {
-      useAuthStore.getState().clear()
-      queryClient.clear()
-      navigate('/login', { replace: true })
-    },
-  })
 
   return (
     <DropdownMenu>
