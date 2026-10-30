@@ -1,0 +1,28 @@
+/* Element Plus 主题色：主蓝 #1D6FE0（light-N 为与白色的混色，dark-2 为与黑色的混色） */
+:root {
+  --el-color-primary: #1d6fe0;
+  --el-color-primary-light-3: #619ae9;
+  --el-color-primary-light-5: #8eb7ef;
+  --el-color-primary-light-7: #bcd4f5;
+  --el-color-primary-light-8: #d2e2f8;
+  --el-color-primary-light-9: #e8f1fc;
+  --el-color-primary-dark-2: #1759b3;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
