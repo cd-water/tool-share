@@ -2,7 +2,7 @@
 import { useDark, useToggle } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Document, Moon, Setting, Sunny, SwitchButton, Ticket } from '@element-plus/icons-vue'
+import { Document, Grid, Moon, Setting, Sunny, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 
@@ -11,7 +11,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const menuItems = [
-  { path: '/menu-1', title: '菜单1', icon: Ticket },
+  { path: '/menu-1', title: '菜单1', icon: Grid },
   { path: '/menu-2', title: '菜单2', icon: Document },
   { path: '/menu-3', title: '菜单3', icon: Setting },
 ]
@@ -39,8 +39,8 @@ async function handleLogout() {
       <div class="brand">
         <BrandMark :size="34" />
         <div class="brand-text">
-          <div class="brand-name">TicketBox</div>
-          <div class="brand-sub">票务盒子管理后台</div>
+          <div class="brand-name">ToolShare</div>
+          <div class="brand-sub">管理后台</div>
         </div>
       </div>
       <el-menu class="menu admin-menu" :default-active="route.path" router>

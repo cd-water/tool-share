@@ -20,7 +20,7 @@ export default function AppLayout() {
           <div className="flex items-center gap-2.5">
             <BrandMark size={34} />
             <span className="text-[17px] font-semibold tracking-tight whitespace-nowrap text-foreground">
-              TicketBox <span className="font-normal">|</span> 票务盒子
+              ToolShare <span className="font-normal">|</span> 社区共享工具租赁系统
             </span>
           </div>
           <Tabs value={location.pathname} onValueChange={(value) => navigate(String(value))}>

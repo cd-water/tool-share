@@ -50,7 +50,7 @@ async function handleLogin() {
     <div class="login-card">
       <div class="login-title">
         <BrandMark :size="36" />
-        <span class="title-text">TicketBox <span class="divider">|</span> 票务盒子管理后台</span>
+        <span class="title-text">ToolShare <span class="divider">|</span> 管理后台</span>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" @keyup.enter="handleLogin">
         <el-form-item prop="username">

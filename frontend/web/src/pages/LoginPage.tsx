@@ -109,11 +109,11 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-8">
         <div className="flex items-center justify-center gap-3">
           <BrandMark size={40} />
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            TicketBox <span className="font-normal">|</span> 票务盒子
+            ToolShare <span className="font-normal">|</span> 社区共享工具租赁系统
           </h1>
         </div>
 

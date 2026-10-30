@@ -1,16 +1,57 @@
 server:
-  port: 8800
+  port: 8900
 
 spring:
   application:
-    name: ticket-box
+    name: tool-share
+  mvc:
+    async:
+      request-timeout: 120s
+  # 文件上传大小限制
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+  # 可选加载本地覆盖配置（git 忽略）
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
-    url: jdbc:mysql://localhost:3306/${MYSQL_DATABASE:ticket_box}
+    url: jdbc:mysql://localhost:3806/${MYSQL_DATABASE:tool_share}
     username: root
-    password: ${MYSQL_ROOT_PASSWORD:ticketmysql}
+    password: ${MYSQL_ROOT_PASSWORD:toolmysql}
   data:
     redis:
       host: localhost
-      port: 6379
-      password: ${REDIS_PASSWORD:ticketredis}
+      port: 6879
+      password: ${REDIS_PASSWORD:toolredis}
       database: 0
+  ai:
+    openai:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        model: ${DEEPSEEK_CHAT_MODEL:deepseek-v4-flash}
+      embedding:
+        base-url: ${OLLAMA_BASE_URL:http://localhost:11934/v1}
+        model: bge-m3
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: 6834 # gRPC 端口
+        use-tls: false
+        api-key: ${QDRANT_API_KEY:toolqdrant}
+        collection-name: tool_share
+        initialize-schema: true # 启动时自动建集合
+
+# MyBatis-Plus
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# MinIO 对象存储（自定义配置项）
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9500}
+  access-key: ${MINIO_ROOT_USER:toolminio}
+  secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
+  bucket: ${MINIO_BUCKET:tool-share}
