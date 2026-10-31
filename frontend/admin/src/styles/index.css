@@ -1,0 +1,132 @@
+:root {
+  --el-color-primary: #1e4fd6;
+  --el-color-primary-light-3: #6284e2;
+  --el-color-primary-light-5: #8ea7eb;
+  --el-color-primary-light-7: #bccaf3;
+  --el-color-primary-light-8: #d2dcf7;
+  --el-color-primary-light-9: #e9edfb;
+  --el-color-primary-dark-2: #183fab;
+  --el-text-color-primary: #1f2329;
+  --el-text-color-regular: #4e5969;
+  --el-text-color-secondary: #86909c;
+  --el-border-color: #e5e6eb;
+  --el-border-color-light: #e5e6eb;
+  --el-border-color-lighter: #eff0f1;
+  --el-fill-color: #f2f3f5;
+  --el-fill-color-light: #f2f3f5;
+  --el-fill-color-lighter: #f7f8fa;
+  --el-bg-color-page: #f7f8fa;
+}
+
+html.dark {
+  --el-color-primary: #1e4fd6;
+  --el-color-primary-light-3: #1b3d9c;
+  --el-color-primary-light-5: #193275;
+  --el-color-primary-light-7: #17264e;
+  --el-color-primary-light-8: #16203b;
+  --el-color-primary-light-9: #151a27;
+  --el-color-primary-dark-2: #183fab;
+}
+
+.admin-menu {
+  --el-menu-hover-bg-color: var(--el-fill-color);
+}
+
+.admin-menu .el-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin: 2px 8px;
+  border-radius: 6px;
+  padding-left: 12px !important;
+}
+
+.admin-menu .el-menu-item.is-active {
+  background-color: var(--el-color-primary-light-9);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.filter-card .el-card__body {
+  padding: 16px 20px 4px;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+}
+
+.filter-form .el-form-item {
+  margin-bottom: 12px;
+}
+
+.filter-actions {
+  margin-left: auto;
+}
+
+.table-card .el-card__body {
+  padding: 0 0 16px;
+}
+
+.table-card .el-table {
+  --el-table-border-color: var(--el-border-color-lighter);
+}
+
+.table-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.toolbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.muted {
+  color: var(--el-text-color-secondary);
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

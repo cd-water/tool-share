@@ -1,10 +1,9 @@
 server:
-  port: 9090
+  port: 8900
 
 spring:
   application:
     name: tool-share
-  # MVC 异步请求超时（AI 流式问答等长连接）
   mvc:
     async:
       request-timeout: 120s
@@ -16,25 +15,16 @@ spring:
   # 可选加载本地覆盖配置（git 忽略）
   config:
     import: optional:classpath:application-local.yml
-  # MySQL
   datasource:
-    url: jdbc:mysql://localhost:3806/${MYSQL_DATABASE:tool_share}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3806/${MYSQL_DATABASE:tool_share}
     username: root
     password: ${MYSQL_ROOT_PASSWORD:toolmysql}
-  # Redis
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6879}
+      host: localhost
+      port: 6879
       password: ${REDIS_PASSWORD:toolredis}
-  # RabbitMQ
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:6172}
-    username: ${RABBITMQ_DEFAULT_USER:toolrabbitmq}
-    password: ${RABBITMQ_DEFAULT_PASS:toolrabbitmq}
-    virtual-host: /
-  # AI：DeepSeek 对话 + Ollama 向量化 + Qdrant 向量库（RAG 知识库）
+      database: 0
   ai:
     openai:
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
@@ -53,16 +43,6 @@ spring:
         collection-name: tool_share
         initialize-schema: true # 启动时自动建集合
 
-# 认证鉴权
-sa-token:
-  token-name: Authorization # 请求头名，同时是 Redis key 前缀
-  timeout: 2592000 # 30 天
-  token-style: uuid
-  is-read-body: false # 默认 true，这里关闭
-  is-read-header: true
-  is-read-cookie: false # 前后端分离，只走 header
-  is-print: false # 关闭启动字符画
-
 # MyBatis-Plus
 mybatis-plus:
   mapper-locations: classpath*:mapper/*.xml
@@ -75,3 +55,7 @@ minio:
   access-key: ${MINIO_ROOT_USER:toolminio}
   secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
   bucket: ${MINIO_BUCKET:tool-share}
+
+# 身份证 AES 密钥（32 字符）
+security:
+  id-card-key: ${ID_CARD_AES_KEY:toolshare-idcard-secret-key-2026}

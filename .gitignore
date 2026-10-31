@@ -32,16 +32,12 @@ build/
 ### VS Code ###
 .vscode/
 
-.codegraph
-deploy/docker/.env
+.env
 src/main/resources/application-local.yml
 
-### 项目运行时 ###
-logs/
-.playwright-cli/
-
-### Node ###
-node_modules/
-frontend/dist/
-
+.codegraph
 CLAUDE.md
+AGENTS.md
+.superpowers
+docs/superpowers
+.playwright-cli/
