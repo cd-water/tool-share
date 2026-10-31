@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.web.client.RestClient;
@@ -206,6 +207,26 @@ class BusinessFlowIntegrationTest {
         assertEquals("CANCELLED", cancelled.get("status").asString());
         assertEquals("REFUNDED", cancelled.get("depositStatus").asString());
         assertFalse(cancelled.get("refundAmount").isNull());
+    }
+
+    @Test
+    void ai_stream_endpoint() {
+        String userToken = userLogin();
+        var entity = client.post().uri("/api/user/ai/chat/stream")
+                .header("Authorization", "Bearer " + userToken)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("question", "押金什么时候退还？"))
+                .retrieve()
+                .toEntity(String.class);
+        assertEquals(HttpStatus.OK, entity.getStatusCode());
+        assertTrue(entity.getHeaders().getContentType().toString().contains("text/event-stream"));
+        String body = entity.getBody() == null ? "" : entity.getBody();
+        assertTrue(body.contains("event:sources") || body.contains("event: sources"), body);
+        assertTrue(body.contains("data:"), body);
+
+        JsonNode unauthorized = post("/api/user/ai/chat/stream", null, Map.of("question", "押金"));
+        assertEquals("C401", unauthorized.get("code").asString());
     }
 
     private long createTool(String token, String suffix, String deposit) {

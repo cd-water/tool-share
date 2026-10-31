@@ -13,6 +13,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Flux;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -66,43 +67,75 @@ public class AiService {
     }
 
     public AiChatVO chat(String question) {
-        List<AiChatVO.SourceVO> sources = search(question);
-        String context = sources.stream()
-                .map(item -> "《" + item.getTitle() + "》\n" + item.getSnippet())
-                .reduce("", (a, b) -> a + "\n\n" + b);
-        String answer = null;
-        ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
-        if (builder != null && !sources.isEmpty()) {
-            try {
-                answer = builder.build().prompt()
-                        .system("你是社区共享工具租赁系统的服务助手。请只依据提供的知识库内容，"
-                                + "用简洁、友好的中文回答居民问题；如果知识库没有答案，请明确说明并建议联系社区工作人员。"
-                                + "回答中可以分点说明，但不要编造规则。")
-                        .user("知识库内容：\n" + context + "\n\n居民问题：" + question)
-                        .call()
-                        .content();
-            } catch (Exception e) {
-                log.warn("AI 生成回答失败，降级为知识库检索: {}", e.getMessage());
-            }
-        }
+        List<AiChatVO.SourceVO> sources = retrieve(question);
+        String answer = generateAnswer(question, sources);
         if (!StringUtils.hasText(answer)) {
-            if (sources.isEmpty()) {
-                answer = "暂未在知识库中找到相关说明。建议您联系社区服务站工作人员，或换个关键词再试。";
-            } else {
-                StringBuilder sb = new StringBuilder("根据社区工具知识库，为您找到以下相关信息：\n");
-                for (AiChatVO.SourceVO source : sources) {
-                    sb.append("\n【").append(source.getTitle()).append("】\n")
-                            .append(source.getSnippet()).append("\n");
-                }
-                sb.append("\n如需更准确的答复，请联系社区服务站工作人员。");
-                answer = sb.toString();
-            }
+            answer = fallbackAnswer(sources);
         }
         AiChatVO vo = new AiChatVO();
         vo.setAnswer(answer);
         vo.setSources(sources);
         return vo;
     }
+
+    /** 检索知识库来源：向量优先，异常或为空时降级为关键词检索。 */
+    public List<AiChatVO.SourceVO> retrieve(String question) {
+        return search(question);
+    }
+
+    /** 流式生成回答；外部 AI 不可用或异常时流式输出兜底文案，保证事件流完整结束。 */
+    public Flux<String> streamAnswer(String question, List<AiChatVO.SourceVO> sources) {
+        ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
+        if (builder == null || sources.isEmpty()) {
+            return Flux.just(fallbackAnswer(sources));
+        }
+        String context = buildContext(sources);
+        return builder.build().prompt()
+                .system(SYSTEM_PROMPT)
+                .user("知识库内容：\n" + context + "\n\n居民问题：" + question)
+                .stream()
+                .content()
+                .filter(StringUtils::hasText)
+                .onErrorResume(e -> {
+                    log.warn("AI 流式生成失败，降级为知识库检索: {}", e.getMessage());
+                    return Flux.just(fallbackAnswer(sources));
+                });
+    }
+
+    private String generateAnswer(String question, List<AiChatVO.SourceVO> sources) {
+        ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
+        if (builder == null || sources.isEmpty()) {
+            return null;
+        }
+        try {
+            return builder.build().prompt()
+                    .system(SYSTEM_PROMPT)
+                    .user("知识库内容：\n" + buildContext(sources) + "\n\n居民问题：" + question)
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            log.warn("AI 生成回答失败，降级为知识库检索: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String fallbackAnswer(List<AiChatVO.SourceVO> sources) {
+        if (sources.isEmpty()) {
+            return "暂未在知识库中找到相关说明。建议您联系社区服务站工作人员，或换个关键词再试。";
+        }
+        return "根据社区工具知识库，为您找到以下相关信息：\n" + buildContext(sources)
+                + "\n如需更准确的答复，请联系社区服务站工作人员。";
+    }
+
+    private String buildContext(List<AiChatVO.SourceVO> sources) {
+        return sources.stream()
+                .map(item -> "\n【" + item.getTitle() + "】\n" + item.getSnippet())
+                .reduce("", String::concat);
+    }
+
+    private static final String SYSTEM_PROMPT = "你是社区共享工具租赁系统的服务助手。请只依据提供的知识库内容，"
+            + "用简洁、友好的中文回答居民问题；如果知识库没有答案，请明确说明并建议联系社区工作人员。"
+            + "回答中可以分点说明，但不要编造规则。";
 
     private List<AiChatVO.SourceVO> search(String question) {
         List<AiChatVO.SourceVO> result = new ArrayList<>();
