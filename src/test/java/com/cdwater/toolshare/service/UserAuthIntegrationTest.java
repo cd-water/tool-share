@@ -1,8 +1,8 @@
 package com.cdwater.toolshare.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.cdwater.toolshare.entity.User;
-import com.cdwater.toolshare.mapper.UserMapper;
+import com.cdwater.toolshare.module.auth.User;
+import com.cdwater.toolshare.module.auth.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

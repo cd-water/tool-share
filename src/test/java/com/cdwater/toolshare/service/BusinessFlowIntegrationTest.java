@@ -1,14 +1,14 @@
 package com.cdwater.toolshare.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.cdwater.toolshare.entity.DamageReport;
-import com.cdwater.toolshare.entity.Rental;
-import com.cdwater.toolshare.entity.Tool;
-import com.cdwater.toolshare.entity.ToolLog;
-import com.cdwater.toolshare.mapper.DamageReportMapper;
-import com.cdwater.toolshare.mapper.RentalMapper;
-import com.cdwater.toolshare.mapper.ToolLogMapper;
-import com.cdwater.toolshare.mapper.ToolMapper;
+import com.cdwater.toolshare.module.damage.DamageReport;
+import com.cdwater.toolshare.module.rental.Rental;
+import com.cdwater.toolshare.module.tool.Tool;
+import com.cdwater.toolshare.module.tool.ToolLog;
+import com.cdwater.toolshare.module.damage.DamageReportMapper;
+import com.cdwater.toolshare.module.rental.RentalMapper;
+import com.cdwater.toolshare.module.tool.ToolLogMapper;
+import com.cdwater.toolshare.module.tool.ToolMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
