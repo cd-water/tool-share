@@ -64,7 +64,7 @@ erDiagram
     t_rental ||--o{ t_damage_report : "派生"
 ```
 
-完整字段与 DDL 见 `src/main/resources/db/migration/`（Flyway V1–V5）；可交互 ER 图见 [docs/diagrams/er.html](docs/diagrams/er.html)。
+完整字段与 DDL 见 `src/main/resources/db/migration/`（V1 schema + V2 seed）；可交互 ER 图见 [docs/diagrams/er.html](docs/diagrams/er.html)。
 
 ## 快速开始
 
@@ -99,7 +99,7 @@ cd frontend/admin && pnpm install && pnpm dev
 
 - Spring Boot 4.1 · Java 21 · Spring WebMVC（含 Reactor 流式）
 - sa-token 双账号体系（`StpKit.USER` / `StpKit.ADMIN`，Bearer 头鉴权）
-- MyBatis-Plus + Flyway（ORM 与数据库迁移 V1–V5）
+- MyBatis-Plus + Flyway（ORM 与数据库迁移 V1 schema + V2 seed）
 - Spring AI：DeepSeek 对话（SSE 流式）+ Ollama bge-m3 向量化 + Qdrant 向量库（RAG，外部服务异常自动降级关键词检索）
 - MinIO（对象存储，AWS S3 SDK）· EasyExcel（租赁记录导出）· Tika（知识库文档解析）· Hutool · Lombok
 
@@ -142,7 +142,7 @@ tool-share/
 │   │       ├── knowledge/        # 知识库文档与向量索引标记
 │   │       ├── ai/               # RAG 检索 + SSE 流式问答
 │   │       └── dashboard/        # 用户端 / 管理端统计
-│   └── resources/db/migration/   # Flyway V1–V5（含种子数据）
+│   └── resources/db/migration/   # Flyway V1 schema + V2 seed
 ├── docs/                         # PRD、附录、diagrams/
 └── docker-compose.yml            # 中间件编排
 ```
