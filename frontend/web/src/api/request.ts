@@ -51,6 +51,9 @@ const http = {
   post<T = void>(url: string, data?: unknown): Promise<T> {
     return instance.post(url, data) as unknown as Promise<T>
   },
+  put<T = void>(url: string, data?: unknown): Promise<T> {
+    return instance.put(url, data) as unknown as Promise<T>
+  },
 }
 
 export default http

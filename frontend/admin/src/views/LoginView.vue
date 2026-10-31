@@ -27,7 +27,7 @@ function safeRedirectPath(): string {
   if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
     return redirect
   }
-  return '/menu-1'
+  return '/dashboard'
 }
 
 async function handleLogin() {

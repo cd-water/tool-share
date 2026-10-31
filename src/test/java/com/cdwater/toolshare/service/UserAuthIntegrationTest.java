@@ -113,7 +113,7 @@ class UserAuthIntegrationTest {
         String token = login(USER1_PHONE, PASSWORD);
         JsonNode node = get("/api/user/info", token);
         assertEquals("A200", node.get("code").asString());
-        assertEquals(USER1_PHONE, node.get("data").get("phone").asString());
+        assertEquals("138****0001", node.get("data").get("phone").asString());
         assertEquals("user_mjafo8", node.get("data").get("nickname").asString());
     }
 

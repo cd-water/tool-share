@@ -14,7 +14,7 @@ interface Result<T> {
 
 const instance = axios.create({
   baseURL: '/api',
-  timeout: 10_000,
+  timeout: 30_000,
 })
 
 instance.interceptors.request.use((config) => {
@@ -27,6 +27,9 @@ instance.interceptors.request.use((config) => {
 
 instance.interceptors.response.use(
   (resp): any => {
+    if (resp.config.responseType === 'blob') {
+      return resp.data
+    }
     const body = resp.data as Result<unknown>
     if (body.code === SUCCESS_CODE) {
       return body.data
@@ -54,8 +57,23 @@ const http = {
   get<T = void>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return instance.get(url, config) as unknown as Promise<T>
   },
-  post<T = void>(url: string, data?: unknown): Promise<T> {
-    return instance.post(url, data) as unknown as Promise<T>
+  post<T = void>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return instance.post(url, data, config) as unknown as Promise<T>
+  },
+  put<T = void>(url: string, data?: unknown): Promise<T> {
+    return instance.put(url, data) as unknown as Promise<T>
+  },
+  patch<T = void>(url: string, data?: unknown): Promise<T> {
+    return instance.patch(url, data) as unknown as Promise<T>
+  },
+  delete<T = void>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    return instance.delete(url, config) as unknown as Promise<T>
+  },
+  download(url: string, params?: object): Promise<Blob> {
+    return instance.get(url, {
+      params,
+      responseType: 'blob',
+    }) as unknown as Promise<Blob>
   },
 }
 

@@ -2,7 +2,17 @@
 import { useDark, useToggle } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Document, Grid, Moon, Setting, Sunny, SwitchButton } from '@element-plus/icons-vue'
+import {
+  Bell,
+  Box,
+  Moon,
+  Odometer,
+  Reading,
+  Sunny,
+  SwitchButton,
+  Tickets,
+  Warning,
+} from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import BrandMark from '@/components/BrandMark.vue'
 
@@ -11,9 +21,12 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const menuItems = [
-  { path: '/menu-1', title: '菜单1', icon: Grid },
-  { path: '/menu-2', title: '菜单2', icon: Document },
-  { path: '/menu-3', title: '菜单3', icon: Setting },
+  { path: '/dashboard', title: '仪表盘', icon: Odometer },
+  { path: '/tools', title: '工具管理', icon: Box },
+  { path: '/rentals', title: '租赁管理', icon: Tickets },
+  { path: '/damage', title: '报修管理', icon: Warning },
+  { path: '/knowledge', title: '知识库', icon: Reading },
+  { path: '/messages', title: '消息中心', icon: Bell },
 ]
 
 const isDark = useDark()

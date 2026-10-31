@@ -21,6 +21,11 @@ public class User {
 
     private String nickname;
 
+    private String realName;
+
+    /** enc: 前缀为 AES 密文，历史数据可能是明文 */
+    private String idCard;
+
     private String avatar;
 
     /** 0-禁用 1-启用 */

@@ -6,6 +6,7 @@ import com.cdwater.toolshare.common.BizException;
 import com.cdwater.toolshare.common.ResultCode;
 import com.cdwater.toolshare.config.StpKit;
 import com.cdwater.toolshare.dto.CodeLoginDTO;
+import com.cdwater.toolshare.dto.ProfileUpdateDTO;
 import com.cdwater.toolshare.dto.PwdLoginDTO;
 import com.cdwater.toolshare.entity.User;
 import com.cdwater.toolshare.mapper.UserMapper;
@@ -32,6 +33,7 @@ public class UserService {
 
     private final UserMapper userMapper;
     private final StringRedisTemplate stringRedisTemplate;
+    private final IdCardCipher idCardCipher;
     private final SecureRandom random = new SecureRandom();
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -98,11 +100,48 @@ public class UserService {
             throw new BizException(ResultCode.BAD_REQUEST, "用户不存在");
         }
         checkStatus(user.getStatus());
+        return toVO(user);
+    }
+
+    /** 个人资料（身份证脱敏） */
+    public UserVO profile() {
+        return info();
+    }
+
+    /** 更新个人资料；身份证留空表示不修改 */
+    public UserVO updateProfile(ProfileUpdateDTO dto) {
+        User user = userMapper.selectById(StpKit.USER.getLoginIdAsLong());
+        if (user == null) {
+            throw new BizException(ResultCode.BAD_REQUEST, "用户不存在");
+        }
+        if (StringUtils.hasText(dto.getNickname())) {
+            user.setNickname(dto.getNickname().trim());
+        }
+        if (dto.getAvatar() != null) {
+            user.setAvatar(dto.getAvatar());
+        }
+        if (dto.getRealName() != null) {
+            user.setRealName(dto.getRealName().trim());
+        }
+        if (StringUtils.hasText(dto.getIdCard())) {
+            String idCard = dto.getIdCard().trim();
+            if (!idCard.matches("^\\d{17}[\\dXx]$")) {
+                throw new BizException(ResultCode.BAD_REQUEST, "请输入正确的 18 位身份证号");
+            }
+            user.setIdCard(idCardCipher.encrypt(idCard));
+        }
+        userMapper.updateById(user);
+        return toVO(user);
+    }
+
+    private UserVO toVO(User user) {
         UserVO vo = new UserVO();
         vo.setId(user.getId());
-        vo.setPhone(user.getPhone());
+        vo.setPhone(IdCardCipher.maskPhone(user.getPhone()));
         vo.setNickname(user.getNickname());
         vo.setAvatar(user.getAvatar());
+        vo.setRealName(user.getRealName());
+        vo.setIdCard(idCardCipher.mask(user.getIdCard()));
         return vo;
     }
 

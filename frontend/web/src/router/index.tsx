@@ -1,8 +1,13 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { RequireAuth } from '@/components/RequireAuth'
 import AppLayout from '@/layouts/AppLayout'
+import AiPage from '@/pages/AiPage'
+import DamagePage from '@/pages/DamagePage'
 import LoginPage from '@/pages/LoginPage'
-import PlaceholderPage from '@/pages/PlaceholderPage'
+import MessagesPage from '@/pages/MessagesPage'
+import ProfilePage from '@/pages/ProfilePage'
+import RentalsPage from '@/pages/RentalsPage'
+import ToolsPage from '@/pages/ToolsPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -12,13 +17,16 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { index: true, element: <Navigate to="/page-1" replace /> },
-          { path: 'page-1', element: <PlaceholderPage title="页面1" /> },
-          { path: 'page-2', element: <PlaceholderPage title="页面2" /> },
-          { path: 'page-3', element: <PlaceholderPage title="页面3" /> },
+          { index: true, element: <Navigate to="/tools" replace /> },
+          { path: 'tools', element: <ToolsPage /> },
+          { path: 'rentals', element: <RentalsPage /> },
+          { path: 'damage', element: <DamagePage /> },
+          { path: 'messages', element: <MessagesPage /> },
+          { path: 'ai', element: <AiPage /> },
+          { path: 'profile', element: <ProfilePage /> },
         ],
       },
     ],
   },
-  { path: '*', element: <Navigate to="/page-1" replace /> },
+  { path: '*', element: <Navigate to="/tools" replace /> },
 ])

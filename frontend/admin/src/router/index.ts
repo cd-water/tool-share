@@ -2,7 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import LoginView from '@/views/LoginView.vue'
-import PlaceholderView from '@/views/PlaceholderView.vue'
+import DashboardView from '@/views/DashboardView.vue'
+import ToolManageView from '@/views/ToolManageView.vue'
+import RentalManageView from '@/views/RentalManageView.vue'
+import DamageManageView from '@/views/DamageManageView.vue'
+import KnowledgeView from '@/views/KnowledgeView.vue'
+import MessagesView from '@/views/MessagesView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -11,7 +16,7 @@ declare module 'vue-router' {
   }
 }
 
-const DEFAULT_REDIRECT = '/menu-1'
+const DEFAULT_REDIRECT = '/dashboard'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,9 +28,12 @@ const router = createRouter({
       redirect: DEFAULT_REDIRECT,
       meta: { requiresAuth: true },
       children: [
-        { path: 'menu-1', component: PlaceholderView, meta: { title: '菜单1' } },
-        { path: 'menu-2', component: PlaceholderView, meta: { title: '菜单2' } },
-        { path: 'menu-3', component: PlaceholderView, meta: { title: '菜单3' } },
+        { path: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+        { path: 'tools', component: ToolManageView, meta: { title: '工具管理' } },
+        { path: 'rentals', component: RentalManageView, meta: { title: '租赁管理' } },
+        { path: 'damage', component: DamageManageView, meta: { title: '报修管理' } },
+        { path: 'knowledge', component: KnowledgeView, meta: { title: '知识库' } },
+        { path: 'messages', component: MessagesView, meta: { title: '消息中心' } },
       ],
     },
   ],

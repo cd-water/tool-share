@@ -37,7 +37,7 @@ function safeRedirectPath(state: unknown): string {
   const from = (state as { from?: unknown } | null)?.from
   return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
     ? from
-    : '/page-1'
+    : '/tools'
 }
 
 function ErrorLine({ msg }: { msg?: string }) {

@@ -12,4 +12,9 @@ public class UserVO {
     private String nickname;
 
     private String avatar;
+
+    private String realName;
+
+    /** 脱敏后的身份证号 */
+    private String idCard;
 }

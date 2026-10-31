@@ -55,3 +55,7 @@ minio:
   access-key: ${MINIO_ROOT_USER:toolminio}
   secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
   bucket: ${MINIO_BUCKET:tool-share}
+
+# 身份证 AES 密钥（32 字符）
+security:
+  id-card-key: ${ID_CARD_AES_KEY:toolshare-idcard-secret-key-2026}
