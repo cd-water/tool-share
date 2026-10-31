@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社区共享工具租赁系统 · 数据模型</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2F4F1;
+    --ink: #1C3A35;
+    --muted: #5F6E68;
+    --soft: #7C8A84;
+    --rule: rgba(28, 58, 53, 0.12);
+    --accent: #E05206;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 40px 40px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { max-width: 1340px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-family: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    margin: 0 0 6px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+  .diagram { overflow-x: auto; }
+  svg { width: 100%; height: auto; display: block; min-width: 960px; }
+  .colophon {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--soft);
+  }
+  @media (max-width: 760px) {
+    body { padding: 32px 16px; }
+    h1 { font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Data Model</p>
+  <h1>社区共享工具租赁系统</h1>
+  <p class="subtitle">实体关系图 · 8 张表 · 8 条关系 · 关键字段（完整列见 src/main/resources/db/migration）</p>
+
+  <div class="diagram">
+    <svg role="img" aria-labelledby="toolshare-er-title toolshare-er-desc" viewBox="0 0 1340 960" xmlns="http://www.w3.org/2000/svg">
+      <title id="toolshare-er-title">社区共享工具租赁系统实体关系图</title>
+      <desc id="toolshare-er-desc">八张表的关系：居民发起租赁单、提交报修单并接收消息；管理员接收业务通知；工具产生状态日志并被租赁与报修引用；租赁单派生出报修单，为全流程核心聚合；知识库文档独立存储并建立向量索引。</desc>
+
+      <defs>
+        <style>
+          .field { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #3A4A45; }
+          .marker { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #8A968F; }
+          .card { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #5F6E68; }
+          .ename { font-family: 'Geist Mono', monospace; font-size: 11.5px; font-weight: 600; fill: #1C3A35; }
+          .ecn { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 10px; fill: #7C8A84; }
+        </style>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#F2F4F1"/>
+
+      <!-- ===== 关系线（先画线，后画盒） ===== -->
+      <g fill="none" stroke="#5F6E68" stroke-width="1.1">
+        <!-- 居民 → 租赁单（发起） -->
+        <path d="M620 400 H680"/>
+        <!-- 居民 → 报修单（报修人） -->
+        <path d="M620 430 H650 V720 H680"/>
+        <!-- 居民 → 消息（USER 接收） -->
+        <path d="M400 470 V600 H300"/>
+        <!-- 管理员 → 消息（ADMIN 接收） -->
+        <path d="M180 440 V540"/>
+        <!-- 工具 → 租赁单 -->
+        <path d="M820 246 V360"/>
+        <!-- 工具 → 报修单 -->
+        <path d="M960 200 H1000 V730 H960"/>
+        <!-- 工具状态日志 → 工具 -->
+        <path d="M620 120 H680"/>
+        <!-- 租赁单 → 报修单 -->
+        <path d="M820 576 V660"/>
+      </g>
+
+      <!-- ===== 基数标注 ===== -->
+      <g>
+        <rect x="628" y="382" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="634" y="390" text-anchor="middle">1</text>
+        <rect x="658" y="382" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="664" y="390" text-anchor="middle">N</text>
+
+        <rect x="628" y="412" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="634" y="420">1</text>
+        <rect x="656" y="702" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="662" y="710">N</text>
+
+        <rect x="410" y="478" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="416" y="486">1</text>
+        <rect x="344" y="582" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="350" y="590">N</text>
+
+        <rect x="190" y="448" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="196" y="456">1</text>
+        <rect x="190" y="522" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="196" y="530">N</text>
+
+        <rect x="830" y="252" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="836" y="260">1</text>
+        <rect x="830" y="334" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="836" y="342">N</text>
+
+        <rect x="974" y="182" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="980" y="190">1</text>
+        <rect x="974" y="712" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="980" y="720">N</text>
+
+        <rect x="628" y="102" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="634" y="110" text-anchor="middle">N</text>
+        <rect x="660" y="102" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="666" y="110" text-anchor="middle">1</text>
+
+        <rect x="830" y="584" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="836" y="592">1</text>
+        <rect x="830" y="634" width="12" height="10" rx="2" fill="#F2F4F1"/><text class="card" x="836" y="642">N</text>
+      </g>
+
+      <!-- ===== 实体：t_knowledge_doc（独立 · 无外键） ===== -->
+      <g>
+        <rect x="60" y="100" width="240" height="136" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="100" width="240" height="136" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="60" y1="140" x2="300" y2="140" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="76" y="118">t_knowledge_doc</text>
+        <text class="ecn" x="76" y="132">知识库文档 · 独立</text>
+        <text class="marker" x="76" y="158">#</text><text class="field" x="92" y="158">id</text>
+        <text class="field" x="76" y="178">title</text>
+        <text class="field" x="76" y="198">file_name</text>
+        <text class="field" x="76" y="218">indexed</text>
+      </g>
+
+      <!-- ===== 实体：t_admin ===== -->
+      <g>
+        <rect x="60" y="300" width="240" height="140" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="300" width="240" height="140" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="60" y1="340" x2="300" y2="340" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="76" y="318">t_admin</text>
+        <text class="ecn" x="76" y="332">管理员</text>
+        <text class="marker" x="76" y="358">#</text><text class="field" x="92" y="358">id</text>
+        <text class="field" x="76" y="378">username</text>
+        <text class="field" x="76" y="398">password</text>
+        <text class="field" x="76" y="418">enable</text>
+      </g>
+
+      <!-- ===== 实体：t_message ===== -->
+      <g>
+        <rect x="60" y="540" width="240" height="176" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="540" width="240" height="176" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="60" y1="580" x2="300" y2="580" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="76" y="558">t_message</text>
+        <text class="ecn" x="76" y="572">消息提醒</text>
+        <text class="marker" x="76" y="598">#</text><text class="field" x="92" y="598">id</text>
+        <text class="field" x="76" y="618">receiver_type / receiver_id</text>
+        <text class="field" x="76" y="638">type</text>
+        <text class="field" x="76" y="658">read_status</text>
+        <text class="field" x="76" y="678">biz_key · 去重</text>
+      </g>
+
+      <!-- ===== 实体：t_tool_log ===== -->
+      <g>
+        <rect x="360" y="50" width="260" height="136" rx="6" fill="#F2F4F1"/>
+        <rect x="360" y="50" width="260" height="136" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="360" y1="90" x2="620" y2="90" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="376" y="68">t_tool_log</text>
+        <text class="ecn" x="376" y="82">工具状态日志</text>
+        <text class="marker" x="376" y="108">#</text><text class="field" x="392" y="108">id</text>
+        <text class="marker" x="376" y="128">→</text><text class="field" x="392" y="128">tool_id</text>
+        <text class="field" x="376" y="148">action · detail</text>
+        <text class="marker" x="376" y="168">→</text><text class="field" x="392" y="168">operator_id</text>
+      </g>
+
+      <!-- ===== 实体：t_user ===== -->
+      <g>
+        <rect x="360" y="300" width="260" height="176" rx="6" fill="#F2F4F1"/>
+        <rect x="360" y="300" width="260" height="176" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="360" y1="340" x2="620" y2="340" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="376" y="318">t_user</text>
+        <text class="ecn" x="376" y="332">居民 · USER</text>
+        <text class="marker" x="376" y="358">#</text><text class="field" x="392" y="358">id</text>
+        <text class="field" x="376" y="378">phone · nickname</text>
+        <text class="field" x="376" y="398">real_name</text>
+        <text class="field" x="376" y="418">id_card · AES 密文</text>
+        <text class="field" x="376" y="438">avatar</text>
+      </g>
+
+      <!-- ===== 实体：t_tool ===== -->
+      <g>
+        <rect x="680" y="50" width="280" height="196" rx="6" fill="#F2F4F1"/>
+        <rect x="680" y="50" width="280" height="196" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="680" y1="90" x2="960" y2="90" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="696" y="68">t_tool</text>
+        <text class="ecn" x="696" y="82">工具</text>
+        <text class="marker" x="696" y="108">#</text><text class="field" x="712" y="108">id</text>
+        <text class="field" x="696" y="128">code · SQ-G-XX-YYYY</text>
+        <text class="field" x="696" y="148">name · category</text>
+        <text class="field" x="696" y="168">damage_level</text>
+        <text class="field" x="696" y="188">status</text>
+        <text class="field" x="696" y="208">deposit</text>
+      </g>
+
+      <!-- ===== 实体：t_rental（核心聚合，唯一强调） ===== -->
+      <g>
+        <rect x="680" y="360" width="280" height="216" rx="6" fill="#F2F4F1"/>
+        <rect x="680" y="360" width="280" height="216" rx="6" fill="#FEF3EF" stroke="#E05206" stroke-width="1.2"/>
+        <line x1="680" y1="400" x2="960" y2="400" stroke="rgba(224,82,6,0.22)" stroke-width="1"/>
+        <text class="ename" x="696" y="378">t_rental</text>
+        <text class="ecn" x="696" y="392" fill="#B44309">租赁单 · 全流程核心</text>
+        <text class="marker" x="696" y="418">#</text><text class="field" x="712" y="418">id</text>
+        <text class="field" x="696" y="438">order_no · SQ-ZY-*</text>
+        <text class="marker" x="696" y="458">→</text><text class="field" x="712" y="458">tool_id</text>
+        <text class="marker" x="696" y="478">→</text><text class="field" x="712" y="478">user_id</text>
+        <text class="field" x="696" y="498">start_time / end_time</text>
+        <text class="field" x="696" y="518">status · deposit_status</text>
+        <text class="field" x="696" y="538">refund_amount</text>
+      </g>
+
+      <!-- ===== 实体：t_damage_report ===== -->
+      <g>
+        <rect x="680" y="660" width="280" height="216" rx="6" fill="#F2F4F1"/>
+        <rect x="680" y="660" width="280" height="216" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="680" y1="700" x2="960" y2="700" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="ename" x="696" y="678">t_damage_report</text>
+        <text class="ecn" x="696" y="692">损坏报修单</text>
+        <text class="marker" x="696" y="718">#</text><text class="field" x="712" y="718">id</text>
+        <text class="field" x="696" y="738">report_no · SQ-BX-*</text>
+        <text class="marker" x="696" y="758">→</text><text class="field" x="712" y="758">rental_id</text>
+        <text class="marker" x="696" y="778">→</text><text class="field" x="712" y="778">tool_id</text>
+        <text class="marker" x="696" y="798">→</text><text class="field" x="712" y="798">user_id</text>
+        <text class="field" x="696" y="818">status · 核验/进度/验收</text>
+      </g>
+
+      <!-- ===== 图例 ===== -->
+      <line x1="60" y1="892" x2="1280" y2="892" stroke="rgba(28,58,53,0.12)" stroke-width="0.8"/>
+      <text x="60" y="916" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.14em" fill="#7C8A84">LEGEND</text>
+      <text x="140" y="916" font-family="'Geist Mono', monospace" font-size="9" fill="#5F6E68">#</text>
+      <text x="154" y="916" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">主键</text>
+      <text x="222" y="916" font-family="'Geist Mono', monospace" font-size="9" fill="#5F6E68">→</text>
+      <text x="238" y="916" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">外键</text>
+      <text x="306" y="916" font-family="'Geist Mono', monospace" font-size="9" fill="#5F6E68">1 : N</text>
+      <text x="352" y="916" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">一对多</text>
+      <rect x="438" y="905" width="12" height="12" rx="2" fill="#FEF3EF" stroke="#E05206" stroke-width="1"/>
+      <text x="460" y="916" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">租赁主线聚合</text>
+    </svg>
+  </div>
+
+  <p class="colophon">ER · tool-share · 依据 db/migration V1–V5 · 字段仅展示关键列</p>
+</div>
+</body>
+</html>
