@@ -1,6 +1,12 @@
+import { toast } from '@/components/ui/toast'
 import http from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
 import type { AiChatResult, AiSource } from '@/api/types'
+
+interface ResultError {
+  code?: string
+  message?: string
+}
 
 export interface ChatStreamHandlers {
   onSources: (sources: AiSource[]) => void
@@ -48,6 +54,24 @@ export const aiApi = {
       return
     }
 
+    // 业务错误与正常接口一致：HTTP 200 + Result JSON（非 event-stream）
+    const contentType = response.headers.get('content-type') ?? ''
+    if (!contentType.includes('text/event-stream')) {
+      let data: ResultError | null = null
+      try {
+        data = (await response.json()) as ResultError
+      } catch {
+        // 无法解析时按通用错误处理
+      }
+      if (data?.code === 'C401') {
+        useAuthStore.getState().clear()
+        toast.add({ title: '登录已过期，请重新登录', type: 'error' })
+        return
+      }
+      handlers.onError?.(data?.message || '请求失败，请稍后再试。')
+      return
+    }
+
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -71,22 +95,30 @@ export const aiApi = {
       dataLines = []
     }
 
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      let idx: number
-      while ((idx = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, idx).replace(/\r$/, '')
-        buffer = buffer.slice(idx + 1)
-        if (line === '') {
-          dispatch()
-        } else if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).replace(/^ /, ''))
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let idx: number
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, idx).replace(/\r$/, '')
+          buffer = buffer.slice(idx + 1)
+          if (line === '') {
+            dispatch()
+          } else if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).replace(/^ /, ''))
+          }
         }
       }
+    } catch (error) {
+      // 组件卸载主动中止：静默结束；流中途断开：提示并结束
+      if ((error as Error).name !== 'AbortError') {
+        handlers.onError?.('连接中断，请稍后再试。')
+      }
+      return
     }
     dispatch()
     handlers.onDone?.()
