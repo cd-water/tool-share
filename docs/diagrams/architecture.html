@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社区共享工具租赁系统 · 系统架构</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2F4F1;
+    --ink: #1C3A35;
+    --muted: #5F6E68;
+    --soft: #7C8A84;
+    --rule: rgba(28, 58, 53, 0.12);
+    --accent: #E05206;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 40px 40px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { max-width: 1340px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-family: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    margin: 0 0 6px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+  .diagram { overflow-x: auto; }
+  svg { width: 100%; height: auto; display: block; min-width: 960px; }
+  .colophon {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--soft);
+  }
+  @media (max-width: 760px) {
+    body { padding: 32px 16px; }
+    h1 { font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Architecture</p>
+  <h1>社区共享工具租赁系统</h1>
+  <p class="subtitle">系统架构图 · 双前端 · 单体后端按业务模块分包 · 中间件与 AI 服务（宿主端口均为非默认）</p>
+
+  <div class="diagram">
+    <svg role="img" aria-labelledby="toolshare-arch-title toolshare-arch-desc" viewBox="0 0 1340 920" xmlns="http://www.w3.org/2000/svg">
+      <title id="toolshare-arch-title">社区共享工具租赁系统架构图</title>
+      <desc id="toolshare-arch-desc">用户端 React 与管理端 Vue 通过 HTTP Bearer 调用 Spring Boot 单体应用；应用按业务模块分包；数据层为 MySQL、Redis、MinIO，RabbitMQ 预留；AI 链路为 Qdrant 向量检索、Ollama 向量化与 DeepSeek 流式对话，外部服务异常时自动降级。</desc>
+
+      <defs>
+        <style>
+          .boxname { font-family: 'Geist Mono', monospace; font-size: 11.5px; font-weight: 600; fill: #1C3A35; }
+          .boxcn { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 10px; fill: #7C8A84; }
+          .line-label { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #5F6E68; }
+          .detail { font-family: 'Geist Mono', monospace; font-size: 9px; fill: #3A4A45; }
+          .module { font-family: 'Geist Mono', monospace; font-size: 9.5px; fill: #3A4A45; }
+          .phase { font-family: 'Geist Mono', monospace; font-size: 8px; letter-spacing: 0.14em; fill: #7C8A84; }
+        </style>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#5F6E68"/>
+        </marker>
+        <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#E05206"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#F2F4F1"/>
+
+      <!-- ===== 连线（先线后盒） ===== -->
+      <g fill="none" stroke="#5F6E68" stroke-width="1.1">
+        <!-- 用户端 → 应用（REST） -->
+        <path d="M360 200 H460" marker-end="url(#arrow)"/>
+        <!-- 用户端 ⇢ 应用（AI SSE 流式） -->
+        <path d="M360 244 H460" stroke-dasharray="5 4" marker-end="url(#arrow-accent)"/>
+        <!-- 管理端 → 应用（REST） -->
+        <path d="M360 400 H460" marker-end="url(#arrow)"/>
+        <!-- 应用 → MySQL -->
+        <path d="M820 128 H940" marker-end="url(#arrow)"/>
+        <!-- 应用 → Redis -->
+        <path d="M820 248 H940" marker-end="url(#arrow)"/>
+        <!-- 应用 → MinIO -->
+        <path d="M820 368 H940" marker-end="url(#arrow)"/>
+        <!-- 应用 ⇢ RabbitMQ（预留） -->
+        <path d="M820 488 H940" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+        <!-- 应用 → Qdrant -->
+        <path d="M760 560 V620" marker-end="url(#arrow)"/>
+        <!-- 应用 → Ollama -->
+        <path d="M640 560 V620" marker-end="url(#arrow)"/>
+        <!-- 应用 ⇢ DeepSeek -->
+        <path d="M540 560 V620" stroke-dasharray="5 4" stroke="#E05206" marker-end="url(#arrow-accent)"/>
+      </g>
+
+      <!-- ===== 连线标签 ===== -->
+      <g>
+        <rect x="368" y="182" width="86" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="411" y="192" text-anchor="middle">HTTP · Bearer</text>
+        <rect x="368" y="246" width="86" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="411" y="256" text-anchor="middle" fill="#B44309">AI · SSE 流式</text>
+        <rect x="368" y="382" width="86" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="411" y="392" text-anchor="middle">HTTP · Bearer</text>
+
+        <rect x="848" y="104" width="60" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="878" y="114" text-anchor="middle">SQL · JDBC</text>
+        <rect x="848" y="224" width="86" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="891" y="234" text-anchor="middle">SESSION · INCR</text>
+        <rect x="848" y="344" width="60" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="878" y="354" text-anchor="middle">S3 SDK</text>
+        <rect x="848" y="464" width="86" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="891" y="474" text-anchor="middle">AMQP · 预留</text>
+
+        <rect x="770" y="580" width="60" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="800" y="590" text-anchor="middle">VECTOR</text>
+        <rect x="620" y="580" width="56" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="648" y="590" text-anchor="middle">EMBED</text>
+        <rect x="452" y="580" width="110" height="12" rx="2" fill="#F2F4F1"/><text class="line-label" x="507" y="590" text-anchor="middle" fill="#B44309">STREAM CHAT · 降级</text>
+      </g>
+
+      <!-- ===== 前端：用户端 ===== -->
+      <g>
+        <rect x="60" y="140" width="300" height="130" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="140" width="300" height="130" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="60" y1="180" x2="360" y2="180" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="76" y="160">frontend/web</text>
+        <text class="boxcn" x="76" y="172">居民 · 用户端 · React 19 · :5901</text>
+        <text class="detail" x="76" y="200">TanStack Query · zustand · Tailwind 4</text>
+        <text class="detail" x="76" y="220">shadcn 风格组件（@base-ui/react）</text>
+        <text class="detail" x="76" y="240">fetch + ReadableStream 解析 SSE</text>
+      </g>
+
+      <!-- ===== 前端：管理端 ===== -->
+      <g>
+        <rect x="60" y="340" width="300" height="130" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="340" width="300" height="130" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="60" y1="380" x2="360" y2="380" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="76" y="360">frontend/admin</text>
+        <text class="boxcn" x="76" y="372">管理员 · 管理端 · Vue 3 · :5902</text>
+        <text class="detail" x="76" y="400">Element Plus · Pinia（持久化）</text>
+        <text class="detail" x="76" y="420">仪表盘 / 工具 / 租赁 / 报修</text>
+        <text class="detail" x="76" y="440">知识库 / 消息 · Excel 导出</text>
+      </g>
+
+      <!-- ===== 应用（核心，强调） ===== -->
+      <g>
+        <rect x="460" y="200" width="360" height="360" rx="6" fill="#F2F4F1"/>
+        <rect x="460" y="200" width="360" height="360" rx="6" fill="#FEF3EF" stroke="#E05206" stroke-width="1.2"/>
+        <line x1="460" y1="240" x2="820" y2="240" stroke="rgba(224,82,6,0.22)" stroke-width="1"/>
+        <text class="boxname" x="476" y="220">Spring Boot 应用 · :8900</text>
+        <text class="boxcn" x="476" y="232" fill="#B44309">Java 21 · 单体 · REST /api · sa-token 双账号</text>
+        <text class="phase" x="476" y="266">SHARED</text>
+        <text class="module" x="476" y="284">web · config · storage · security · sequence</text>
+        <text class="phase" x="476" y="312">MODULE</text>
+        <text class="module" x="476" y="330">auth      双账号登录 · 个人资料</text>
+        <text class="module" x="476" y="348">tool      工具台账 · 状态日志</text>
+        <text class="module" x="476" y="366">rental    预约 · 取件归还 · 导出</text>
+        <text class="module" x="476" y="384">damage    核验 · 维修进度 · 验收</text>
+        <text class="module" x="476" y="402">message   消息提醒 · biz_key 去重</text>
+        <text class="module" x="476" y="420">knowledge 知识库 · 向量索引标记</text>
+        <text class="module" x="476" y="438">ai        RAG 检索 · SSE 流式问答</text>
+        <text class="module" x="476" y="456">dashboard 用户端 / 管理端统计</text>
+        <text class="detail" x="476" y="490">Flyway V1–V5 · 定时提醒任务</text>
+        <text class="detail" x="476" y="510">外部 AI 异常 → 关键词检索兜底</text>
+        <text class="detail" x="476" y="530">短信 MOCK · 押金沙箱支付</text>
+      </g>
+
+      <!-- ===== 数据层 ===== -->
+      <g>
+        <rect x="940" y="80" width="300" height="96" rx="6" fill="#F2F4F1"/>
+        <rect x="940" y="80" width="300" height="96" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="940" y1="120" x2="1240" y2="120" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="956" y="100">MySQL 8 · :3806</text>
+        <text class="boxcn" x="956" y="112">业务数据</text>
+        <text class="detail" x="956" y="140">t_user · t_admin · t_tool · t_rental</text>
+        <text class="detail" x="956" y="160">t_damage_report · t_message · …</text>
+      </g>
+
+      <g>
+        <rect x="940" y="200" width="300" height="96" rx="6" fill="#F2F4F1"/>
+        <rect x="940" y="200" width="300" height="96" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="940" y1="240" x2="1240" y2="240" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="956" y="220">Redis 7 · :6879</text>
+        <text class="boxcn" x="956" y="232">会话 · 缓存</text>
+        <text class="detail" x="956" y="260">sa-token 会话（双 StpLogic）</text>
+        <text class="detail" x="956" y="280">验证码 GETDEL · 单号 INCR 序列</text>
+      </g>
+
+      <g>
+        <rect x="940" y="320" width="300" height="96" rx="6" fill="#F2F4F1"/>
+        <rect x="940" y="320" width="300" height="96" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="940" y1="360" x2="1240" y2="360" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="956" y="340">MinIO · :9500</text>
+        <text class="boxcn" x="956" y="352">对象存储</text>
+        <text class="detail" x="956" y="380">工具图片 · 报修凭证 · 知识库</text>
+        <text class="detail" x="956" y="400">/api/files/{key} 公开读取</text>
+      </g>
+
+      <g>
+        <rect x="940" y="440" width="300" height="96" rx="6" fill="#F2F4F1"/>
+        <rect x="940" y="440" width="300" height="96" rx="6" fill="#FFFFFF" stroke="#7C8A84" stroke-width="1" stroke-dasharray="6 4"/>
+        <line x1="940" y1="480" x2="1240" y2="480" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="956" y="460" fill="#5F6E68">RabbitMQ 4 · :6172</text>
+        <text class="boxcn" x="956" y="472">消息队列 · 预留</text>
+        <text class="detail" x="956" y="500">依赖已就绪 · 业务暂未接入</text>
+        <text class="detail" x="956" y="520">提醒任务当前为进程内定时调度</text>
+      </g>
+
+      <!-- ===== AI 服务层 ===== -->
+      <g>
+        <rect x="700" y="620" width="300" height="110" rx="6" fill="#F2F4F1"/>
+        <rect x="700" y="620" width="300" height="110" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="700" y1="660" x2="1000" y2="660" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="716" y="640">Qdrant · :6833</text>
+        <text class="boxcn" x="716" y="652">向量数据库</text>
+        <text class="detail" x="716" y="680">collection tool_share · bge-m3 1024 维</text>
+        <text class="detail" x="716" y="700">chunk 确定性 UUID · 删除即清理</text>
+        <text class="detail" x="716" y="720">启动补索引（indexed 标记）</text>
+      </g>
+
+      <g>
+        <rect x="380" y="620" width="300" height="110" rx="6" fill="#F2F4F1"/>
+        <rect x="380" y="620" width="300" height="110" rx="6" fill="#FFFFFF" stroke="#1C3A35" stroke-width="1"/>
+        <line x1="380" y1="660" x2="680" y2="660" stroke="rgba(28,58,53,0.12)" stroke-width="1"/>
+        <text class="boxname" x="396" y="640">Ollama · :11934</text>
+        <text class="boxcn" x="396" y="652">本地向量化</text>
+        <text class="detail" x="396" y="680">模型 bge-m3 · 1024 维</text>
+        <text class="detail" x="396" y="700">文档分块 700 字 · 重叠 80</text>
+        <text class="detail" x="396" y="720">Tika 解析 pdf / docx</text>
+      </g>
+
+      <g>
+        <rect x="60" y="620" width="300" height="110" rx="6" fill="#F2F4F1"/>
+        <rect x="60" y="620" width="300" height="110" rx="6" fill="#FFFFFF" stroke="#E05206" stroke-width="1.2" stroke-dasharray="6 4"/>
+        <line x1="60" y1="660" x2="360" y2="660" stroke="rgba(224,82,6,0.22)" stroke-width="1"/>
+        <text class="boxname" x="76" y="640">DeepSeek API</text>
+        <text class="boxcn" x="76" y="652" fill="#B44309">对话模型 · 外部服务</text>
+        <text class="detail" x="76" y="680">OpenAI 兼容 · 流式输出</text>
+        <text class="detail" x="76" y="700">仅依据知识库内容作答</text>
+        <text class="detail" x="76" y="720">不可用时降级为检索摘要</text>
+      </g>
+
+      <!-- ===== 图例 ===== -->
+      <line x1="60" y1="856" x2="1280" y2="856" stroke="rgba(28,58,53,0.12)" stroke-width="0.8"/>
+      <text x="60" y="880" font-family="'Geist Mono', monospace" font-size="8" letter-spacing="0.14em" fill="#7C8A84">LEGEND</text>
+      <text x="140" y="880" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">实线 · 同步调用</text>
+      <text x="300" y="880" font-family="'Geist Mono', monospace" font-size="9" fill="#5F6E68">- - -&gt;</text>
+      <text x="376" y="880" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">流式 / 异步 / 预留</text>
+      <rect x="540" y="869" width="12" height="12" rx="2" fill="#FEF3EF" stroke="#E05206" stroke-width="1"/>
+      <text x="562" y="880" font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" font-weight="500" fill="#5F6E68">应用核心 / 外部 AI</text>
+    </svg>
+  </div>
+
+  <p class="colophon">ARCHITECTURE · tool-share · 端口映射见 docker-compose.yml 与 .env.example</p>
+</div>
+</body>
+</html>
