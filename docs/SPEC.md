@@ -86,7 +86,8 @@
 | GET | `/api/user/messages/unread-count` | 未读数 |
 | POST | `/api/user/messages/{id}/read` | 标记已读 |
 | POST | `/api/user/messages/read-all` | 全部已读 |
-| POST | `/api/user/ai/chat` | AI 问答，body `{question}`，返回 `{answer,sources}` |
+| POST | `/api/user/ai/chat` | AI 问答（JSON，兼容/降级），body `{question}`，返回 `{answer,sources}` |
+| POST | `/api/user/ai/chat/stream` | AI 问答 SSE 流式（`text/event-stream`）：先发 `sources` 事件（`{"sources":[...]}`），再逐条发 `message` 事件（增量文本）；LLM 异常时流式输出兜底文案 |
 | GET | `/api/user/dashboard` | 用户首页统计 |
 | POST | `/api/user/upload` | 图片上传（multipart `file`） |
 
@@ -153,6 +154,7 @@
 ## 6. 技术约束
 
 - 后端 Spring Boot 4.1.1 / Java 21；Jackson 3（`tools.jackson.*`）。
+- 后端按业务模块分包：`shared/`（web 公共、config、storage、security、sequence）+ `module/<业务>/`（各自内聚 controller/service/entity/mapper/dto/vo）。
 - 继续使用 Sa-Token 双账号体系，不引入 Spring Security 过滤器链。
 - 前端 web 也用 React 19 + TanStack Query + zustand；admin 用 Vue 3 + Element Plus + Pinia。
 - 新增依赖需与现有依赖不冲突；优先使用已有 AWS S3 SDK、EasyExcel、Hutool、Spring AI。
