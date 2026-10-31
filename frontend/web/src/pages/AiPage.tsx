@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { BookOpen, Loader2, Send, Sparkles } from 'lucide-react'
 import { aiApi } from '@/api/ai'
 import type { AiSource } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 type ChatMessage = {
@@ -29,46 +29,65 @@ function createId() {
 export default function AiPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [streaming, setStreaming] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  const mutation = useMutation({
-    mutationFn: (question: string) => aiApi.chat(question),
-    onSuccess: (data) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: createId(),
-          role: 'assistant',
-          content: data.answer || '暂时没有找到相关答案，请换个问法试试。',
-          sources: data.sources ?? [],
-        },
-      ])
-    },
-    onError: () => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: createId(),
-          role: 'assistant',
-          content: '抱歉，AI 助手暂时无法回答，请稍后再试。',
-        },
-      ])
-    },
-  })
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, mutation.isPending])
+  }, [messages, streaming])
+
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  function updateAssistant(id: string, patch: Partial<ChatMessage>) {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === id ? { ...message, ...patch } : message,
+      ),
+    )
+  }
 
   function send(questionText?: string) {
     const question = (questionText ?? input).trim()
-    if (!question || mutation.isPending) return
+    if (!question || streaming) return
+    const assistantId = createId()
     setMessages((prev) => [
       ...prev,
       { id: createId(), role: 'user', content: question },
+      { id: assistantId, role: 'assistant', content: '', sources: [] },
     ])
     setInput('')
-    mutation.mutate(question)
+    setStreaming(true)
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    aiApi
+      .chatStream(
+        question,
+        {
+          onSources: (sources) => updateAssistant(assistantId, { sources }),
+          onMessage: (delta) =>
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: message.content + delta }
+                  : message,
+              ),
+            ),
+          onError: (message) => {
+            toast.add({ title: message, type: 'error' })
+            updateAssistant(assistantId, {
+              content: '抱歉，AI 助手暂时无法回答，请稍后再试。',
+            })
+          },
+        },
+        controller.signal,
+      )
+      .finally(() => {
+        if (abortRef.current === controller) abortRef.current = null
+        setStreaming(false)
+      })
   }
 
   return (
@@ -127,7 +146,16 @@ export default function AiPage() {
                     : 'rounded-bl-md border border-border bg-background text-foreground',
                 )}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                {message.role === 'assistant' &&
+                message.content === '' &&
+                streaming ? (
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    正在思考…
+                  </p>
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                )}
                 {message.sources && message.sources.length > 0 && (
                   <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
                     <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -152,18 +180,6 @@ export default function AiPage() {
               </div>
             </div>
           ))}
-
-          {mutation.isPending && (
-            <div className="flex gap-2.5">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <Sparkles className="size-4" />
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                正在思考…
-              </div>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
 
@@ -189,7 +205,7 @@ export default function AiPage() {
             <Button
               type="button"
               size="icon-lg"
-              disabled={mutation.isPending || !input.trim()}
+              disabled={streaming || !input.trim()}
               onClick={() => send()}
               aria-label="发送"
             >
