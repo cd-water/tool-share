@@ -524,6 +524,8 @@ export default function ToolsPage() {
               onSuccess={() => {
                 queryClient.invalidateQueries({ queryKey: ['rentals'] })
                 queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                // 预约成功会生成站内消息，立即刷新头部未读数
+                queryClient.invalidateQueries({ queryKey: ['messages'] })
                 toast.add({
                   title: '预约成功，请前往我的租赁支付押金',
                   type: 'success',

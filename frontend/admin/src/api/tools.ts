@@ -29,11 +29,21 @@ export interface ToolVO {
   updateTime?: string
 }
 
+export type ToolOrderBy = 'default' | 'rentalCount' | 'lastRepairTime'
+
 export interface ToolQuery extends PageQuery {
   keyword?: string
   category?: string
   status?: string
   storageArea?: string
+  /** 排序：默认（创建时间）/ 租赁次数 / 最近维修时间 */
+  orderBy?: ToolOrderBy
+  /** 最低租赁次数 */
+  minRentalCount?: number
+  /** 最近 N 天内维修过 */
+  repairedWithinDays?: number
+  /** 从未维修 */
+  neverRepaired?: boolean
 }
 
 export interface ToolSaveDTO {

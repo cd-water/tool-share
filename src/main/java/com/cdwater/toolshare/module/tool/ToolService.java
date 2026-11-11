@@ -47,14 +47,35 @@ public class ToolService {
         if (!StringUtils.hasText(status)) {
             wrapper.ne(Tool::getStatus, "SCRAPPED");
         }
+        wrapper.orderByDesc(Tool::getCreateTime);
         Page<Tool> result = toolMapper.selectPage(new Page<>(page, clamp(size)), wrapper);
         return PageVO.of(result, this::toVO);
     }
 
-    public PageVO<ToolVO> adminPage(String keyword, String category, String status,
-                                    String storageArea, long page, long size) {
-        LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, storageArea);
-        Page<Tool> result = toolMapper.selectPage(new Page<>(page, clamp(size)), wrapper);
+    /**
+     * 管理端列表：支持按租赁次数 / 最近维修时间排序，以及最低租赁次数、维修时间范围筛选。
+     */
+    public PageVO<ToolVO> adminPage(ToolAdminQuery query) {
+        LambdaQueryWrapper<Tool> wrapper = baseWrapper(query.getKeyword(), query.getCategory(),
+                query.getStatus(), query.getStorageArea());
+        if (query.getMinRentalCount() != null) {
+            wrapper.ge(Tool::getRentalCount, query.getMinRentalCount());
+        }
+        if (Boolean.TRUE.equals(query.getNeverRepaired())) {
+            wrapper.isNull(Tool::getLastRepairTime);
+        } else if (query.getRepairedWithinDays() != null && query.getRepairedWithinDays() > 0) {
+            wrapper.ge(Tool::getLastRepairTime,
+                    LocalDateTime.now().minusDays(query.getRepairedWithinDays()));
+        }
+        switch (query.getOrderBy() == null ? "" : query.getOrderBy()) {
+            case "rentalCount" -> wrapper.orderByDesc(Tool::getRentalCount);
+            case "lastRepairTime" -> wrapper.orderByDesc(Tool::getLastRepairTime);
+            default -> {
+            }
+        }
+        // 次级排序保证结果稳定
+        wrapper.orderByDesc(Tool::getCreateTime);
+        Page<Tool> result = toolMapper.selectPage(new Page<>(query.getPage(), clamp(query.getSize())), wrapper);
         return PageVO.of(result, this::toVO);
     }
 
@@ -75,7 +96,7 @@ public class ToolService {
         if (StringUtils.hasText(storageArea)) {
             wrapper.like(Tool::getStorageArea, storageArea);
         }
-        return wrapper.orderByDesc(Tool::getCreateTime);
+        return wrapper;
     }
 
     public ToolVO getVO(Long id) {

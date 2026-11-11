@@ -250,8 +250,11 @@ function canProgress(row: DamageReportVO): boolean {
 }
 
 function canAccept(row: DamageReportVO): boolean {
+  // 已完成/已报废的报修单不再提供「验收」入口
+  if (row.status === 'COMPLETED' || row.status === 'SCRAPPED') {
+    return false
+  }
   return (
-    row.status === 'COMPLETED' ||
     row.status === 'REPAIRING' ||
     row.progressStatus === 'COMPLETED' ||
     row.progressStatus === 'FAILED'

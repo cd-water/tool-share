@@ -35,7 +35,11 @@ const query = reactive<ToolQuery>({
   category: '',
   status: '',
   storageArea: '',
+  orderBy: 'default',
+  minRentalCount: undefined,
 })
+/** 维修时间筛选：'' 不限 / '7' 近 7 天 / '30' 近 30 天 / 'never' 从未维修 */
+const repairScope = ref<'' | '7' | '30' | 'never'>('')
 
 const categoryOptions = optionList(TOOL_CATEGORY_LABELS)
 const damageLevelOptions = optionList(DAMAGE_LEVEL_LABELS)
@@ -44,7 +48,18 @@ const statusOptions = optionList(TOOL_STATUS_LABELS)
 async function loadList() {
   loading.value = true
   try {
-    const data = await toolApi.list(cleanParams({ ...query }))
+    const params: ToolQuery = { ...query }
+    if (repairScope.value === 'never') {
+      params.neverRepaired = true
+      delete params.repairedWithinDays
+    } else if (repairScope.value) {
+      params.repairedWithinDays = Number(repairScope.value)
+      delete params.neverRepaired
+    } else {
+      delete params.neverRepaired
+      delete params.repairedWithinDays
+    }
+    const data = await toolApi.list(cleanParams(params))
     list.value = data.records
     total.value = data.total
   } finally {
@@ -62,6 +77,9 @@ function handleReset() {
   query.category = ''
   query.status = ''
   query.storageArea = ''
+  query.orderBy = 'default'
+  query.minRentalCount = undefined
+  repairScope.value = ''
   query.page = 1
   loadList()
 }
@@ -282,6 +300,27 @@ onMounted(loadList)
             @keyup.enter="handleSearch"
           />
         </el-form-item>
+        <el-form-item label="排序">
+          <el-select v-model="query.orderBy" style="width: 160px">
+            <el-option label="默认（创建时间）" value="default" />
+            <el-option label="租赁次数最多" value="rentalCount" />
+            <el-option label="最近维修优先" value="lastRepairTime" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="租赁次数">
+          <el-select v-model="query.minRentalCount" placeholder="不限" clearable style="width: 120px">
+            <el-option label="≥ 1 次" :value="1" />
+            <el-option label="≥ 5 次" :value="5" />
+            <el-option label="≥ 10 次" :value="10" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="维修时间">
+          <el-select v-model="repairScope" placeholder="不限" clearable style="width: 150px">
+            <el-option label="近 7 天维修" value="7" />
+            <el-option label="近 30 天维修" value="30" />
+            <el-option label="从未维修" value="never" />
+          </el-select>
+        </el-form-item>
         <el-form-item class="filter-actions">
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
@@ -345,6 +384,12 @@ onMounted(loadList)
         </el-table-column>
         <el-table-column prop="rentalCount" label="租借次数" width="90" align="center">
           <template #default="{ row }">{{ row.rentalCount ?? 0 }}</template>
+        </el-table-column>
+        <el-table-column label="最近维修" width="150">
+          <template #default="{ row }">
+            <span v-if="row.lastRepairTime">{{ formatDateTime(row.lastRepairTime) }}</span>
+            <span v-else class="muted">未维修</span>
+          </template>
         </el-table-column>
         <el-table-column label="创建时间" width="150">
           <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>

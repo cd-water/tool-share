@@ -22,6 +22,7 @@ import com.cdwater.toolshare.shared.web.PageVO;
 import com.cdwater.toolshare.module.rental.RentalExportRow;
 import com.cdwater.toolshare.module.rental.RentalVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -32,7 +33,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RentalService {
@@ -49,6 +52,24 @@ public class RentalService {
     private final ToolService toolService;
     private final SequenceService sequenceService;
     private final MessageService messageService;
+
+    /** 逾期状态由定时任务物化，列表查询前做一次惰性刷新，避免筛选存在最长 10 分钟的窗口 */
+    private final AtomicLong lastOverdueRefresh = new AtomicLong(0);
+
+    private void ensureOverdueFresh() {
+        long now = System.currentTimeMillis();
+        long last = lastOverdueRefresh.get();
+        if (now - last < 10_000) {
+            return;
+        }
+        if (lastOverdueRefresh.compareAndSet(last, now)) {
+            try {
+                markOverdue();
+            } catch (Exception e) {
+                log.warn("刷新逾期状态失败: {}", e.getMessage());
+            }
+        }
+    }
 
     @Transactional
     public RentalVO create(RentalCreateDTO dto) {
@@ -228,6 +249,7 @@ public class RentalService {
     }
 
     public PageVO<RentalVO> userPage(String status, long page, long size) {
+        ensureOverdueFresh();
         LambdaQueryWrapper<Rental> wrapper = new LambdaQueryWrapper<Rental>()
                 .eq(Rental::getUserId, StpKit.USER.getLoginIdAsLong());
         if (StringUtils.hasText(status)) {
@@ -240,6 +262,7 @@ public class RentalService {
 
     public PageVO<RentalVO> adminPage(String keyword, String status, String overdue,
                                       long page, long size) {
+        ensureOverdueFresh();
         Page<Rental> result = rentalMapper.selectPage(new Page<>(page, clamp(size)),
                 adminWrapper(keyword, status, overdue).orderByDesc(Rental::getCreateTime));
         return PageVO.of(result, this::toVO);

@@ -1,0 +1,69 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------------< com.cdwater:tool-share >-----------------------
+[INFO] Building tool-share 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:4.1.1:run (default-cli) > test-compile @ tool-share >>>
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ tool-share ---
+[INFO] Copying 2 resources from src/main/resources to target/classes
+[INFO] Copying 2 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ tool-share ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ tool-share ---
+[INFO] skip non existing resourceDirectory /mnt/d/share_tool/tool-share/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ tool-share ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:4.1.1:run (default-cli) < test-compile @ tool-share <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:4.1.1:run (default-cli) @ tool-share ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.1)
+
+2026-11-11T16:50:52.684+08:00  INFO 35885 --- [tool-share] [           main] c.c.toolshare.ToolShareApplication       : Starting ToolShareApplication using Java 21.0.13.0.3 with PID 35885 (/mnt/d/share_tool/tool-share/target/classes started by root in /mnt/d/share_tool/tool-share)
+2026-11-11T16:50:52.690+08:00  INFO 35885 --- [tool-share] [           main] c.c.toolshare.ToolShareApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-11-11T16:50:57.367+08:00  INFO 35885 --- [tool-share] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-11-11T16:50:57.382+08:00  INFO 35885 --- [tool-share] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-11-11T16:50:57.593+08:00  INFO 35885 --- [tool-share] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 154 ms. Found 0 Redis repository interfaces.
+2026-11-11T16:51:03.967+08:00  INFO 35885 --- [tool-share] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8900 (http)
+2026-11-11T16:51:04.013+08:00  INFO 35885 --- [tool-share] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-11T16:51:04.014+08:00  INFO 35885 --- [tool-share] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.24]
+2026-11-11T16:51:04.143+08:00  INFO 35885 --- [tool-share] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 11286 ms
+2026-11-11T16:51:05.218+08:00  INFO 35885 --- [tool-share] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-11T16:51:06.057+08:00  INFO 35885 --- [tool-share] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1eabfad5
+2026-11-11T16:51:06.067+08:00  INFO 35885 --- [tool-share] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-11T16:51:06.192+08:00  INFO 35885 --- [tool-share] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://localhost:3806/tool_share (MySQL 8.0)
+2026-11-11T16:51:06.465+08:00  INFO 35885 --- [tool-share] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 2 migrations (execution time 00:00.115s)
+2026-11-11T16:51:06.498+08:00  INFO 35885 --- [tool-share] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema `tool_share`: 2
+2026-11-11T16:51:06.504+08:00  INFO 35885 --- [tool-share] [           main] o.f.core.internal.command.DbMigrate      : Schema `tool_share` is up to date. No migration necessary.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        null 
+2026-11-11T16:51:08.225+08:00  INFO 35885 --- [tool-share] [           main] org.redisson.Version                     : Redisson 4.8.0
+2026-11-11T16:51:09.784+08:00  INFO 35885 --- [tool-share] [isson-netty-1-5] o.redisson.connection.ConnectionsHolder  : 1 connections initialized for localhost/127.0.0.1:6879
+2026-11-11T16:51:09.891+08:00  INFO 35885 --- [tool-share] [sson-netty-1-20] o.redisson.connection.ConnectionsHolder  : 24 connections initialized for localhost/127.0.0.1:6879
+____ ____    ___ ____ _  _ ____ _  _ 
+[__  |__| __  |  |  | |_/  |___ |\ | 
+___] |  |     |  |__| | \_ |___ | \| 
+https://sa-token.com (v1.46.0)
+2026-11-11T16:51:16.581+08:00  INFO 35885 --- [tool-share] [           main] b.m.s.MybatisPlusApplicationContextAware : Register ApplicationContext instances org.springframework.boot.web.server.servlet.context.AnnotationConfigServletWebServerApplicationContext@328cf0e1
+2026-11-11T16:51:23.777+08:00  INFO 35885 --- [tool-share] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8900 (http) with context path '/'
+2026-11-11T16:51:23.805+08:00  INFO 35885 --- [tool-share] [           main] c.c.toolshare.ToolShareApplication       : Started ToolShareApplication in 32.828 seconds (process running for 30.829)
+2026-11-11T16:51:24.662+08:00  INFO 35885 --- [tool-share] [nio-8900-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-11T16:51:24.663+08:00  INFO 35885 --- [tool-share] [nio-8900-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'

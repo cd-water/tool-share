@@ -29,14 +29,8 @@ public class AdminToolController {
     private final ToolService toolService;
 
     @GetMapping
-    public Result<PageVO<ToolVO>> list(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String storageArea,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
-        return Result.success(toolService.adminPage(keyword, category, status, storageArea, page, size));
+    public Result<PageVO<ToolVO>> list(ToolAdminQuery query) {
+        return Result.success(toolService.adminPage(query));
     }
 
     @PostMapping

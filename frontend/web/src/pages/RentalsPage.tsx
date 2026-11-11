@@ -172,6 +172,8 @@ export default function RentalsPage() {
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     queryClient.invalidateQueries({ queryKey: ['tool'] })
     queryClient.invalidateQueries({ queryKey: ['tools'] })
+    // 支付/取消都会写站内消息，立即刷新头部未读数
+    queryClient.invalidateQueries({ queryKey: ['messages'] })
   }
 
   const payMutation = useMutation({
