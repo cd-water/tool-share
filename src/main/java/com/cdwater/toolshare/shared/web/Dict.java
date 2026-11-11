@@ -80,6 +80,7 @@ public final class Dict {
             "RENT_DUE", "到期提醒",
             "OVERDUE", "逾期提醒",
             "REPAIR", "报修通知",
+            "TOOL_AVAILABLE", "蹲守到货提醒",
             "SYSTEM", "系统消息"
     );
 

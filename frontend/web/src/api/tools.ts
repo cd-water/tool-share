@@ -15,6 +15,16 @@ export interface AvailabilityResult {
   suggestions?: string[]
 }
 
+export interface ToolWatchItem {
+  toolId: number
+  code: string
+  name: string
+  status: string
+  statusName: string
+  deposit: number
+  imageUrl?: string
+}
+
 export const toolsApi = {
   list: (params: ToolQuery) =>
     http.get<PageResult<Tool>>('/user/tools', { params }),
@@ -23,4 +33,9 @@ export const toolsApi = {
     http.get<AvailabilityResult>(`/user/tools/${id}/availability`, {
       params: { startTime, endTime },
     }),
+  /** 蹲守（工具可用时提醒我） */
+  watch: (id: number) => http.post<void>(`/user/tools/${id}/watch`),
+  unwatch: (id: number) => http.delete<void>(`/user/tools/${id}/watch`),
+  watched: (id: number) => http.get<{ watched: boolean }>(`/user/tools/${id}/watch`),
+  watchList: () => http.get<ToolWatchItem[]>('/user/tools/watch/list'),
 }

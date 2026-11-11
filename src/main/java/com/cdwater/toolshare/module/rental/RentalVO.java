@@ -33,6 +33,10 @@ public class RentalVO {
     private String returnRemark;
     private String cancelReason;
     private LocalDateTime cancelTime;
+    /** 到期提醒提前量（分钟），0 表示不提醒，null 表示未设置 */
+    private Integer remindBeforeMinutes;
+    /** 计划提醒时刻 */
+    private LocalDateTime remindAt;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

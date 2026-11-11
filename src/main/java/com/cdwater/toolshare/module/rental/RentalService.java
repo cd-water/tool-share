@@ -52,6 +52,7 @@ public class RentalService {
     private final ToolService toolService;
     private final SequenceService sequenceService;
     private final MessageService messageService;
+    private final RentalReminderService reminderService;
 
     /** 逾期状态由定时任务物化，列表查询前做一次惰性刷新，避免筛选存在最长 10 分钟的窗口 */
     private final AtomicLong lastOverdueRefresh = new AtomicLong(0);
@@ -119,6 +120,8 @@ public class RentalService {
         rental.setDamageFee(BigDecimal.ZERO);
         rental.setRefundAmount(BigDecimal.ZERO);
         rentalMapper.insert(rental);
+        // 按用户选择的提前量登记到期提醒（0 = 不提醒）
+        reminderService.schedule(rental, dto.getRemindBeforeMinutes());
         messageService.notifyUser(user.getId(), "RESERVATION", "预约已创建",
                 "预约单 " + rental.getOrderNo() + " 已创建，请在 30 分钟内完成押金支付。");
         return toVO(rental);
@@ -133,6 +136,8 @@ public class RentalService {
         rental.setDepositStatus("PAID");
         rental.setStatus("RESERVED");
         rentalMapper.updateById(rental);
+        // 支付完成后确保提醒仍在调度中（用户可能在下单后修改过提前量）
+        reminderService.schedule(rental, reminderService.leadOf(rental.getId()));
         messageService.notifyUser(rental.getUserId(), "RESERVATION", "预约成功",
                 "预约单 " + rental.getOrderNo() + " 押金支付成功，请按预约时间取件。");
     }
@@ -167,6 +172,7 @@ public class RentalService {
             rental.setRefundAmount(rental.getDepositAmount());
         }
         rentalMapper.updateById(rental);
+        reminderService.cancel(rental.getId());
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
                 "预约单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
     }
@@ -217,6 +223,7 @@ public class RentalService {
         rental.setReturnRemark(dto.getRemark());
         rental.setStatus("RETURNED");
         rentalMapper.updateById(rental);
+        reminderService.cancel(rental.getId());
 
         Tool tool = toolService.getTool(rental.getToolId());
         if ("SEVERE".equals(dto.getDamageResult())) {
@@ -232,6 +239,7 @@ public class RentalService {
             toolService.log(tool.getId(), "RETURN", "归还验收完成，工具恢复可用");
         }
         toolMapper.updateById(tool);
+        toolService.notifyWatchersIfAvailable(tool);
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "归还验收完成",
                 "预约单 " + rental.getOrderNo() + " 已归还，逾期费 " + overdueFee
                         + " 元，损坏赔偿 " + damageFee + " 元，退还押金 " + refund + " 元。");
@@ -385,6 +393,8 @@ public class RentalService {
         vo.setReturnRemark(rental.getReturnRemark());
         vo.setCancelReason(rental.getCancelReason());
         vo.setCancelTime(rental.getCancelTime());
+        vo.setRemindBeforeMinutes(reminderService.leadOf(rental.getId()));
+        vo.setRemindAt(reminderService.remindAtOf(rental.getId()));
         vo.setCreateTime(rental.getCreateTime());
         vo.setUpdateTime(rental.getUpdateTime());
         return vo;

@@ -70,6 +70,8 @@ export interface Rental {
   returnRemark: string | null
   cancelReason: string | null
   cancelTime: string | null
+  remindBeforeMinutes: number | null
+  remindAt: string | null
   createTime: string
   updateTime: string
 }
@@ -176,6 +178,8 @@ export interface RentalCreatePayload {
   startTime: string
   endTime: string
   pickupPerson: string
+  /** 到期提醒提前分钟数，0 表示不提醒 */
+  remindBeforeMinutes?: number
 }
 
 export interface DamageReportCreatePayload {

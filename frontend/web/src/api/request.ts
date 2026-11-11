@@ -54,6 +54,9 @@ const http = {
   put<T = void>(url: string, data?: unknown): Promise<T> {
     return instance.put(url, data) as unknown as Promise<T>
   },
+  delete<T = void>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    return instance.delete(url, config) as unknown as Promise<T>
+  },
 }
 
 export default http

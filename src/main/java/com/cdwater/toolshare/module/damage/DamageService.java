@@ -194,6 +194,7 @@ public class DamageService {
             tool.setDamageLevel("SEVERE");
         }
         toolMapper.updateById(tool);
+        toolService.notifyWatchersIfAvailable(tool);
         toolService.log(tool.getId(), "STATUS_CHANGE", "维修验收：" + Dict.label(Dict.TOOL_STATUS, toolStatus));
         messageService.notifyUser(report.getUserId(), "REPAIR", "维修验收完成",
                 "报修单 " + report.getReportNo() + " 验收结果："

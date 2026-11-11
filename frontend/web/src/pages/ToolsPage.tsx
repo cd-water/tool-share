@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
+  Bell,
   CalendarClock,
   ImageIcon,
   Loader2,
@@ -48,6 +49,17 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 9
 
+const REMIND_OPTIONS = [
+  { value: 0, label: '不提醒' },
+  { value: 30, label: '提前 30 分钟' },
+  { value: 60, label: '提前 1 小时' },
+  { value: 180, label: '提前 3 小时' },
+  { value: 360, label: '提前 6 小时' },
+  { value: 720, label: '提前 12 小时' },
+  { value: 1440, label: '提前 24 小时' },
+  { value: 2880, label: '提前 48 小时' },
+]
+
 const reservationSchema = z
   .object({
     startTime: z.string().min(1, '请选择开始时间'),
@@ -57,6 +69,11 @@ const reservationSchema = z
       .trim()
       .min(1, '请填写取件人')
       .max(20, '取件人姓名过长'),
+    remindBeforeMinutes: z.coerce
+      .number()
+      .int()
+      .min(0, '提醒时间不能为负数')
+      .max(10080, '最多提前 7 天提醒'),
   })
   .refine((values) => new Date(values.endTime) > new Date(values.startTime), {
     path: ['endTime'],
@@ -102,8 +119,41 @@ function ReservationForm({
     formState: { errors },
   } = useForm<ReservationValues>({
     resolver: zodResolver(reservationSchema),
-    defaultValues: { startTime: '', endTime: '', pickupPerson: '' },
+    defaultValues: {
+      startTime: '',
+      endTime: '',
+      pickupPerson: '',
+      remindBeforeMinutes: 1440,
+    },
   })
+
+  const endTimeValue = useWatch({ control, name: 'endTime' })
+  const remindBefore = useWatch({ control, name: 'remindBeforeMinutes' })
+
+  const remindHint = useMemo(() => {
+    if (remindBefore === 0) {
+      return '不发送到期提醒，请自行留意归还时间。'
+    }
+    if (!endTimeValue) {
+      return '选择结束时间后可预览提醒时刻。'
+    }
+    const end = new Date(endTimeValue)
+    if (Number.isNaN(end.getTime())) {
+      return ''
+    }
+    const at = new Date(end.getTime() - Number(remindBefore) * 60_000)
+    if (at.getTime() <= Date.now()) {
+      return '预约即将到期，系统会在下单后约 1 分钟补发提醒。'
+    }
+    const text = at.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    return `系统将在 ${text} 发送到期提醒。`
+  }, [endTimeValue, remindBefore])
 
   const mutation = useMutation({
     mutationFn: (values: ReservationValues) =>
@@ -184,6 +234,31 @@ function ReservationForm({
         <FieldError>{errors.pickupPerson?.message}</FieldError>
       </div>
 
+      <div>
+        <Label htmlFor="remindBeforeMinutes">到期提醒</Label>
+        <Controller
+          control={control}
+          name="remindBeforeMinutes"
+          render={({ field, fieldState }) => (
+            <Select
+              id="remindBeforeMinutes"
+              className="h-10 bg-card"
+              aria-invalid={fieldState.invalid}
+              value={String(field.value)}
+              onChange={(event) => field.onChange(Number(event.target.value))}
+            >
+              {REMIND_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          )}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">{remindHint}</p>
+        <FieldError>{errors.remindBeforeMinutes?.message}</FieldError>
+      </div>
+
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           返回
@@ -197,6 +272,78 @@ function ReservationForm({
   )
 }
 
+type GuideStep = { text: string; imageUrl?: string }
+
+/** 后台保存的图文步骤是 JSON 数组；旧数据仍是 HTML 富文本 */
+function parseGuideSteps(raw?: string | null): GuideStep[] | null {
+  if (!raw) return null
+  const value = raw.trim()
+  if (!value.startsWith('[')) return null
+  try {
+    const arr = JSON.parse(value)
+    if (!Array.isArray(arr)) return null
+    const steps = arr
+      .map((item: unknown) => {
+        const record = (item ?? {}) as Record<string, unknown>
+        return {
+          text: typeof record.text === 'string' ? record.text : '',
+          imageUrl: typeof record.imageUrl === 'string' ? record.imageUrl : undefined,
+        }
+      })
+      .filter((step) => step.text || step.imageUrl)
+    return steps.length ? steps : null
+  } catch {
+    return null
+  }
+}
+
+function UsageGuide({ guide }: { guide?: string | null }) {
+  const steps = parseGuideSteps(guide)
+  return (
+    <div>
+      <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <ShieldCheck className="size-4 text-primary" />
+        使用说明
+      </h4>
+      {steps ? (
+        <ol className="space-y-3">
+          {steps.map((step, index) => (
+            <li key={index} className="rounded-xl border border-border bg-muted/20 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  {step.text && (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+                      {step.text}
+                    </p>
+                  )}
+                  {step.imageUrl && (
+                    <img
+                      src={step.imageUrl}
+                      alt={`步骤 ${index + 1}`}
+                      loading="lazy"
+                      className="max-h-72 w-full rounded-lg border border-border object-cover"
+                    />
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : guide ? (
+        <div
+          className="rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground/90 [&_a]:text-primary [&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:ml-5 [&_li]:list-disc [&_ol>li]:list-decimal [&_p]:mb-2 [&_p:last-child]:mb-0"
+          dangerouslySetInnerHTML={{ __html: guide }}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">暂无使用说明</p>
+      )}
+    </div>
+  )
+}
+
 function ToolDetail({
   tool,
   onReserve,
@@ -204,6 +351,26 @@ function ToolDetail({
   tool: Tool
   onReserve: () => void
 }) {
+  const queryClient = useQueryClient()
+  const watchQuery = useQuery({
+    queryKey: ['tools', tool.id, 'watch'],
+    queryFn: () => toolsApi.watched(tool.id),
+    enabled: tool.status !== 'AVAILABLE',
+    staleTime: 5_000,
+  })
+  const watched = watchQuery.data?.watched ?? false
+
+  const watchMutation = useMutation({
+    mutationFn: () => (watched ? toolsApi.unwatch(tool.id) : toolsApi.watch(tool.id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools', tool.id, 'watch'] })
+      toast.add({
+        title: watched ? '已取消蹲守' : '已蹲守：工具可租时会通知你',
+        type: 'success',
+      })
+    },
+  })
+
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
@@ -246,20 +413,7 @@ function ToolDetail({
         </div>
       </dl>
 
-      <div>
-        <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <ShieldCheck className="size-4 text-primary" />
-          使用说明
-        </h4>
-        {tool.usageGuide ? (
-          <div
-            className="rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground/90 [&_a]:text-primary [&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:ml-5 [&_li]:list-disc [&_ol>li]:list-decimal [&_p]:mb-2 [&_p:last-child]:mb-0"
-            dangerouslySetInnerHTML={{ __html: tool.usageGuide }}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">暂无使用说明</p>
-        )}
-      </div>
+      <UsageGuide guide={tool.usageGuide} />
 
       {tool.status === 'AVAILABLE' ? (
         <Button type="button" size="lg" className="w-full" onClick={onReserve}>
@@ -267,9 +421,29 @@ function ToolDetail({
           预约租赁
         </Button>
       ) : (
-        <p className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
-          该工具当前{tool.statusName}，暂不可预约
-        </p>
+        <div className="space-y-2">
+          <p className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
+            该工具当前{tool.statusName}，暂不可预约
+          </p>
+          <Button
+            type="button"
+            size="lg"
+            variant={watched ? 'outline' : 'default'}
+            className="w-full"
+            disabled={watchMutation.isPending}
+            onClick={() => watchMutation.mutate()}
+          >
+            <Bell className="size-4" />
+            {watchMutation.isPending
+              ? '处理中…'
+              : watched
+                ? '已蹲守，可租时提醒你（点击取消）'
+                : '蹲守提醒：工具可用时通知我'}
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            蹲守后，工具被归还或维修完成、重新可租时会给你发站内消息。
+          </p>
+        </div>
       )}
     </div>
   )

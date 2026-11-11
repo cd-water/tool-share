@@ -59,3 +59,9 @@ minio:
 # 身份证 AES 密钥（32 字符）
 security:
   id-card-key: ${ID_CARD_AES_KEY:toolshare-idcard-secret-key-2026}
+
+# 业务参数（不落库，按需覆盖）
+toolshare:
+  rental:
+    # 用户下单未选择「到期提醒」时使用的默认提前量（分钟），0 表示默认不提醒
+    default-remind-minutes: 1440

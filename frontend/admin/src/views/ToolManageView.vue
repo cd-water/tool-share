@@ -96,6 +96,77 @@ const editingCode = ref('')
 const formRef = ref<FormInstance>()
 const uploading = ref(false)
 
+type GuideStep = { text: string; imageUrl: string }
+const guideSteps = ref<GuideStep[]>([{ text: '', imageUrl: '' }])
+const legacyGuide = ref(false)
+const stepUploading = ref<number | null>(null)
+
+function emptyStep(): GuideStep {
+  return { text: '', imageUrl: '' }
+}
+
+/** 旧版富文本说明转纯文本（保留换行） */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|li|div|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
+}
+
+function parseGuide(raw?: string): { steps: GuideStep[]; legacy: boolean } {
+  const value = (raw ?? '').trim()
+  if (!value) return { steps: [emptyStep()], legacy: false }
+  if (value.startsWith('[')) {
+    try {
+      const arr = JSON.parse(value)
+      if (Array.isArray(arr)) {
+        const steps = arr
+          .map((item: unknown) => {
+            const record = (item ?? {}) as Record<string, unknown>
+            return {
+              text: typeof record.text === 'string' ? record.text : '',
+              imageUrl: typeof record.imageUrl === 'string' ? record.imageUrl : '',
+            }
+          })
+          .filter((step) => step.text || step.imageUrl)
+        if (steps.length) return { steps, legacy: false }
+      }
+    } catch {
+      // 不是合法 JSON，按旧版文本处理
+    }
+  }
+  return { steps: [{ text: stripHtml(value), imageUrl: '' }], legacy: true }
+}
+
+function serializeGuide(): string {
+  const steps = guideSteps.value
+    .map((step) => ({ text: step.text.trim(), imageUrl: step.imageUrl }))
+    .filter((step) => step.text || step.imageUrl)
+  return steps.length ? JSON.stringify(steps) : ''
+}
+
+function addStep() {
+  guideSteps.value.push(emptyStep())
+}
+
+function removeStep(index: number) {
+  if (guideSteps.value.length <= 1) return
+  guideSteps.value.splice(index, 1)
+}
+
+function moveStep(index: number, delta: number) {
+  const target = index + delta
+  if (target < 0 || target >= guideSteps.value.length) return
+  const [item] = guideSteps.value.splice(index, 1)
+  guideSteps.value.splice(target, 0, item)
+}
+
 const form = reactive<ToolSaveDTO>({
   name: '',
   model: '',
@@ -133,6 +204,8 @@ function resetForm() {
     supplier: '',
     status: 'AVAILABLE',
   })
+  guideSteps.value = [emptyStep()]
+  legacyGuide.value = false
   formRef.value?.clearValidate()
 }
 
@@ -157,6 +230,9 @@ function openEdit(row: ToolVO) {
     supplier: row.supplier ?? '',
     status: row.status,
   })
+  const parsed = parseGuide(row.usageGuide)
+  guideSteps.value = parsed.steps
+  legacyGuide.value = parsed.legacy
   dialogVisible.value = true
   formRef.value?.clearValidate()
 }
@@ -168,6 +244,7 @@ async function handleSubmit() {
   try {
     const payload: ToolSaveDTO = {
       ...form,
+      usageGuide: serializeGuide(),
       imageUrls: [...form.imageUrls],
       purchaseDate: form.purchaseDate || null,
     }
@@ -198,6 +275,17 @@ async function handleUpload(options: UploadRequestOptions) {
 
 function removeImage(index: number) {
   form.imageUrls.splice(index, 1)
+}
+
+async function handleStepUpload(options: UploadRequestOptions, index: number) {
+  stepUploading.value = index
+  try {
+    const data = await uploadApi.uploadFile(options.file)
+    guideSteps.value[index].imageUrl = data.url
+    ElMessage.success('步骤图片上传成功')
+  } finally {
+    stepUploading.value = null
+  }
 }
 
 const statusDialogVisible = ref(false)
@@ -514,14 +602,59 @@ onMounted(loadList)
           </el-col>
         </el-row>
         <el-form-item label="使用说明">
-          <el-input
-            v-model="form.usageGuide"
-            type="textarea"
-            :rows="3"
-            maxlength="500"
-            show-word-limit
-            placeholder="请填写工具使用说明或注意事项"
-          />
+          <div class="guide-editor">
+            <div v-for="(step, index) in guideSteps" :key="index" class="guide-step">
+              <div class="guide-step-head">
+                <span class="guide-step-title">步骤 {{ index + 1 }}</span>
+                <div class="guide-step-actions">
+                  <el-button link :disabled="index === 0" @click="moveStep(index, -1)">上移</el-button>
+                  <el-button link :disabled="index === guideSteps.length - 1" @click="moveStep(index, 1)">下移</el-button>
+                  <el-button link type="danger" :disabled="guideSteps.length === 1" @click="removeStep(index)">删除</el-button>
+                </div>
+              </div>
+              <el-input
+                v-model="step.text"
+                type="textarea"
+                :rows="2"
+                maxlength="500"
+                show-word-limit
+                placeholder="这一步怎么操作、需要注意什么"
+              />
+              <div class="guide-step-image">
+                <el-image
+                  v-if="step.imageUrl"
+                  :src="resolveFileUrl(step.imageUrl)"
+                  :preview-src-list="[resolveFileUrl(step.imageUrl)]"
+                  fit="cover"
+                  preview-teleported
+                  class="guide-step-preview"
+                />
+                <el-upload
+                  :show-file-list="false"
+                  accept="image/*"
+                  :http-request="(options: UploadRequestOptions) => handleStepUpload(options, index)"
+                >
+                  <el-button size="small" :loading="stepUploading === index">
+                    {{ step.imageUrl ? '更换图片' : '上传图片' }}
+                  </el-button>
+                </el-upload>
+                <el-button v-if="step.imageUrl" link type="danger" size="small" @click="step.imageUrl = ''">
+                  移除图片
+                </el-button>
+              </div>
+            </div>
+            <div class="guide-editor-footer">
+              <el-button type="primary" plain :icon="Plus" @click="addStep">新增步骤</el-button>
+              <span class="muted">每一步可只填文字、只放图片，或图文都有；用户端会按步骤顺序展示</span>
+            </div>
+            <el-alert
+              v-if="legacyGuide"
+              type="info"
+              :closable="false"
+              show-icon
+              title="检测到旧版纯文本说明，保存后将自动转换为分步骤格式"
+            />
+          </div>
         </el-form-item>
         <el-form-item label="工具图片">
           <div class="image-upload">
@@ -657,5 +790,62 @@ onMounted(loadList)
   font-size: 13px;
   color: var(--el-text-color-secondary);
   line-height: 1.6;
+}
+
+.guide-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-step {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.guide-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guide-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.guide-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guide-step-image {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guide-step-preview {
+  width: 96px;
+  height: 72px;
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+}
+
+.guide-editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

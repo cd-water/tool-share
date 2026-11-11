@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Bell,
   CalendarClock,
   ClipboardList,
   CreditCard,
@@ -81,6 +82,21 @@ function ReturnInfo({ rental }: { rental: Rental }) {
   )
 }
 
+function describeRemind(rental: Rental): string {
+  const minutes = rental.remindBeforeMinutes
+  if (minutes === null || minutes === undefined) return '未设置'
+  if (minutes === 0) return '不提醒'
+  const label =
+    minutes % 1440 === 0
+      ? `${minutes / 1440} 天`
+      : minutes % 60 === 0
+        ? `${minutes / 60} 小时`
+        : `${minutes} 分钟`
+  return rental.remindAt
+    ? `提前 ${label}（${formatDateTime(rental.remindAt)}）`
+    : `提前 ${label}`
+}
+
 function RentalDetail({ rental }: { rental: Rental }) {
   const rows: [string, string][] = [
     ['工具名称', rental.toolName],
@@ -90,6 +106,7 @@ function RentalDetail({ rental }: { rental: Rental }) {
     ['取件人', rental.pickupPerson || '—'],
     ['开始时间', formatDateTime(rental.startTime)],
     ['结束时间', formatDateTime(rental.endTime)],
+    ['到期提醒', describeRemind(rental)],
     ['押金金额', formatMoney(rental.depositAmount)],
     ['押金状态', rental.depositStatusName || '—'],
     ['创建时间', formatDateTime(rental.createTime)],
@@ -280,6 +297,10 @@ export default function RentalsPage() {
                   <div className="flex items-center gap-1.5">
                     <MapPin className="size-4 shrink-0" />
                     <span>取件人：{rental.pickupPerson || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Bell className="size-4 shrink-0" />
+                    <span>到期提醒：{describeRemind(rental)}</span>
                   </div>
                 </div>
 

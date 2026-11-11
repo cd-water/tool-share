@@ -63,6 +63,8 @@ export function messageTypeTone(type: string): BadgeTone {
       return 'danger'
     case 'REPAIR':
       return 'primary'
+    case 'TOOL_AVAILABLE':
+      return 'success'
     default:
       return 'neutral'
   }

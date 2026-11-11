@@ -41,6 +41,7 @@ public class ToolService {
     private final ToolLogMapper toolLogMapper;
     private final RentalMapper rentalMapper;
     private final SequenceService sequenceService;
+    private final ToolWatchService toolWatchService;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null);
@@ -153,6 +154,15 @@ public class ToolService {
         toolMapper.updateById(tool);
         log(id, "STATUS_CHANGE",
                 "状态由 " + Dict.label(Dict.TOOL_STATUS, before) + " 变为 " + Dict.label(Dict.TOOL_STATUS, status));
+        notifyWatchersIfAvailable(tool);
+    }
+
+    /** 工具恢复可用时提醒蹲守用户（手动改状态/归还/维修完成都会走到这里） */
+    public void notifyWatchersIfAvailable(Tool tool) {
+        if (tool == null || !"AVAILABLE".equals(tool.getStatus())) {
+            return;
+        }
+        toolWatchService.notifyAvailable(tool.getId(), tool.getName());
     }
 
     public List<ToolLogVO> logs(Long toolId) {
