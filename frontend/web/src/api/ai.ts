@@ -1,7 +1,12 @@
 import { toast } from '@/components/ui/toast'
 import http from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
-import type { AiChatResult, AiSource } from '@/api/types'
+import type {
+  AiChatResult,
+  AiSource,
+  ToolRecommendRequest,
+  ToolRecommendResult,
+} from '@/api/types'
 
 interface ResultError {
   code?: string
@@ -17,6 +22,23 @@ export interface ChatStreamHandlers {
 
 export const aiApi = {
   chat: (question: string) => http.post<AiChatResult>('/user/ai/chat', { question }),
+
+  /** AI 工具推荐：描述需求，返回匹配的可用工具 */
+  recommend: (payload: ToolRecommendRequest) =>
+    http.post<ToolRecommendResult>('/user/ai/tool-recommend', payload, {
+      // 向量检索 + 大模型重排可能超过默认的 10 秒
+      timeout: 30_000,
+    }),
+
+  /** 推荐卡片点击埋点 */
+  recommendClick: (recommendationId: number, toolId: number) =>
+    http.post<void>(`/user/ai/tool-recommend/${recommendationId}/click`, { toolId }),
+
+  /** 推荐结果反馈：1 有帮助 2 没帮助 */
+  recommendFeedback: (recommendationId: number, feedback: 1 | 2) =>
+    http.post<void>(`/user/ai/tool-recommend/${recommendationId}/feedback`, {
+      feedback,
+    }),
 
   /** SSE 流式问答：fetch + ReadableStream 手工解析 event/data 帧。 */
   chatStream: async (

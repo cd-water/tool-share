@@ -65,3 +65,11 @@ toolshare:
   rental:
     # 用户下单未选择「到期提醒」时使用的默认提前量（分钟），0 表示默认不提醒
     default-remind-minutes: 1440
+  ai:
+    recommend:
+      # 向量召回数量
+      top-k: 20
+      # 单次最多推荐数量（接口 limit 的上限）
+      max-results: 5
+      # 应用启动时全量重建工具向量索引
+      index-on-startup: true

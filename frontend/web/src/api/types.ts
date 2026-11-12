@@ -152,6 +152,34 @@ export interface AiChatResult {
   sources: AiSource[]
 }
 
+export interface ToolRecommendRequest {
+  question: string
+  startTime?: string
+  endTime?: string
+  category?: ToolCategory
+  maxDeposit?: number
+  limit?: number
+}
+
+export interface ToolRecommendItem {
+  toolId: number
+  name: string
+  categoryName: string
+  model: string
+  deposit: number
+  imageUrl: string
+  statusName: string
+  reason: string
+  storageArea: string
+}
+
+export interface ToolRecommendResult {
+  recommendationId: number | null
+  summary: string
+  items: ToolRecommendItem[]
+  degraded: boolean
+}
+
 export interface UserDashboard {
   availableToolCount: number
   pendingPaymentCount: number

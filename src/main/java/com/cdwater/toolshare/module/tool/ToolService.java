@@ -42,6 +42,7 @@ public class ToolService {
     private final RentalMapper rentalMapper;
     private final SequenceService sequenceService;
     private final ToolWatchService toolWatchService;
+    private final ToolIndexService toolIndexService;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null);
@@ -124,6 +125,7 @@ public class ToolService {
         tool.setCreatedBy(StpKit.ADMIN.getLoginIdAsLong());
         toolMapper.insert(tool);
         log(tool.getId(), "CREATE", "新增工具 " + tool.getCode());
+        toolIndexService.upsert(tool);
         return toVO(tool);
     }
 
@@ -137,6 +139,7 @@ public class ToolService {
         }
         toolMapper.updateById(tool);
         log(tool.getId(), "UPDATE", "编辑工具 " + tool.getCode());
+        toolIndexService.upsert(tool);
         return toVO(tool);
     }
 
@@ -154,6 +157,9 @@ public class ToolService {
         toolMapper.updateById(tool);
         log(id, "STATUS_CHANGE",
                 "状态由 " + Dict.label(Dict.TOOL_STATUS, before) + " 变为 " + Dict.label(Dict.TOOL_STATUS, status));
+        if ("SCRAPPED".equals(status)) {
+            toolIndexService.remove(id);
+        }
         notifyWatchersIfAvailable(tool);
     }
 

@@ -1,33 +1,35 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Controller, useForm, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import {
   Bell,
   CalendarClock,
   ImageIcon,
-  Loader2,
   MapPin,
   Package,
   Search,
-  ShieldCheck,
-  Wrench,
+  Sparkles,
 } from 'lucide-react'
 import { dashboardApi } from '@/api/dashboard'
-import { rentalsApi } from '@/api/rentals'
 import { toolsApi } from '@/api/tools'
-import type { Rental, Tool } from '@/api/types'
+import type { Tool } from '@/api/types'
 import { PageHeader } from '@/components/PageHeader'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
+import { ToolDetailView, ToolImage } from '@/components/ToolDetailView'
+import { ToolRecommendPanel } from '@/components/ToolRecommendPanel'
+import { ToolReservationForm } from '@/components/ToolReservationForm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
-import { FieldError, Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { toast } from '@/components/ui/toast'
 import { formatMoney } from '@/lib/format'
@@ -48,301 +50,6 @@ const STATUS_OPTIONS = [
 ]
 
 const PAGE_SIZE = 9
-
-const REMIND_OPTIONS = [
-  { value: 0, label: '不提醒' },
-  { value: 30, label: '提前 30 分钟' },
-  { value: 60, label: '提前 1 小时' },
-  { value: 180, label: '提前 3 小时' },
-  { value: 360, label: '提前 6 小时' },
-  { value: 720, label: '提前 12 小时' },
-  { value: 1440, label: '提前 24 小时' },
-  { value: 2880, label: '提前 48 小时' },
-]
-
-const reservationSchema = z
-  .object({
-    startTime: z.string().min(1, '请选择开始时间'),
-    endTime: z.string().min(1, '请选择结束时间'),
-    pickupPerson: z
-      .string()
-      .trim()
-      .min(1, '请填写取件人')
-      .max(20, '取件人姓名过长'),
-    remindBeforeMinutes: z.coerce
-      .number()
-      .int()
-      .min(0, '提醒时间不能为负数')
-      .max(10080, '最多提前 7 天提醒'),
-  })
-  .refine((values) => new Date(values.endTime) > new Date(values.startTime), {
-    path: ['endTime'],
-    message: '结束时间需晚于开始时间',
-  })
-
-type ReservationValues = z.infer<typeof reservationSchema>
-
-function ToolImage({ tool, className }: { tool: Tool; className?: string }) {
-  const [failed, setFailed] = useState(false)
-  const src = tool.imageUrl || tool.imageUrls?.[0]
-
-  if (!src || failed) {
-    return (
-      <div className="flex size-full items-center justify-center bg-gradient-to-br from-secondary to-muted text-primary">
-        <Wrench className="size-10" />
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={src}
-      alt={tool.name}
-      className={className}
-      onError={() => setFailed(true)}
-    />
-  )
-}
-
-function ReservationForm({
-  tool,
-  onCancel,
-  onSuccess,
-}: {
-  tool: Tool
-  onCancel: () => void
-  onSuccess: (rental: Rental) => void
-}) {
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<ReservationValues>({
-    resolver: zodResolver(reservationSchema),
-    defaultValues: {
-      startTime: '',
-      endTime: '',
-      pickupPerson: '',
-      remindBeforeMinutes: 1440,
-    },
-  })
-
-  const endTimeValue = useWatch({ control, name: 'endTime' })
-  const remindBefore = useWatch({ control, name: 'remindBeforeMinutes' })
-
-  const remindHint = useMemo(() => {
-    if (remindBefore === 0) {
-      return '不发送到期提醒，请自行留意归还时间。'
-    }
-    if (!endTimeValue) {
-      return '选择结束时间后可预览提醒时刻。'
-    }
-    const end = new Date(endTimeValue)
-    if (Number.isNaN(end.getTime())) {
-      return ''
-    }
-    const at = new Date(end.getTime() - Number(remindBefore) * 60_000)
-    if (at.getTime() <= Date.now()) {
-      return '预约即将到期，系统会在下单后约 1 分钟补发提醒。'
-    }
-    const text = at.toLocaleString('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    return `系统将在 ${text} 发送到期提醒。`
-  }, [endTimeValue, remindBefore])
-
-  const mutation = useMutation({
-    mutationFn: (values: ReservationValues) =>
-      rentalsApi.create({ toolId: tool.id, ...values }),
-    onSuccess,
-  })
-
-  return (
-    <form
-      className="space-y-3"
-      onSubmit={handleSubmit((values) => mutation.mutate(values))}
-      noValidate
-    >
-      <div className="rounded-xl border border-border bg-muted/30 p-3 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">工具押金</span>
-          <span className="font-semibold text-foreground">
-            {formatMoney(tool.deposit)}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          提交预约后请在「我的租赁」中完成押金支付，取件前 24 小时外可取消并退款。
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="startTime">开始时间</Label>
-          <Controller
-            control={control}
-            name="startTime"
-            render={({ field, fieldState }) => (
-              <Input
-                id="startTime"
-                type="datetime-local"
-                className="h-10 bg-card"
-                aria-invalid={fieldState.invalid}
-                {...field}
-              />
-            )}
-          />
-          <FieldError>{errors.startTime?.message}</FieldError>
-        </div>
-        <div>
-          <Label htmlFor="endTime">结束时间</Label>
-          <Controller
-            control={control}
-            name="endTime"
-            render={({ field, fieldState }) => (
-              <Input
-                id="endTime"
-                type="datetime-local"
-                className="h-10 bg-card"
-                aria-invalid={fieldState.invalid}
-                {...field}
-              />
-            )}
-          />
-          <FieldError>{errors.endTime?.message}</FieldError>
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="pickupPerson">取件人</Label>
-        <Controller
-          control={control}
-          name="pickupPerson"
-          render={({ field, fieldState }) => (
-            <Input
-              id="pickupPerson"
-              placeholder="请填写实际取件人姓名"
-              className="h-10 bg-card"
-              aria-invalid={fieldState.invalid}
-              {...field}
-            />
-          )}
-        />
-        <FieldError>{errors.pickupPerson?.message}</FieldError>
-      </div>
-
-      <div>
-        <Label htmlFor="remindBeforeMinutes">到期提醒</Label>
-        <Controller
-          control={control}
-          name="remindBeforeMinutes"
-          render={({ field, fieldState }) => (
-            <Select
-              id="remindBeforeMinutes"
-              className="h-10 bg-card"
-              aria-invalid={fieldState.invalid}
-              value={String(field.value)}
-              onChange={(event) => field.onChange(Number(event.target.value))}
-            >
-              {REMIND_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          )}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">{remindHint}</p>
-        <FieldError>{errors.remindBeforeMinutes?.message}</FieldError>
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          返回
-        </Button>
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
-          提交预约
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-type GuideStep = { text: string; imageUrl?: string }
-
-/** 后台保存的图文步骤是 JSON 数组；旧数据仍是 HTML 富文本 */
-function parseGuideSteps(raw?: string | null): GuideStep[] | null {
-  if (!raw) return null
-  const value = raw.trim()
-  if (!value.startsWith('[')) return null
-  try {
-    const arr = JSON.parse(value)
-    if (!Array.isArray(arr)) return null
-    const steps = arr
-      .map((item: unknown) => {
-        const record = (item ?? {}) as Record<string, unknown>
-        return {
-          text: typeof record.text === 'string' ? record.text : '',
-          imageUrl: typeof record.imageUrl === 'string' ? record.imageUrl : undefined,
-        }
-      })
-      .filter((step) => step.text || step.imageUrl)
-    return steps.length ? steps : null
-  } catch {
-    return null
-  }
-}
-
-function UsageGuide({ guide }: { guide?: string | null }) {
-  const steps = parseGuideSteps(guide)
-  return (
-    <div>
-      <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <ShieldCheck className="size-4 text-primary" />
-        使用说明
-      </h4>
-      {steps ? (
-        <ol className="space-y-3">
-          {steps.map((step, index) => (
-            <li key={index} className="rounded-xl border border-border bg-muted/20 p-4">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1 space-y-2">
-                  {step.text && (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                      {step.text}
-                    </p>
-                  )}
-                  {step.imageUrl && (
-                    <img
-                      src={step.imageUrl}
-                      alt={`步骤 ${index + 1}`}
-                      loading="lazy"
-                      className="max-h-72 w-full rounded-lg border border-border object-cover"
-                    />
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : guide ? (
-        <div
-          className="rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed text-foreground/90 [&_a]:text-primary [&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:ml-5 [&_li]:list-disc [&_ol>li]:list-decimal [&_p]:mb-2 [&_p:last-child]:mb-0"
-          dangerouslySetInnerHTML={{ __html: guide }}
-        />
-      ) : (
-        <p className="text-sm text-muted-foreground">暂无使用说明</p>
-      )}
-    </div>
-  )
-}
 
 function ToolDetail({
   tool,
@@ -373,47 +80,7 @@ function ToolDetail({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
-        <div className="aspect-[16/9] w-full">
-          <ToolImage tool={tool} className="size-full object-cover" />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={toolStatusTone(tool.status)}>{tool.statusName}</Badge>
-        <Badge tone={damageLevelTone(tool.damageLevel)}>
-          {tool.damageLevelName}
-        </Badge>
-        <Badge tone="neutral">{tool.categoryName}</Badge>
-        <span className="text-xs text-muted-foreground">{tool.code}</span>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-foreground">{tool.name}</h3>
-        <p className="text-sm text-muted-foreground">{tool.model}</p>
-      </div>
-
-      <dl className="grid gap-3 rounded-xl border border-border bg-card p-4 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs text-muted-foreground">押金金额</dt>
-          <dd className="mt-0.5 font-semibold text-foreground">
-            {formatMoney(tool.deposit)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">已租赁次数</dt>
-          <dd className="mt-0.5 text-foreground">{tool.rentalCount} 次</dd>
-        </div>
-        <div className="sm:col-span-2">
-          <dt className="text-xs text-muted-foreground">存放区域</dt>
-          <dd className="mt-0.5 flex items-start gap-1.5 text-foreground">
-            <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            {tool.storageArea || '—'}
-          </dd>
-        </div>
-      </dl>
-
-      <UsageGuide guide={tool.usageGuide} />
+      <ToolDetailView tool={tool} />
 
       {tool.status === 'AVAILABLE' ? (
         <Button type="button" size="lg" className="w-full" onClick={onReserve}>
@@ -459,6 +126,7 @@ export default function ToolsPage() {
   const [page, setPage] = useState(1)
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
   const [mode, setMode] = useState<'detail' | 'reserve'>('detail')
+  const [recommendOpen, setRecommendOpen] = useState(false)
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard'],
@@ -584,7 +252,7 @@ export default function ToolsPage() {
               </option>
             ))}
           </Select>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" className="h-10">
               <Search />
               搜索
@@ -596,6 +264,15 @@ export default function ToolsPage() {
               onClick={resetFilters}
             >
               重置
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-10"
+              onClick={() => setRecommendOpen(true)}
+            >
+              <Sparkles />
+              AI 帮我选
             </Button>
           </div>
         </form>
@@ -671,6 +348,16 @@ export default function ToolsPage() {
                 换个关键词或分类试试，也可以重置筛选条件。
               </EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRecommendOpen(true)}
+              >
+                <Sparkles />
+                没找到？让 AI 帮我选
+              </Button>
+            </EmptyContent>
           </Empty>
         </div>
       )}
@@ -692,7 +379,7 @@ export default function ToolsPage() {
           <Loading />
         ) : activeTool ? (
           mode === 'reserve' ? (
-            <ReservationForm
+            <ToolReservationForm
               tool={activeTool}
               onCancel={() => setMode('detail')}
               onSuccess={() => {
@@ -717,6 +404,21 @@ export default function ToolsPage() {
             未找到工具信息
           </div>
         )}
+      </Dialog>
+
+      <Dialog
+        open={recommendOpen}
+        onOpenChange={setRecommendOpen}
+        title="AI 帮我选工具"
+        description="描述你想做的事，AI 会结合用途、押金、库存和使用时段推荐可用工具。"
+        size="lg"
+      >
+        <ToolRecommendPanel
+          onSelectTool={(toolId) => {
+            setRecommendOpen(false)
+            openTool(toolId)
+          }}
+        />
       </Dialog>
     </div>
   )
