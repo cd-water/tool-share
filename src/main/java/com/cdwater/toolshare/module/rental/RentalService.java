@@ -373,6 +373,8 @@ public class RentalService {
         vo.setToolId(rental.getToolId());
         vo.setToolCode(rental.getToolCode());
         vo.setToolName(rental.getToolName());
+        Tool tool = toolMapper.selectById(rental.getToolId());
+        vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
         vo.setUserId(rental.getUserId());
         vo.setRenterName(rental.getRenterName());
         vo.setRenterPhone(IdCardCipher.maskPhone(rental.getRenterPhone()));

@@ -1,226 +1,64 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Controller, useForm, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
-import { z } from 'zod'
-import { BrandMark } from '@/components/BrandMark'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useQueryClient } from '@tanstack/react-query'
 import { userApi } from '@/api/auth'
-import { userInfoOptions } from '@/hooks/useUserInfo'
 import { useAuthStore } from '@/stores/auth'
-
-type LoginMode = 'code' | 'pwd'
-
-const loginFormSchema = z
-  .object({
-    mode: z.enum(['code', 'pwd']),
-    phone: z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号'),
-    code: z.string(),
-    password: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.mode === 'code' && !/^\d{6}$/.test(values.code)) {
-      ctx.addIssue({ code: 'custom', path: ['code'], message: '请输入 6 位验证码' })
-    }
-    if (values.mode === 'pwd' && values.password.length === 0) {
-      ctx.addIssue({ code: 'custom', path: ['password'], message: '请输入密码' })
-    }
-  })
-
-type LoginFormValues = z.infer<typeof loginFormSchema>
+import { initLogin, type LoginBridge } from './login/initLogin'
+import { LOGIN_VIEW_HTML } from './login/loginViewHtml'
+import './login/login.css'
 
 function safeRedirectPath(state: unknown): string {
   const from = (state as { from?: unknown } | null)?.from
-  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
-    ? from
-    : '/tools'
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/tools'
 }
 
-function ErrorLine({ msg }: { msg?: string }) {
-  return <p className="min-h-4 text-xs leading-4 text-destructive">{msg ?? ''}</p>
-}
-
+/**
+ * 居民登录 —— 完整复刻原型 `01-居民登录.html`。
+ * 静态结构与 SVG 资产原样内联，交互由 initLogin 驱动（charge 单一状态量 / 拖动上紧 /
+ * 点击变形 / 密码百叶窗 / 齿轮虹膜转场），登录与验证码走后端真实接口。
+ */
 export default function LoginPage() {
-  const location = useLocation()
+  const hostRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const tokenValue = useAuthStore((s) => s.tokenValue)
-  const [countdown, setCountdown] = useState(0)
-
-  const {
-    control,
-    clearErrors,
-    getValues,
-    handleSubmit,
-    setValue,
-    trigger,
-    formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: { mode: 'code', phone: '', code: '', password: '' },
-  })
-
-  const mode = useWatch({ control, name: 'mode' })
+  const redirect = safeRedirectPath(location.state)
 
   useEffect(() => {
-    if (countdown <= 0) return
-    const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000)
-    return () => window.clearTimeout(timer)
-  }, [countdown])
+    if (!hostRef.current) return
+    const bridge: LoginBridge = {
+      adminUrl: import.meta.env.DEV ? 'http://localhost:5902/' : '/admin/',
+      async login(values) {
+        try {
+          const data =
+            values.mode === 'code'
+              ? await userApi.loginByCode(values.phone, values.code)
+              : await userApi.loginByPassword(values.phone, values.password)
+          return { ok: true as const, token: data.tokenValue }
+        } catch (err) {
+          return { ok: false as const, message: err instanceof Error ? err.message : '登录失败，请稍后重试' }
+        }
+      },
+      async sendCode(phone) {
+        try {
+          // 后端 MOCK 短信会直接把验证码返回，便于演示
+          const code = await userApi.sendCode(phone)
+          return { ok: true as const, code }
+        } catch (err) {
+          return { ok: false as const, message: err instanceof Error ? err.message : '发送失败，请稍后重试' }
+        }
+      },
+      enter(token) {
+        useAuthStore.getState().setAuth(token)
+        queryClient.removeQueries()
+        navigate(redirect, { replace: true })
+      },
+    }
+    return initLogin(hostRef.current, bridge)
+  }, [navigate, queryClient, redirect])
 
-  const sendCodeMutation = useMutation({
-    mutationFn: (phone: string) => userApi.sendCode(phone),
-    onSuccess: () => setCountdown(60),
-  })
+  if (tokenValue) return <Navigate to={redirect} replace />
 
-  const loginMutation = useMutation({
-    mutationFn: (values: LoginFormValues) =>
-      values.mode === 'code'
-        ? userApi.loginByCode(values.phone, values.code)
-        : userApi.loginByPassword(values.phone, values.password),
-    onSuccess: async (data) => {
-      useAuthStore.getState().setAuth(data.tokenValue)
-      queryClient.removeQueries()
-      await queryClient.fetchQuery(userInfoOptions).catch(() => undefined)
-      navigate(safeRedirectPath(location.state), { replace: true })
-    },
-  })
-
-  if (tokenValue) {
-    return <Navigate to={safeRedirectPath(location.state)} replace />
-  }
-
-  function switchMode(next: LoginMode) {
-    setValue('mode', next)
-    clearErrors()
-  }
-
-  async function handleSendCode() {
-    const valid = await trigger('phone')
-    if (!valid) return
-    sendCodeMutation.mutate(getValues('phone'))
-  }
-
-  const inputClassName = 'h-10 bg-card'
-
-  return (
-    <div className="flex min-h-svh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-lg border border-border bg-card p-8">
-        <div className="flex items-center justify-center gap-3">
-          <BrandMark size={40} />
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            ToolShare <span className="font-normal">|</span> 社区共享工具租赁系统
-          </h1>
-        </div>
-
-        <Tabs
-          value={mode}
-          onValueChange={(value) => switchMode(value as LoginMode)}
-        >
-          <TabsList className="mt-7 grid w-full grid-cols-2">
-            <TabsTrigger value="code" className="data-active:bg-card data-active:text-foreground">
-              验证码登录
-            </TabsTrigger>
-            <TabsTrigger value="pwd" className="data-active:bg-card data-active:text-foreground">
-              密码登录
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <form
-          className="mt-4 space-y-2"
-          onSubmit={handleSubmit((values) => loginMutation.mutate(values))}
-          noValidate
-        >
-          <div>
-            <Controller
-              control={control}
-              name="phone"
-              render={({ field, fieldState }) => (
-                <Input
-                  aria-label="手机号"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  placeholder="手机号"
-                  className={inputClassName}
-                  aria-invalid={fieldState.invalid}
-                  {...field}
-                />
-              )}
-            />
-            <ErrorLine msg={errors.phone?.message} />
-          </div>
-
-          {mode === 'code' ? (
-            <div className="flex items-start gap-2">
-              <div className="flex-1">
-                <Controller
-                  control={control}
-                  name="code"
-                  render={({ field, fieldState }) => (
-                    <Input
-                      aria-label="验证码"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      placeholder="验证码"
-                      className={inputClassName}
-                      aria-invalid={fieldState.invalid}
-                      {...field}
-                    />
-                  )}
-                />
-                <ErrorLine msg={errors.code?.message} />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 shrink-0 border-input bg-card text-foreground"
-                disabled={countdown > 0 || sendCodeMutation.isPending}
-                onClick={handleSendCode}
-              >
-                {countdown > 0 ? `${countdown}s` : '发送验证码'}
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <Controller
-                control={control}
-                name="password"
-                render={({ field, fieldState }) => (
-                  <Input
-                    aria-label="密码"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="密码"
-                    className={inputClassName}
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                )}
-              />
-              <ErrorLine msg={errors.password?.message} />
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            disabled={loginMutation.isPending}
-          >
-            {loginMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              '登录'
-            )}
-          </Button>
-        </form>
-      </div>
-    </div>
-  )
+  return <div ref={hostRef} dangerouslySetInnerHTML={{ __html: LOGIN_VIEW_HTML }} />
 }

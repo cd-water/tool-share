@@ -20,3 +20,9 @@ export function formatMoney(value?: number | string | null) {
 export function isReadStatus(value: boolean | number | string | undefined) {
   return value === true || value === 1 || value === '1'
 }
+
+export function resolveFileUrl(url?: string | null) {
+  if (!url) return ''
+  if (/^(https?:)?\/\//.test(url) || url.startsWith('/')) return url
+  return `/api/files/${url}`
+}

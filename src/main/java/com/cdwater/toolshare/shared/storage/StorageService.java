@@ -71,6 +71,35 @@ public class StorageService {
         return "/api/files/" + key;
     }
 
+    /** 固定 key 写入（用于种子资源），重复执行会覆盖同名对象 */
+    public void put(String key, byte[] bytes, String contentType) {
+        ensureBucket();
+        s3Client.putObject(PutObjectRequest.builder()
+                        .bucket(properties.getBucket())
+                        .key(key)
+                        .contentType(contentType)
+                        .build(),
+                software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
+    }
+
+    public boolean exists(String key) {
+        ensureBucket();
+        try {
+            s3Client.headObject(software.amazon.awssdk.services.s3.model.HeadObjectRequest.builder()
+                    .bucket(properties.getBucket())
+                    .key(key)
+                    .build());
+            return true;
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+            return false;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
     private void ensureBucket() {
         if (bucketReady) {
             return;

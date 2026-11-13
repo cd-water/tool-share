@@ -50,6 +50,7 @@ export interface Rental {
   toolId: number
   toolCode: string
   toolName: string
+  toolImageUrl?: string
   userId: number
   renterName: string
   renterPhone: string
@@ -94,6 +95,7 @@ export interface DamageReport {
   toolId: number
   toolCode: string
   toolName: string
+  toolImageUrl?: string
   userId: number
   reporterName: string
   reporterPhone: string

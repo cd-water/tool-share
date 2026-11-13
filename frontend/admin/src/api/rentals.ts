@@ -18,6 +18,7 @@ export interface RentalVO {
   toolId: number
   toolCode: string
   toolName: string
+  toolImageUrl?: string
   userId: number
   renterName: string
   renterPhone: string
