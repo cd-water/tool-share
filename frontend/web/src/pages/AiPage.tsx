@@ -1,21 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, CalendarClock, Loader2, Send, Sparkles } from 'lucide-react'
+import { BookOpen, Clock, MessageSquare, Phone, Send, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi } from '@/api/ai'
 import type { AiSource } from '@/api/types'
-import { toolsApi } from '@/api/tools'
-import { PageHeader } from '@/components/PageHeader'
-import { Loading } from '@/components/Loading'
-import { ToolDetailView } from '@/components/ToolDetailView'
 import { ToolRecommendPanel } from '@/components/ToolRecommendPanel'
-import { ToolReservationForm } from '@/components/ToolReservationForm'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
+import { toast } from '@/lib/fx'
 
 type ChatMessage = {
   id: string
@@ -31,49 +20,30 @@ const QUICK_QUESTIONS = [
   '工具损坏后如何报修？',
 ]
 
+const KB_ITEMS = ['租赁流程与预约规则', '押金支付与退还标准', '逾期与损坏计费说明', '工具使用与安全须知']
+
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 export default function AiPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const [tab, setTab] = useState<'chat' | 'recommend'>('chat')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
-  const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
-  const [reserveMode, setReserveMode] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const toolDetailQuery = useQuery({
-    queryKey: ['tool', selectedToolId],
-    queryFn: () => toolsApi.detail(selectedToolId as number),
-    enabled: selectedToolId !== null,
-  })
-
-  function openToolDetail(toolId: number) {
-    setReserveMode(false)
-    setSelectedToolId(toolId)
-  }
-
-  function closeToolDetail() {
-    setSelectedToolId(null)
-    setReserveMode(false)
-  }
-
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [messages, streaming])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
   function updateAssistant(id: string, patch: Partial<ChatMessage>) {
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === id ? { ...message, ...patch } : message,
-      ),
-    )
+    setMessages((prev) => prev.map((message) => (message.id === id ? { ...message, ...patch } : message)))
   }
 
   function send(questionText?: string) {
@@ -99,16 +69,12 @@ export default function AiPage() {
           onMessage: (delta) =>
             setMessages((prev) =>
               prev.map((message) =>
-                message.id === assistantId
-                  ? { ...message, content: message.content + delta }
-                  : message,
+                message.id === assistantId ? { ...message, content: message.content + delta } : message,
               ),
             ),
           onError: (message) => {
-            toast.add({ title: message, type: 'error' })
-            updateAssistant(assistantId, {
-              content: '抱歉，AI 助手暂时无法回答，请稍后再试。',
-            })
+            toast(message, { type: 'bad' })
+            updateAssistant(assistantId, { content: '抱歉，AI 助手暂时无法回答，请稍后再试。' })
           },
         },
         controller.signal,
@@ -119,207 +85,154 @@ export default function AiPage() {
       })
   }
 
+  function clearChat() {
+    abortRef.current?.abort()
+    setMessages([])
+    setStreaming(false)
+    toast('对话已清空', { type: 'info' })
+  }
+
   return (
     <div>
-      <PageHeader
-        title="AI 助手"
-        description="咨询租赁规则，或描述使用场景让 AI 帮你挑选合适的工具。"
-      />
+      <div className="tabs reveal" style={{ marginBottom: 16 }}>
+        <button type="button" className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>
+          智能问答
+        </button>
+        <button type="button" className={tab === 'recommend' ? 'active' : ''} onClick={() => setTab('recommend')}>
+          工具推荐
+        </button>
+      </div>
 
-      <Tabs defaultValue="chat">
-        <TabsList>
-          <TabsTrigger value="chat">智能问答</TabsTrigger>
-          <TabsTrigger value="recommend">工具推荐</TabsTrigger>
-        </TabsList>
+      <div className="ai-layout">
+        {tab === 'chat' ? (
+          <section className="chat card reveal">
+        <header className="chat-head">
+          <span className="ai-ava">
+            <Sparkles className="ic" />
+            <i className="ai-live"></i>
+          </span>
+          <div className="chat-id">
+            <b>小享 · 社区工具助手</b>
+            <span>
+              <i className="online-dot"></i>在线 · 基于社区知识库回答
+            </span>
+          </div>
+          <span className="badge brand" style={{ marginLeft: 'auto' }}>RAG · v2</span>
+          <button className="icon-btn" type="button" onClick={clearChat} title="清空对话">
+            <Trash2 className="ic sm" />
+          </button>
+        </header>
 
-        <TabsContent value="chat" keepMounted>
-          <div className="flex min-h-[540px] flex-col overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-              {messages.length === 0 && (
-                <div className="mx-auto max-w-xl py-6 text-center">
-                  <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                    <Sparkles className="size-6" />
+        <div className="chat-scroll" ref={scrollRef}>
+          <div className="bubble-row ai">
+            <span className="b-ava"><Sparkles className="ic sm" /></span>
+            <div className="bubble">
+              <p>
+                您好！我是小享，社区工具房的智能助手。我可以帮您解答<b>借还流程、押金计费、工具使用与故障报修</b>等问题。
+              </p>
+              <div className="quick-wrap">
+                <span className="tiny">试试这样问：</span>
+                <div className="quick-grid">
+                  {QUICK_QUESTIONS.map((question) => (
+                    <button key={question} type="button" onClick={() => send(question)}>
+                      <MessageSquare className="ic" />
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {messages.map((message) => (
+            <div key={message.id} className={'bubble-row ' + (message.role === 'user' ? 'user' : 'ai')}>
+              <span className="b-ava">{message.role === 'user' ? '我' : <Sparkles className="ic sm" />}</span>
+              <div className="bubble">
+                {message.role === 'assistant' && message.content === '' && streaming ? (
+                  <span className="typing"><i></i><i></i><i></i></span>
+                ) : (
+                  <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{message.content}</p>
+                )}
+                {message.sources && message.sources.length > 0 && (
+                  <div className="sources">
+                    {message.sources.map((source, index) => (
+                      <span className="src" key={`${source.title}-${index}`} title={source.snippet}>
+                        <BookOpen className="ic" />
+                        {source.title}
+                      </span>
+                    ))}
                   </div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    你好，我是社区工具租赁助手
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    我会结合社区知识库回答租赁、支付、归还和报修相关问题。
-                  </p>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    {QUICK_QUESTIONS.map((question) => (
-                      <button
-                        key={question}
-                        type="button"
-                        onClick={() => send(question)}
-                        className="rounded-xl border border-border bg-muted/20 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
-                      >
+                )}
+                {message.role === 'assistant' && message.content && !streaming && (
+                  <div className="followups">
+                    {QUICK_QUESTIONS.slice(0, 3).map((question) => (
+                      <button key={question} type="button" onClick={() => send(question)}>
                         {question}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    'flex gap-2.5',
-                    message.role === 'user' ? 'justify-end' : 'justify-start',
-                  )}
-                >
-                  {message.role === 'assistant' && (
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <Sparkles className="size-4" />
-                    </div>
-                  )}
-                  <div
-                    className={cn(
-                      'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[75%]',
-                      message.role === 'user'
-                        ? 'rounded-br-md bg-primary text-primary-foreground'
-                        : 'rounded-bl-md border border-border bg-background text-foreground',
-                    )}
-                  >
-                    {message.role === 'assistant' &&
-                    message.content === '' &&
-                    streaming ? (
-                      <p className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="size-4 animate-spin" />
-                        正在思考…
-                      </p>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                    )}
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
-                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                          <BookOpen className="size-3.5" />
-                          参考来源
-                        </p>
-                        {message.sources.map((source, index) => (
-                          <div
-                            key={`${source.title}-${index}`}
-                            className="rounded-lg bg-muted/40 p-2.5"
-                          >
-                            <p className="text-xs font-medium text-foreground">
-                              {source.title}
-                            </p>
-                            <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
-                              {source.snippet}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-
-            <div className="border-t border-border bg-muted/20 p-3 sm:p-4">
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === 'Enter' &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault()
-                      send()
-                    }
-                  }}
-                  placeholder="输入你的问题，按 Enter 发送，Shift + Enter 换行"
-                  className="max-h-32 min-h-11 resize-none bg-card"
-                  rows={1}
-                />
-                <Button
-                  type="button"
-                  size="icon-lg"
-                  disabled={streaming || !input.trim()}
-                  onClick={() => send()}
-                  aria-label="发送"
-                >
-                  <Send />
-                </Button>
+                )}
               </div>
             </div>
-          </div>
-        </TabsContent>
+          ))}
+        </div>
 
-        <TabsContent value="recommend" keepMounted>
-          <ToolRecommendPanel onSelectTool={openToolDetail} />
-        </TabsContent>
-      </Tabs>
-
-      <Dialog
-        open={selectedToolId !== null}
-        onOpenChange={(open) => {
-          if (!open) closeToolDetail()
-        }}
-        title={
-          reserveMode
-            ? '预约租赁'
-            : toolDetailQuery.data?.name ?? '工具详情'
-        }
-        description={
-          reserveMode
-            ? '选择租赁时段并填写取件人，提交后请及时支付押金。'
-            : toolDetailQuery.data?.code
-        }
-        size="lg"
-      >
-        {toolDetailQuery.isLoading ? (
-          <Loading />
-        ) : toolDetailQuery.data ? (
-          reserveMode ? (
-            <ToolReservationForm
-              tool={toolDetailQuery.data}
-              onCancel={() => setReserveMode(false)}
-              onSuccess={() => {
-                queryClient.invalidateQueries({ queryKey: ['rentals'] })
-                queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                // 预约成功会生成站内消息，立即刷新头部未读数
-                queryClient.invalidateQueries({ queryKey: ['messages'] })
-                toast.add({
-                  title: '预约成功，请前往我的租赁支付押金',
-                  type: 'success',
-                })
-                closeToolDetail()
-                navigate('/rentals')
+        <div className="chat-input">
+          <div className="ci-box">
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  send()
+                }
               }}
+              placeholder="问问工具怎么借、怎么用、怎么还…（Enter 发送，Shift+Enter 换行）"
+              rows={1}
             />
-          ) : (
-            <div className="space-y-4">
-              <ToolDetailView tool={toolDetailQuery.data} />
-              {toolDetailQuery.data.status === 'AVAILABLE' ? (
-                <Button
-                  type="button"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => setReserveMode(true)}
-                >
-                  <CalendarClock />
-                  预约租赁
-                </Button>
-              ) : (
-                <p className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
-                  该工具当前{toolDetailQuery.data.statusName}，暂不可预约
-                </p>
-              )}
-            </div>
-          )
+            <button className="btn btn-primary ci-send" type="button" disabled={streaming || !input.trim()} onClick={() => send()}>
+              <Send className="ic sm" />
+            </button>
+          </div>
+          <p className="ci-hint">回答由社区知识库生成，仅供参考；涉及押金与定损以工作人员核验为准。</p>
+        </div>
+          </section>
         ) : (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            未找到工具信息
-          </p>
+          <section className="chat card reveal" style={{ padding: 20, overflow: 'auto' }}>
+            <ToolRecommendPanel onSelectTool={(id) => navigate(`/tools?tool=${id}`)} />
+          </section>
         )}
-      </Dialog>
+
+      <aside className="ai-rail">
+        <div className="panel tight reveal">
+          <h3 className="rail-title"><BookOpen className="ic sm" />知识库覆盖</h3>
+          <ul className="kb-list">
+            {KB_ITEMS.map((item) => (
+              <li key={item}><BookOpen className="ic" />{item}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="panel tight reveal">
+          <h3 className="rail-title"><Sparkles className="ic sm" />热门问题</h3>
+          <div className="hot-q">
+            {QUICK_QUESTIONS.map((question) => (
+              <button key={question} type="button" onClick={() => send(question)}>
+                <Sparkles className="ic" />
+                {question}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="panel tight reveal rail-note">
+          <h3 className="rail-title"><Clock className="ic sm" />人工服务</h3>
+          <p>
+            工具房每日 08:00–20:00 开放。复杂问题可联系工作人员 <b>0571-8888-6666</b>，或前往工具房现场咨询。
+          </p>
+          <p className="tiny"><Phone className="ic sm" /> 0571-8888-6666</p>
+        </div>
+      </aside>
+      </div>
     </div>
   )
 }

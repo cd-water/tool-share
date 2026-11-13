@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -7,29 +7,18 @@ import {
   ClipboardList,
   CreditCard,
   Loader2,
-  MapPin,
+  Plus,
   RotateCcw,
-  ShieldAlert,
+  Search,
+  UserRound,
+  Wrench,
   XCircle,
 } from 'lucide-react'
 import { rentalsApi } from '@/api/rentals'
 import type { Rental, RentalStatus } from '@/api/types'
-import { Loading } from '@/components/Loading'
-import { PageHeader } from '@/components/PageHeader'
-import { Pagination } from '@/components/Pagination'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from '@/components/ui/empty'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
-import { formatDateTime, formatMoney } from '@/lib/format'
+import { badgeClass } from '@/lib/badge'
+import { toast } from '@/lib/fx'
+import { formatDateTime, formatMoney, resolveFileUrl } from '@/lib/format'
 import { rentalStatusTone } from '@/lib/status'
 
 const STATUS_TABS: { value: '' | RentalStatus; label: string }[] = [
@@ -42,45 +31,20 @@ const STATUS_TABS: { value: '' | RentalStatus; label: string }[] = [
   { value: 'CANCELLED', label: '已取消' },
 ]
 
-const PAGE_SIZE = 6
-
-function ReturnInfo({ rental }: { rental: Rental }) {
-  if (rental.status !== 'RETURNED') return null
-  return (
-    <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-        <RotateCcw className="size-3.5" />
-        归还验收与退款信息
-      </p>
-      <dl className="grid gap-2 text-xs text-emerald-800 sm:grid-cols-2">
-        <div>
-          <dt className="text-emerald-600">实际归还时间</dt>
-          <dd>{formatDateTime(rental.actualReturnTime)}</dd>
-        </div>
-        <div>
-          <dt className="text-emerald-600">验收结果</dt>
-          <dd>{rental.damageResultName || '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-emerald-600">逾期费</dt>
-          <dd>{formatMoney(rental.overdueFee)}</dd>
-        </div>
-        <div>
-          <dt className="text-emerald-600">损坏费</dt>
-          <dd>{formatMoney(rental.damageFee)}</dd>
-        </div>
-        <div>
-          <dt className="text-emerald-600">退还押金</dt>
-          <dd className="font-semibold">{formatMoney(rental.refundAmount)}</dd>
-        </div>
-        <div>
-          <dt className="text-emerald-600">备注</dt>
-          <dd>{rental.returnRemark || '—'}</dd>
-        </div>
-      </dl>
-    </div>
-  )
+const STATUS_COLOR: Record<string, string> = {
+  PENDING_PAYMENT: '#C77700',
+  RESERVED: '#2F6D80',
+  PICKED_UP: '#F7A600',
+  OVERDUE: '#C93A2E',
+  RETURNED: '#2E7D46',
+  CANCELLED: '#9C917E',
 }
+
+const PAY_METHODS = [
+  { key: 'wechat', label: '微信支付', color: '#2BA245' },
+  { key: 'alipay', label: '支付宝', color: '#1677FF' },
+  { key: 'balance', label: '社区余额', color: 'var(--brand-2)' },
+]
 
 function describeRemind(rental: Rental): string {
   const minutes = rental.remindBeforeMinutes
@@ -92,65 +56,82 @@ function describeRemind(rental: Rental): string {
       : minutes % 60 === 0
         ? `${minutes / 60} 小时`
         : `${minutes} 分钟`
-  return rental.remindAt
-    ? `提前 ${label}（${formatDateTime(rental.remindAt)}）`
-    : `提前 ${label}`
+  return rental.remindAt ? `提前 ${label}（${formatDateTime(rental.remindAt)}）` : `提前 ${label}`
 }
 
 function RentalDetail({ rental }: { rental: Rental }) {
-  const rows: [string, string][] = [
-    ['工具名称', rental.toolName],
-    ['工具编码', rental.toolCode],
-    ['租赁人', rental.renterName || '—'],
-    ['联系电话', rental.renterPhone || '—'],
-    ['取件人', rental.pickupPerson || '—'],
-    ['开始时间', formatDateTime(rental.startTime)],
-    ['结束时间', formatDateTime(rental.endTime)],
-    ['到期提醒', describeRemind(rental)],
-    ['押金金额', formatMoney(rental.depositAmount)],
-    ['押金状态', rental.depositStatusName || '—'],
-    ['创建时间', formatDateTime(rental.createTime)],
+  const timeline: { title: string; time: string; desc: string }[] = [
+    { title: '提交预约', time: rental.createTime, desc: '已提交租赁预约，等待支付押金' },
   ]
-
-  if (rental.cancelReason) {
-    rows.push(['取消原因', rental.cancelReason])
-    rows.push(['取消时间', formatDateTime(rental.cancelTime)])
+  if (rental.depositStatus !== 'UNPAID') {
+    timeline.push({ title: '支付押金', time: rental.createTime, desc: `押金 ${formatMoney(rental.depositAmount)} 已支付` })
+  }
+  if (rental.status === 'PICKED_UP' || rental.status === 'OVERDUE' || rental.actualReturnTime) {
+    timeline.push({ title: '取件', time: rental.startTime, desc: `取件人 ${rental.pickupPerson || '—'} 已取件` })
   }
   if (rental.actualReturnTime) {
-    rows.push(['实际归还时间', formatDateTime(rental.actualReturnTime)])
+    timeline.push({
+      title: '归还',
+      time: rental.actualReturnTime,
+      desc: `验收结果：${rental.damageResultName || '—'}`,
+    })
   }
-  if (rental.damageResultName) {
-    rows.push(['验收结果', rental.damageResultName])
-  }
-  if (rental.overdueFee !== null) {
-    rows.push(['逾期费', formatMoney(rental.overdueFee)])
-  }
-  if (rental.damageFee !== null) {
-    rows.push(['损坏费', formatMoney(rental.damageFee)])
-  }
-  if (rental.refundAmount !== null) {
-    rows.push(['退还押金', formatMoney(rental.refundAmount)])
-  }
-  if (rental.returnRemark) {
-    rows.push(['归还备注', rental.returnRemark])
+  if (rental.status === 'CANCELLED') {
+    timeline.push({
+      title: '已取消',
+      time: rental.cancelTime || rental.createTime,
+      desc: rental.cancelReason || '用户主动取消',
+    })
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={rentalStatusTone(rental.status)}>{rental.statusName}</Badge>
-        <span className="font-mono text-xs text-muted-foreground">
-          {rental.orderNo}
+    <div>
+      <div className="flex" style={{ marginBottom: 16 }}>
+        <span className={badgeClass(rentalStatusTone(rental.status))}>
+          <span className="dot"></span>
+          {rental.statusName}
+        </span>
+        <span className={badgeClass(rental.depositStatus === 'PAID' ? 'success' : rental.depositStatus === 'REFUNDED' ? 'info' : 'warning')}>
+          押金{rental.depositStatusName}
         </span>
       </div>
-      <dl className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm sm:grid-cols-2">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs text-muted-foreground">{label}</dt>
-            <dd className="mt-0.5 break-all text-foreground">{value}</dd>
-          </div>
-        ))}
+      <dl className="kv">
+        <dt>工具名称</dt>
+        <dd>{rental.toolName}</dd>
+        <dt>租赁单号</dt>
+        <dd><span className="code">{rental.orderNo}</span></dd>
+        <dt>租期</dt>
+        <dd>{formatDateTime(rental.startTime)} → {formatDateTime(rental.endTime)}</dd>
+        <dt>取件人</dt>
+        <dd>{rental.pickupPerson || '—'}</dd>
+        <dt>到期提醒</dt>
+        <dd>{describeRemind(rental)}</dd>
+        <dt>押金</dt>
+        <dd className="money accent">{formatMoney(rental.depositAmount)}</dd>
       </dl>
+
+      {rental.status === 'RETURNED' && (
+        <>
+          <div className="sec-label">归还结算</div>
+          <div className="return-box">
+            <div className="rb-row"><span>押金</span><span className="num">{formatMoney(rental.depositAmount)}</span></div>
+            <div className="rb-row"><span>逾期费用</span><span className="num">− {formatMoney(rental.overdueFee || 0)}</span></div>
+            <div className="rb-row"><span>损坏赔偿</span><span className="num">− {formatMoney(rental.damageFee || 0)}</span></div>
+            <div className="rb-row"><span>实际退款</span><span className="num">{formatMoney(rental.refundAmount || 0)}</span></div>
+          </div>
+        </>
+      )}
+
+      <div className="sec-label">流转记录</div>
+      <ul className="timeline">
+        {timeline.map((item, index) => (
+          <li key={index} className={index < timeline.length - 1 ? 'done' : ''}>
+            <div className="tl-t">{item.title}</div>
+            <div className="tl-time">{formatDateTime(item.time)}</div>
+            <div className="tl-d">{item.desc}</div>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -159,37 +140,35 @@ export default function RentalsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'' | RentalStatus>('')
-  const [page, setPage] = useState(1)
+  const [keyword, setKeyword] = useState('')
   const [detailId, setDetailId] = useState<number | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Rental | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [payTarget, setPayTarget] = useState<Rental | null>(null)
+  const [payMethod, setPayMethod] = useState('wechat')
+  const [removed, setRemoved] = useState<number[]>([])
 
   const rentalsQuery = useQuery({
-    queryKey: ['rentals', { status, page }],
-    queryFn: () =>
-      rentalsApi.list({
-        status: status || undefined,
-        page,
-        size: PAGE_SIZE,
-      }),
+    queryKey: ['rentals', 'all'],
+    queryFn: () => rentalsApi.list({ page: 1, size: 200 }),
   })
+  const all = useMemo(
+    () => (rentalsQuery.data?.records ?? []).filter((item) => !removed.includes(item.id)),
+    [rentalsQuery.data, removed],
+  )
 
   const detailQuery = useQuery({
     queryKey: ['rental', detailId],
     queryFn: () => rentalsApi.detail(detailId as number),
     enabled: detailId !== null,
   })
-
-  const detailRental = detailQuery.data ?? rentalsQuery.data?.records.find(
-    (item) => item.id === detailId,
-  )
+  const detailRental = detailQuery.data ?? all.find((item) => item.id === detailId)
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['rentals'] })
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     queryClient.invalidateQueries({ queryKey: ['tool'] })
     queryClient.invalidateQueries({ queryKey: ['tools'] })
-    // 支付/取消都会写站内消息，立即刷新头部未读数
     queryClient.invalidateQueries({ queryKey: ['messages'] })
   }
 
@@ -197,264 +176,314 @@ export default function RentalsPage() {
     mutationFn: (id: number) => rentalsApi.pay(id),
     onSuccess: () => {
       invalidate()
-      toast.add({ title: '押金支付成功，预约已生效', type: 'success' })
+      setPayTarget(null)
+      toast('押金支付成功', { type: 'ok', msg: '取件码已生成，请按时取件' })
     },
   })
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      rentalsApi.cancel(id, reason),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => rentalsApi.cancel(id, reason),
     onSuccess: () => {
       invalidate()
       setCancelTarget(null)
       setCancelReason('')
-      toast.add({ title: '预约已取消，退款将按规则处理', type: 'success' })
+      toast('租赁已取消', { type: 'info', msg: '押金将在 1–3 个工作日内原路退回' })
     },
   })
 
-  function changeStatus(next: '' | RentalStatus) {
-    setStatus(next)
-    setPage(1)
+  const counts = useMemo(() => {
+    const map: Record<string, number> = {}
+    all.forEach((item) => (map[item.status] = (map[item.status] ?? 0) + 1))
+    return map
+  }, [all])
+
+  const list = useMemo(() => {
+    const kw = keyword.trim().toLowerCase()
+    return all.filter((item) => {
+      if (status && item.status !== status) return false
+      if (kw && !(`${item.toolName}${item.orderNo}`.toLowerCase().includes(kw))) return false
+      return true
+    })
+  }, [all, status, keyword])
+
+  function removeRecord(rental: Rental) {
+    setRemoved((prev) => [...prev, rental.id])
+    toast('已删除租赁记录', {
+      type: 'info',
+      msg: rental.orderNo,
+      undo: () => setRemoved((prev) => prev.filter((id) => id !== rental.id)),
+    })
   }
 
-  function handleCancel() {
-    if (!cancelTarget) return
-    const reason = cancelReason.trim()
-    if (!reason) {
-      toast.add({ title: '请填写取消原因', type: 'warning' })
-      return
+  function actions(rental: Rental) {
+    if (rental.status === 'PENDING_PAYMENT') {
+      return (
+        <>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => setPayTarget(rental)}>去支付</button>
+          <button type="button" className="btn btn-sm btn-outline" onClick={() => { setCancelReason(''); setCancelTarget(rental) }}>取消</button>
+        </>
+      )
     }
-    cancelMutation.mutate({ id: cancelTarget.id, reason })
+    if (rental.status === 'RESERVED') {
+      return (
+        <>
+          <button type="button" className="btn btn-sm btn-outline" onClick={() => setDetailId(rental.id)}>取件信息</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setCancelReason(''); setCancelTarget(rental) }}>取消</button>
+        </>
+      )
+    }
+    if (rental.status === 'PICKED_UP' || rental.status === 'OVERDUE') {
+      return (
+        <>
+          <button type="button" className="btn btn-sm btn-outline" onClick={() => navigate(`/damage?rentalId=${rental.id}`)}>报修</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDetailId(rental.id)}>详情</button>
+        </>
+      )
+    }
+    if (rental.status === 'RETURNED') {
+      return <button type="button" className="btn btn-sm btn-outline" onClick={() => setDetailId(rental.id)}>归还信息</button>
+    }
+    if (rental.status === 'CANCELLED') {
+      return <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeRecord(rental)}>删除记录</button>
+    }
+    return null
   }
 
   return (
     <div>
-      <PageHeader
-        title="我的租赁"
-        description="支付押金、取消预约，并查看归还验收与退款结果。"
-      />
-
-      <div className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value || 'all'}
-            type="button"
-            onClick={() => changeStatus(tab.value)}
-            className={
-              status === tab.value
-                ? 'shrink-0 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground'
-                : 'shrink-0 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-            }
-          >
-            {tab.label}
+      <div className="page-head reveal">
+        <div>
+          <p className="eyebrow">MY RENTALS</p>
+          <h1>我的租赁</h1>
+          <p className="sub">管理您的预约、支付押金、跟踪租期与归还退款。逾期将按 ¥10/天 计费。</p>
+        </div>
+        <div className="actions">
+          <button type="button" className="btn btn-primary" onClick={() => navigate('/tools')}>
+            <Plus className="ic sm" />去借工具
           </button>
-        ))}
+        </div>
+      </div>
+
+      <div className="between reveal" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
+        <div className="tabs">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value || 'all'}
+              type="button"
+              className={status === tab.value ? 'active' : ''}
+              onClick={() => setStatus(tab.value)}
+            >
+              {tab.label}
+              <span className="cnt">{tab.value ? counts[tab.value] ?? 0 : all.length}</span>
+            </button>
+          ))}
+        </div>
+        <div className="f-search" style={{ position: 'relative', width: 240 }}>
+          <Search className="ic" />
+          <input
+            className="input"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder="搜索工具 / 单号…"
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
       </div>
 
       {rentalsQuery.isLoading ? (
-        <Loading />
-      ) : rentalsQuery.data && rentalsQuery.data.records.length > 0 ? (
-        <>
-          <div className="space-y-4">
-            {rentalsQuery.data.records.map((rental) => (
-              <div
-                key={rental.id}
-                className="rounded-2xl border border-border bg-card p-4 sm:p-5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-foreground">
-                        {rental.toolName}
-                      </h3>
-                      <Badge tone={rentalStatusTone(rental.status)}>
-                        {rental.statusName}
-                      </Badge>
-                    </div>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {rental.orderNo} · {rental.toolCode}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">押金</p>
-                    <p className="font-semibold text-foreground">
-                      {formatMoney(rental.depositAmount)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {rental.depositStatusName}
-                    </p>
-                  </div>
+        <div className="rental-list">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div className="panel" key={i}>
+              <div className="skel" style={{ height: 18, width: '40%', marginBottom: 12 }}></div>
+              <div className="skel" style={{ height: 12, width: '70%' }}></div>
+            </div>
+          ))}
+        </div>
+      ) : list.length > 0 ? (
+        <div className="rental-list">
+          {list.map((rental) => (
+            <article className="rental reveal in" key={rental.id} style={{ '--rc': STATUS_COLOR[rental.status] } as React.CSSProperties}>
+              {rental.toolImageUrl ? (
+                <img src={resolveFileUrl(rental.toolImageUrl)} alt={rental.toolName} loading="lazy" />
+              ) : (
+                <span className="thumb-ph"><Wrench className="ic" /></span>
+              )}
+              <div className="r-main">
+                <div className="r-top">
+                  <h3>{rental.toolName}</h3>
+                  <span className={badgeClass(rentalStatusTone(rental.status))}>
+                    <span className="dot"></span>
+                    {rental.statusName}
+                  </span>
+                  <span className="code">{rental.orderNo}</span>
                 </div>
-
-                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <div className="flex items-center gap-1.5">
-                    <CalendarClock className="size-4 shrink-0" />
-                    <span>
-                      {formatDateTime(rental.startTime)} 至{' '}
-                      {formatDateTime(rental.endTime)}
+                <div className="r-times">
+                  <span>
+                    <CalendarClock className="ic" />
+                    {formatDateTime(rental.startTime)} → {formatDateTime(rental.endTime)}
+                  </span>
+                  <span>
+                    <UserRound className="ic" />
+                    {rental.pickupPerson || '—'}
+                  </span>
+                  <span>
+                    <Bell className="ic" />
+                    {describeRemind(rental)}
+                  </span>
+                </div>
+                <div className="r-tags">
+                  <span className={badgeClass(rental.depositStatus === 'PAID' ? 'success' : rental.depositStatus === 'REFUNDED' ? 'info' : 'warning')}>
+                    押金{rental.depositStatusName}
+                  </span>
+                  {rental.status === 'OVERDUE' && (
+                    <span className="overdue-note">
+                      <XCircle className="ic sm" />已逾期 · 费用 {formatMoney(rental.overdueFee || 0)}
                     </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="size-4 shrink-0" />
-                    <span>取件人：{rental.pickupPerson || '—'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Bell className="size-4 shrink-0" />
-                    <span>到期提醒：{describeRemind(rental)}</span>
-                  </div>
-                </div>
-
-                <ReturnInfo rental={rental} />
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  {rental.status === 'PENDING_PAYMENT' && (
-                    <Button
-                      type="button"
-                      disabled={payMutation.isPending}
-                      onClick={() => payMutation.mutate(rental.id)}
-                    >
-                      {payMutation.isPending &&
-                      payMutation.variables === rental.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <CreditCard />
-                      )}
-                      支付押金
-                    </Button>
                   )}
-                  {(rental.status === 'PENDING_PAYMENT' ||
-                    rental.status === 'RESERVED') && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setCancelReason('')
-                        setCancelTarget(rental)
-                      }}
-                    >
-                      <XCircle />
-                      取消预约
-                    </Button>
+                  {rental.status === 'RETURNED' && (
+                    <span className={badgeClass(rental.damageResult === 'INTACT' ? 'success' : 'warning')}>
+                      {rental.damageResult === 'INTACT' ? '完好归还' : rental.damageResultName || '已归还'} · 退款 {formatMoney(rental.refundAmount || 0)}
+                    </span>
                   )}
-                  {(rental.status === 'PICKED_UP' ||
-                    rental.status === 'OVERDUE') && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() =>
-                        navigate(`/damage?rentalId=${rental.id}`)
-                      }
-                    >
-                      <ShieldAlert />
-                      发起报修
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setDetailId(rental.id)}
-                  >
-                    查看详情
-                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-          <div className="mt-6">
-            <Pagination
-              page={rentalsQuery.data.page}
-              size={rentalsQuery.data.size || PAGE_SIZE}
-              total={rentalsQuery.data.total}
-              onChange={setPage}
-            />
-          </div>
-        </>
+              <div className="r-side">
+                <div className="r-deposit">
+                  <b className="money">{formatMoney(rental.depositAmount)}</b>
+                  <span>押金</span>
+                </div>
+                <div className="r-acts">{actions(rental)}</div>
+              </div>
+            </article>
+          ))}
+        </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12">
-          <Empty>
-            <EmptyHeader>
-              <ClipboardList className="mb-2 size-10 text-muted-foreground" />
-              <EmptyTitle>暂无租赁记录</EmptyTitle>
-              <EmptyDescription>
-                去工具广场挑选心仪的工具，预约后即可在这里管理。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        <div className="empty">
+          <ClipboardList className="ic e-ic" />
+          <h4>暂无相关租赁</h4>
+          <p>当前筛选下没有记录，去工具广场借一件吧。</p>
+          <button className="btn btn-primary" onClick={() => navigate('/tools')}>前往工具广场</button>
         </div>
       )}
 
-      <Dialog
-        open={detailId !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetailId(null)
-        }}
-        title="租赁详情"
-        size="lg"
-      >
-        {detailQuery.isLoading && !detailRental ? (
-          <Loading />
-        ) : detailRental ? (
-          <RentalDetail rental={detailRental} />
-        ) : (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            未找到租赁信息
-          </p>
-        )}
-      </Dialog>
-
-      <Dialog
-        open={cancelTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setCancelTarget(null)
-        }}
-        title="取消预约"
-        description="取件前 24 小时外可取消并退款，具体以系统校验结果为准。"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCancelTarget(null)}
-            >
-              再想想
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={cancelMutation.isPending}
-              onClick={handleCancel}
-            >
-              {cancelMutation.isPending && (
-                <Loader2 className="size-4 animate-spin" />
-              )}
-              确认取消
-            </Button>
-          </>
-        }
-      >
-        {cancelTarget && (
-          <div className="space-y-3">
-            <div className="rounded-xl bg-muted/40 p-3 text-sm">
-              <p className="font-medium text-foreground">
-                {cancelTarget.toolName}
-              </p>
-              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                {cancelTarget.orderNo}
-              </p>
+      {/* 支付押金 */}
+      {payTarget && (
+        <div className="mask show" onClick={() => setPayTarget(null)}>
+          <div className="dlg narrow" onClick={(event) => event.stopPropagation()}>
+            <div className="dlg-head">
+              <div>
+                <h3>支付押金</h3>
+                <p className="d-sub">{payTarget.orderNo} · {payTarget.toolName}</p>
+              </div>
+              <button className="dlg-x" onClick={() => setPayTarget(null)} aria-label="关闭">
+                <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
             </div>
-            <div>
-              <Label htmlFor="cancelReason">取消原因</Label>
-              <Textarea
-                id="cancelReason"
-                value={cancelReason}
-                onChange={(event) => setCancelReason(event.target.value)}
-                placeholder="请说明取消预约的原因"
-                className="bg-card"
-              />
+            <div className="dlg-body">
+              <div className="pay-amount">
+                <span>应付押金</span>
+                <b>{formatMoney(payTarget.depositAmount)}</b>
+                <small>归还验收合格后原路退回</small>
+              </div>
+              <div className="sec-label">支付方式</div>
+              <div className="pay-methods">
+                {PAY_METHODS.map((method) => (
+                  <label
+                    key={method.key}
+                    className={'pm' + (payMethod === method.key ? ' active' : '')}
+                    onClick={() => setPayMethod(method.key)}
+                  >
+                    <span className="pm-ic" style={{ color: method.color }}><CreditCard className="ic" /></span>
+                    <span>{method.label}</span>
+                    <i className="pm-radio"></i>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={() => setPayTarget(null)}>取消</button>
+              <button type="button" className="btn btn-primary" disabled={payMutation.isPending} onClick={() => payMutation.mutate(payTarget.id)}>
+                {payMutation.isPending && <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />}
+                确认支付
+              </button>
             </div>
           </div>
-        )}
-      </Dialog>
+        </div>
+      )}
+
+      {/* 租赁详情 */}
+      {detailId !== null && (
+        <div className="mask show" onClick={() => setDetailId(null)}>
+          <div className="dlg" onClick={(event) => event.stopPropagation()}>
+            <div className="dlg-head">
+              <div>
+                <h3>租赁详情</h3>
+                <p className="d-sub">{detailRental?.orderNo ?? ''}</p>
+              </div>
+              <button className="dlg-x" onClick={() => setDetailId(null)} aria-label="关闭">
+                <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="dlg-body">
+              {detailQuery.isLoading && !detailRental ? (
+                <div className="skel" style={{ height: 200 }}></div>
+              ) : detailRental ? (
+                <RentalDetail rental={detailRental} />
+              ) : (
+                <p className="muted">未找到租赁信息</p>
+              )}
+            </div>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={() => setDetailId(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 取消租赁 */}
+      {cancelTarget && (
+        <div className="mask show" onClick={() => setCancelTarget(null)}>
+          <div className="dlg narrow" onClick={(event) => event.stopPropagation()}>
+            <div className="dlg-head">
+              <div>
+                <h3>取消租赁</h3>
+                <p className="d-sub">{cancelTarget.orderNo} · {cancelTarget.toolName}</p>
+              </div>
+              <button className="dlg-x" onClick={() => setCancelTarget(null)} aria-label="关闭">
+                <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="dlg-body">
+              <div className="notice-sm">
+                <RotateCcw className="ic" />
+                <span>取件前 24 小时外可取消；已支付押金将原路退回，具体以系统校验结果为准。</span>
+              </div>
+              <div className="field">
+                <label htmlFor="cancelReason">取消原因（选填）</label>
+                <textarea
+                  id="cancelReason"
+                  className="textarea"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="请说明取消租赁的原因"
+                />
+              </div>
+            </div>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={() => setCancelTarget(null)}>再想想</button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate({ id: cancelTarget.id, reason: cancelReason.trim() || '用户主动取消' })}
+              >
+                {cancelMutation.isPending && <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />}
+                确认取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

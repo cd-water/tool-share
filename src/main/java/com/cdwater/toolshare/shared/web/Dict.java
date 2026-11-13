@@ -25,7 +25,7 @@ public final class Dict {
     );
 
     public static final Map<String, String> TOOL_STATUS = Map.of(
-            "AVAILABLE", "可用",
+            "AVAILABLE", "可借用",
             "RENTED", "已租出",
             "MAINTENANCE", "维修中",
             "SCRAPPED", "已报废"
@@ -34,7 +34,7 @@ public final class Dict {
     public static final Map<String, String> RENTAL_STATUS = Map.of(
             "PENDING_PAYMENT", "待支付",
             "RESERVED", "已预约",
-            "PICKED_UP", "已取件",
+            "PICKED_UP", "使用中",
             "RETURNED", "已归还",
             "CANCELLED", "已取消",
             "OVERDUE", "已逾期"
@@ -53,7 +53,7 @@ public final class Dict {
     );
 
     public static final Map<String, String> REPORT_STATUS = Map.of(
-            "SUBMITTED", "待核验",
+            "SUBMITTED", "已提交",
             "VERIFIED", "已核验",
             "REJECTED", "已驳回",
             "REPAIRING", "维修中",

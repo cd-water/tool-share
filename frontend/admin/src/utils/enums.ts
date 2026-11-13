@@ -15,7 +15,7 @@ export const DAMAGE_LEVEL_LABELS: Record<string, string> = {
 }
 
 export const TOOL_STATUS_LABELS: Record<string, string> = {
-  AVAILABLE: '可用',
+  AVAILABLE: '可借用',
   RENTED: '已租出',
   MAINTENANCE: '维修中',
   SCRAPPED: '已报废',
@@ -24,7 +24,7 @@ export const TOOL_STATUS_LABELS: Record<string, string> = {
 export const RENTAL_STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: '待支付',
   RESERVED: '已预约',
-  PICKED_UP: '已取件',
+  PICKED_UP: '使用中',
   RETURNED: '已归还',
   CANCELLED: '已取消',
   OVERDUE: '已逾期',
@@ -43,7 +43,7 @@ export const DAMAGE_RESULT_LABELS: Record<string, string> = {
 }
 
 export const REPORT_STATUS_LABELS: Record<string, string> = {
-  SUBMITTED: '待核验',
+  SUBMITTED: '已提交',
   VERIFIED: '已核验',
   REJECTED: '已驳回',
   REPAIRING: '维修中',
@@ -65,9 +65,9 @@ export const ACCEPT_RESULT_LABELS: Record<string, string> = {
 }
 
 export const VERIFY_RESULT_LABELS: Record<string, string> = {
-  CONFIRMED: '确认损坏',
+  CONFIRMED: '确认属实',
   SUSPECTED: '疑似损坏',
-  FALSE: '误报',
+  FALSE: '不属实',
 }
 
 export const MESSAGE_TYPE_LABELS: Record<string, string> = {

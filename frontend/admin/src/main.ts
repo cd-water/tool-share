@@ -7,7 +7,11 @@ import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from '@/App.vue'
 import router from '@/router'
+import { initFx } from '@/lib/fx'
 import '@/styles/index.css'
+import '@/styles/design.css'
+
+document.body.dataset.app = 'admin'
 
 const app = createApp(App)
 
@@ -18,3 +22,5 @@ app.use(pinia)
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 app.mount('#app')
+
+initFx()

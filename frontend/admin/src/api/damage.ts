@@ -21,6 +21,7 @@ export interface DamageReportVO {
   toolId: number
   toolCode?: string
   toolName?: string
+  toolImageUrl?: string
   userId?: number
   reporterName?: string
   reporterPhone?: string

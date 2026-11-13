@@ -5,12 +5,12 @@ import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import {
   rentalApi,
   type DamageResult,
-  type RentalQuery,
   type RentalReturnDTO,
   type RentalVO,
 } from '@/api/rentals'
 import { cleanParams } from '@/utils/params'
-import { exportTimestamp, formatDateTime, formatMoney } from '@/utils/format'
+import { exportTimestamp, formatDateTime, formatMoney, resolveFileUrl } from '@/utils/format'
+import { badgeClass } from '@/utils/badge'
 import {
   DAMAGE_RESULT_LABELS,
   DEPOSIT_STATUS_LABELS,
@@ -24,13 +24,7 @@ import {
 const loading = ref(false)
 const list = ref<RentalVO[]>([])
 const total = ref(0)
-const query = reactive<RentalQuery>({
-  page: 1,
-  size: 10,
-  keyword: '',
-  status: '',
-  overdue: '',
-})
+const query = reactive({ page: 1, size: 10, keyword: '', status: '', overdue: '' })
 
 const statusOptions = optionList(RENTAL_STATUS_LABELS)
 const damageResultOptions = optionList(DAMAGE_RESULT_LABELS)
@@ -54,7 +48,6 @@ function handleSearch() {
   query.page = 1
   loadList()
 }
-
 function handleReset() {
   query.keyword = ''
   query.status = ''
@@ -63,13 +56,7 @@ function handleReset() {
   loadList()
 }
 
-function handleSizeChange() {
-  query.page = 1
-  loadList()
-}
-
 const exporting = ref(false)
-
 async function handleExport() {
   exporting.value = true
   try {
@@ -100,54 +87,87 @@ async function fetchDetail(id: number) {
     detailLoading.value = false
   }
 }
-
 function openDetail(row: RentalVO) {
   detail.value = row
   detailVisible.value = true
   fetchDetail(row.id)
 }
-
 async function refreshCurrentDetail(id: number) {
-  if (detailVisible.value && detail.value?.id === id) {
-    await fetchDetail(id)
+  if (detailVisible.value && detail.value?.id === id) await fetchDetail(id)
+}
+
+const pickupVisible = ref(false)
+const pickupSaving = ref(false)
+const pickupTarget = ref<RentalVO | null>(null)
+const pickupForm = reactive({ person: '', remark: '' })
+
+function openPickup(row: RentalVO) {
+  pickupTarget.value = row
+  pickupForm.person = row.pickupPerson || ''
+  pickupForm.remark = ''
+  pickupVisible.value = true
+}
+
+async function submitPickup() {
+  const target = pickupTarget.value
+  if (!target) return
+  pickupSaving.value = true
+  try {
+    await rentalApi.pickup(target.id)
+    ElMessage.success('已确认取件')
+    pickupVisible.value = false
+    await loadList()
+    await refreshCurrentDetail(target.id)
+  } finally {
+    pickupSaving.value = false
   }
 }
 
-async function handlePickup(row: RentalVO) {
-  try {
-    await ElMessageBox.confirm(`确认工具「${row.toolName}」已取件？`, '确认取件', {
-      type: 'warning',
-    })
-  } catch {
-    return
+const detailTimeline = computed(() => {
+  const row = detail.value
+  if (!row) return []
+  const list: Array<{ title: string; time: string; desc: string }> = [
+    { title: '提交预约', time: formatDateTime(row.createTime), desc: `取件人 ${row.pickupPerson || '—'}` },
+  ]
+  if (row.depositStatus !== 'UNPAID') {
+    list.push({ title: '支付押金', time: formatDateTime(row.createTime), desc: `押金 ${formatMoney(row.depositAmount)} 已支付` })
   }
-  await rentalApi.pickup(row.id)
-  ElMessage.success('已确认取件')
-  await loadList()
-  await refreshCurrentDetail(row.id)
-}
+  if (['PICKED_UP', 'RETURNED', 'OVERDUE'].includes(row.status)) {
+    list.push({ title: '取件', time: formatDateTime(row.startTime), desc: `取件人 ${row.pickupPerson || '—'} 已取件` })
+  }
+  if (row.actualReturnTime) {
+    list.push({
+      title: '归还',
+      time: formatDateTime(row.actualReturnTime),
+      desc: `验收结果：${enumLabel(DAMAGE_RESULT_LABELS, row.damageResult)}`,
+    })
+  }
+  if (row.status === 'CANCELLED') {
+    list.push({ title: '已取消', time: formatDateTime(row.cancelTime), desc: row.cancelReason || '管理员取消' })
+  }
+  return list
+})
 
 const returnDialogVisible = ref(false)
 const returnSaving = ref(false)
 const returnTarget = ref<RentalVO | null>(null)
-const returnForm = reactive<{
-  damageResult: DamageResult
-  overdueFee: number | null
-  damageFee: number | null
-  remark: string
-}>({
+const returnForm = reactive<{ damageResult: DamageResult; overdueFee: number | null; damageFee: number | null; remark: string; returnTime: string }>({
   damageResult: 'INTACT',
   overdueFee: null,
   damageFee: null,
   remark: '',
+  returnTime: '',
 })
+
+function nowInput(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 const refundPreview = computed(() => {
   const deposit = returnTarget.value?.depositAmount ?? 0
-  return Math.max(
-    0,
-    deposit - (returnForm.overdueFee ?? 0) - (returnForm.damageFee ?? 0),
-  )
+  return Math.max(0, deposit - (returnForm.overdueFee ?? 0) - (returnForm.damageFee ?? 0))
 })
 
 function openReturn(row: RentalVO) {
@@ -156,15 +176,14 @@ function openReturn(row: RentalVO) {
   returnForm.overdueFee = null
   returnForm.damageFee = null
   returnForm.remark = ''
+  returnForm.returnTime = nowInput()
   returnDialogVisible.value = true
 }
 
 async function submitReturn() {
   const target = returnTarget.value
   if (!target) return
-  const payload: RentalReturnDTO = {
-    damageResult: returnForm.damageResult,
-  }
+  const payload: RentalReturnDTO = { damageResult: returnForm.damageResult }
   if (returnForm.overdueFee !== null) payload.overdueFee = returnForm.overdueFee
   if (returnForm.damageFee !== null) payload.damageFee = returnForm.damageFee
   if (returnForm.remark.trim()) payload.remark = returnForm.remark.trim()
@@ -202,288 +221,301 @@ async function handleCancel(row: RentalVO) {
 function canCancel(row: RentalVO): boolean {
   return ['PENDING_PAYMENT', 'RESERVED', 'PICKED_UP', 'OVERDUE'].includes(row.status)
 }
-
 function canReturn(row: RentalVO): boolean {
   return row.status === 'PICKED_UP' || row.status === 'OVERDUE'
 }
+
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
 
 onMounted(loadList)
 </script>
 
 <template>
-  <div class="page">
-    <el-card shadow="never" class="filter-card">
-      <el-form :inline="true" :model="query" class="filter-form" @submit.prevent>
-        <el-form-item label="关键词">
-          <el-input
-            v-model="query.keyword"
-            placeholder="单号 / 工具 / 租用人"
-            clearable
-            style="width: 210px"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px">
-            <el-option
-              v-for="item in statusOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="逾期">
-          <el-select v-model="query.overdue" placeholder="全部" clearable style="width: 130px">
-            <el-option
-              v-for="item in overdueOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item class="filter-actions">
-          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button :icon="Download" :loading="exporting" @click="handleExport">
-            导出 Excel
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+  <div class="page-head reveal">
+    <div>
+      <p class="eyebrow">RENTAL OPERATIONS</p>
+      <h1>租赁管理</h1>
+      <p class="sub">处理取件、归还验收、退款试算与租赁取消，所有流转留痕可追溯。</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn btn-outline" :disabled="exporting" @click="handleExport">
+        <el-icon class="ic"><Download /></el-icon>导出 Excel
+      </button>
+    </div>
+  </div>
 
-    <el-card shadow="never" class="table-card">
-      <el-table
-        v-loading="loading"
-        :data="list"
-        stripe
-        empty-text="暂无租赁记录"
-        row-key="id"
-      >
-        <el-table-column prop="orderNo" label="租赁单号" width="180" />
-        <el-table-column label="工具" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div>{{ row.toolName }}</div>
-            <div class="muted small">{{ row.toolCode }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="租用人" width="140">
-          <template #default="{ row }">
-            <div>{{ row.renterName }}</div>
-            <div class="muted small">{{ row.renterPhone }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="租期" width="210">
-          <template #default="{ row }">
-            <div>{{ formatDateTime(row.startTime) }}</div>
-            <div class="muted small">至 {{ formatDateTime(row.endTime) }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="押金" width="110" align="right">
-          <template #default="{ row }">
-            <span class="amount">{{ formatMoney(row.depositAmount) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="押金状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="depositStatusTag(row.depositStatus)" effect="plain">
-              {{ row.depositStatusName || enumLabel(DEPOSIT_STATUS_LABELS, row.depositStatus) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="rentalStatusTag(row.status)">
-              {{ row.statusName || enumLabel(RENTAL_STATUS_LABELS, row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="费用" width="140" align="right">
-          <template #default="{ row }">
-            <div v-if="row.overdueFee" class="muted small">逾期 {{ formatMoney(row.overdueFee) }}</div>
-            <div v-if="row.damageFee" class="muted small">损坏 {{ formatMoney(row.damageFee) }}</div>
-            <div v-if="!row.overdueFee && !row.damageFee" class="muted">—</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="150">
-          <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button
-              v-if="row.status === 'RESERVED'"
-              link
-              type="success"
-              @click="handlePickup(row)"
-            >
-              取件
-            </el-button>
-            <el-button v-if="canReturn(row)" link type="warning" @click="openReturn(row)">
-              归还验收
-            </el-button>
-            <el-button v-if="canCancel(row)" link type="danger" @click="handleCancel(row)">
-              取消
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="table-footer">
-        <el-pagination
-          v-model:current-page="query.page"
-          v-model:page-size="query.size"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @current-change="loadList"
-          @size-change="handleSizeChange"
-        />
+  <form class="filterbar reveal" @submit.prevent="handleSearch">
+    <div class="f-search">
+      <el-icon class="ic"><Search /></el-icon>
+      <input v-model="query.keyword" class="input" placeholder="单号 / 工具 / 租用人" @keyup.enter="handleSearch" />
+    </div>
+    <select v-model="query.status" class="select f-item">
+      <option value="">全部状态</option>
+      <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+    </select>
+    <select v-model="query.overdue" class="select f-item">
+      <option value="">全部</option>
+      <option v-for="item in overdueOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+    </select>
+    <button type="submit" class="btn btn-primary"><el-icon class="ic"><Search /></el-icon>查询</button>
+    <button type="button" class="btn btn-outline" @click="handleReset"><el-icon class="ic"><Refresh /></el-icon>重置</button>
+  </form>
+
+  <div class="table-wrap reveal">
+    <div class="table-scroll">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>租赁单号</th>
+            <th>工具</th>
+            <th>租用人</th>
+            <th>租期</th>
+            <th class="r">押金</th>
+            <th class="c">押金状态</th>
+            <th class="c">状态</th>
+            <th class="r">费用</th>
+            <th>创建时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in list" :key="row.id">
+            <td class="code">{{ row.orderNo }}</td>
+            <td>
+              <div class="cell-tool">
+                <img v-if="row.toolImageUrl" :src="resolveFileUrl(row.toolImageUrl)" class="thumb" alt="" />
+                <span v-else class="thumb-ph">—</span>
+                <div>
+                  <div class="cell-main">{{ row.toolName }}</div>
+                  <div class="cell-sub">{{ row.toolCode }}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div>{{ row.renterName }}</div>
+              <div class="cell-sub">{{ row.renterPhone }}</div>
+            </td>
+            <td>
+              <div>{{ formatDateTime(row.startTime) }}</div>
+              <div class="cell-sub">至 {{ formatDateTime(row.endTime) }}</div>
+            </td>
+            <td class="r money">{{ formatMoney(row.depositAmount) }}</td>
+            <td class="c">
+              <span :class="badgeClass(depositStatusTag(row.depositStatus))">
+                {{ row.depositStatusName || enumLabel(DEPOSIT_STATUS_LABELS, row.depositStatus) }}
+              </span>
+            </td>
+            <td class="c">
+              <span :class="badgeClass(rentalStatusTag(row.status))">
+                {{ row.statusName || enumLabel(RENTAL_STATUS_LABELS, row.status) }}
+              </span>
+            </td>
+            <td class="r">
+              <div v-if="row.overdueFee" class="tiny">逾期 {{ formatMoney(row.overdueFee) }}</div>
+              <div v-if="row.damageFee" class="tiny">损坏 {{ formatMoney(row.damageFee) }}</div>
+              <span v-if="!row.overdueFee && !row.damageFee" class="muted">—</span>
+            </td>
+            <td>{{ formatDateTime(row.createTime) }}</td>
+            <td>
+              <div class="row-actions">
+                <button class="link-btn" @click="openDetail(row)">详情</button>
+                <button v-if="row.status === 'RESERVED'" class="link-btn ok" @click="openPickup(row)">取件</button>
+                <button v-if="canReturn(row)" class="link-btn" @click="openReturn(row)">归还验收</button>
+                <button v-if="canCancel(row)" class="link-btn danger" @click="handleCancel(row)">取消</button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="!loading && list.length === 0">
+            <td colspan="10"><div class="empty" style="padding: 40px"><h4>暂无租赁记录</h4></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-foot">
+      <span class="tiny">共 {{ total }} 条</span>
+      <div class="pager">
+        <button type="button" :disabled="query.page <= 1" @click="query.page--; loadList()">上一页</button>
+        <button
+          v-for="p in pageCount"
+          :key="p"
+          type="button"
+          :class="{ active: query.page === p }"
+          @click="query.page = p; loadList()"
+        >{{ p }}</button>
+        <button type="button" :disabled="query.page >= pageCount" @click="query.page++; loadList()">下一页</button>
       </div>
-    </el-card>
+    </div>
+  </div>
 
-    <el-drawer v-model="detailVisible" title="租赁详情" size="520px">
-      <div v-loading="detailLoading">
-        <template v-if="detail">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="租赁单号" :span="2">
-              {{ detail.orderNo }}
-            </el-descriptions-item>
-            <el-descriptions-item label="工具名称">{{ detail.toolName }}</el-descriptions-item>
-            <el-descriptions-item label="工具编码">{{ detail.toolCode }}</el-descriptions-item>
-            <el-descriptions-item label="租用人">{{ detail.renterName }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{ detail.renterPhone }}</el-descriptions-item>
-            <el-descriptions-item label="取件人">{{ detail.pickupPerson || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="租赁状态">
-              <el-tag :type="rentalStatusTag(detail.status)">
-                {{ detail.statusName || enumLabel(RENTAL_STATUS_LABELS, detail.status) }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="开始时间">
-              {{ formatDateTime(detail.startTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="结束时间">
-              {{ formatDateTime(detail.endTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="实际归还">
-              {{ formatDateTime(detail.actualReturnTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="创建时间">
-              {{ formatDateTime(detail.createTime) }}
-            </el-descriptions-item>
-          </el-descriptions>
-
-          <el-divider content-position="left">押金与费用</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="押金金额">
-              {{ formatMoney(detail.depositAmount) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="押金状态">
-              <el-tag :type="depositStatusTag(detail.depositStatus)" effect="plain">
-                {{ detail.depositStatusName || enumLabel(DEPOSIT_STATUS_LABELS, detail.depositStatus) }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="逾期费">
-              {{ formatMoney(detail.overdueFee) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="损坏费">
-              {{ formatMoney(detail.damageFee) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="退款金额">
-              {{ formatMoney(detail.refundAmount) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="验收结果">
-              {{ enumLabel(DAMAGE_RESULT_LABELS, detail.damageResult) }}
-            </el-descriptions-item>
-          </el-descriptions>
-
+  <!-- 详情抽屉 -->
+  <div v-if="detailVisible" class="drawer-mask show" @click.self="detailVisible = false">
+    <div class="drawer" style="width: 560px">
+      <div class="dlg-head">
+        <h3>租赁详情</h3>
+        <button class="dlg-x" @click="detailVisible = false" aria-label="关闭">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div class="dlg-body">
+        <div v-if="detailLoading" class="skel" style="height: 300px"></div>
+        <div v-else-if="detail">
+          <div class="flex" style="margin-bottom: 16px">
+            <span :class="badgeClass(rentalStatusTag(detail.status))">
+              <span class="dot"></span>{{ detail.statusName || enumLabel(RENTAL_STATUS_LABELS, detail.status) }}
+            </span>
+            <span :class="badgeClass(depositStatusTag(detail.depositStatus))">
+              押金{{ detail.depositStatusName || enumLabel(DEPOSIT_STATUS_LABELS, detail.depositStatus) }}
+            </span>
+          </div>
+          <dl class="kv">
+            <dt>租赁单号</dt>
+            <dd class="code">{{ detail.orderNo }}</dd>
+            <dt>工具名称</dt>
+            <dd>{{ detail.toolName }}</dd>
+            <dt>工具编码</dt>
+            <dd>{{ detail.toolCode }}</dd>
+            <dt>租用人</dt>
+            <dd>{{ detail.renterName }}</dd>
+            <dt>联系电话</dt>
+            <dd>{{ detail.renterPhone }}</dd>
+            <dt>取件人</dt>
+            <dd>{{ detail.pickupPerson || '—' }}</dd>
+            <dt>租赁状态</dt>
+            <dd><span :class="badgeClass(rentalStatusTag(detail.status))">{{ detail.statusName || enumLabel(RENTAL_STATUS_LABELS, detail.status) }}</span></dd>
+            <dt>开始时间</dt>
+            <dd>{{ formatDateTime(detail.startTime) }}</dd>
+            <dt>结束时间</dt>
+            <dd>{{ formatDateTime(detail.endTime) }}</dd>
+            <dt>实际归还</dt>
+            <dd>{{ formatDateTime(detail.actualReturnTime) }}</dd>
+            <dt>创建时间</dt>
+            <dd>{{ formatDateTime(detail.createTime) }}</dd>
+          </dl>
+          <template v-if="detail.status === 'RETURNED' || detail.refundAmount !== null">
+            <div class="sec-label">结算明细</div>
+            <div class="return-box">
+              <div class="rb-row"><span>押金</span><span class="num">{{ formatMoney(detail.depositAmount) }}</span></div>
+              <div class="rb-row"><span>逾期费用</span><span class="num">− {{ formatMoney(detail.overdueFee || 0) }}</span></div>
+              <div class="rb-row"><span>损坏赔偿</span><span class="num">− {{ formatMoney(detail.damageFee || 0) }}</span></div>
+              <div class="rb-row"><span>实际退款</span><span class="num">{{ formatMoney(detail.refundAmount || 0) }}</span></div>
+            </div>
+          </template>
           <template v-if="detail.returnRemark || detail.cancelReason">
-            <el-divider content-position="left">备注信息</el-divider>
-            <el-descriptions :column="1" border>
-              <el-descriptions-item v-if="detail.returnRemark" label="归还备注">
-                {{ detail.returnRemark }}
-              </el-descriptions-item>
-              <el-descriptions-item v-if="detail.cancelReason" label="取消原因">
-                {{ detail.cancelReason }}（{{ formatDateTime(detail.cancelTime) }}）
-              </el-descriptions-item>
-            </el-descriptions>
+            <div class="sec-label">备注信息</div>
+            <dl class="kv">
+              <dt v-if="detail.returnRemark">归还备注</dt>
+              <dd v-if="detail.returnRemark">{{ detail.returnRemark }}</dd>
+              <dt v-if="detail.cancelReason">取消原因</dt>
+              <dd v-if="detail.cancelReason">{{ detail.cancelReason }}（{{ formatDateTime(detail.cancelTime) }}）</dd>
+            </dl>
           </template>
-        </template>
-        <el-empty v-else description="暂无详情" />
+          <div class="sec-label">流转记录</div>
+          <ul class="timeline">
+            <li v-for="(item, index) in detailTimeline" :key="index" :class="{ done: index < detailTimeline.length - 1 }">
+              <div class="tl-t">{{ item.title }}</div>
+              <div class="tl-time">{{ item.time }}</div>
+              <div class="tl-d">{{ item.desc }}</div>
+            </li>
+          </ul>
+        </div>
+        <p v-else class="muted">暂无详情</p>
       </div>
-    </el-drawer>
+    </div>
+  </div>
 
-    <el-dialog v-model="returnDialogVisible" title="归还验收" width="520px">
-      <el-form label-width="96px">
-        <el-form-item label="租赁单号">
-          <span>{{ returnTarget?.orderNo || '—' }}</span>
-        </el-form-item>
-        <el-form-item label="押金金额">
-          <span class="amount">{{ formatMoney(returnTarget?.depositAmount) }}</span>
-        </el-form-item>
-        <el-form-item label="验收结果" required>
-          <el-select v-model="returnForm.damageResult" style="width: 100%">
-            <el-option
-              v-for="item in damageResultOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="逾期费">
-          <el-input-number
-            v-model="returnForm.overdueFee"
-            :min="0"
-            :precision="2"
-            :step="5"
-            controls-position="right"
-            placeholder="留空由系统计算"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="损坏费">
-          <el-input-number
-            v-model="returnForm.damageFee"
-            :min="0"
-            :precision="2"
-            :step="10"
-            controls-position="right"
-            placeholder="可手动指定"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="归还备注">
-          <el-input
-            v-model="returnForm.remark"
-            type="textarea"
-            :rows="2"
-            maxlength="200"
-            show-word-limit
-            placeholder="选填"
-          />
-        </el-form-item>
-        <el-alert :closable="false" type="info" show-icon>
-          <template #title>
-            预计退款：<strong class="amount">{{ formatMoney(refundPreview) }}</strong>
-            <span class="muted">（押金 - 逾期费 - 损坏费，最低为 0）</span>
-          </template>
-        </el-alert>
-      </el-form>
-      <template #footer>
-        <el-button @click="returnDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="returnSaving" @click="submitReturn">
-          确认归还
-        </el-button>
-      </template>
-    </el-dialog>
+  <!-- 取件确认 -->
+  <div v-if="pickupVisible" class="mask show" @click.self="pickupVisible = false">
+    <div class="dlg narrow">
+      <div class="dlg-head">
+        <div>
+          <h3>确认取件</h3>
+          <p class="d-sub">{{ pickupTarget?.orderNo }} · {{ pickupTarget?.toolName }}</p>
+        </div>
+        <button class="dlg-x" @click="pickupVisible = false" aria-label="关闭">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div class="dlg-body">
+        <div class="notice-sm">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+          <span>请核对取件人身份与押金支付状态后再确认取件。</span>
+        </div>
+        <div class="field">
+          <label>取件人</label>
+          <input v-model="pickupForm.person" class="input" placeholder="取件人姓名" />
+        </div>
+        <div class="field">
+          <label>取件备注</label>
+          <textarea v-model="pickupForm.remark" class="textarea" rows="2" placeholder="选填" />
+        </div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-outline" @click="pickupVisible = false">取消</button>
+        <button type="button" class="btn btn-primary" :disabled="pickupSaving" @click="submitPickup">
+          {{ pickupSaving ? '处理中…' : '确认取件' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 归还验收弹窗 -->
+  <div v-if="returnDialogVisible" class="mask show" @click.self="returnDialogVisible = false">
+    <div class="dlg">
+      <div class="dlg-head">
+        <h3>归还验收</h3>
+        <button class="dlg-x" @click="returnDialogVisible = false" aria-label="关闭">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div class="dlg-body">
+        <div class="field">
+          <label>租赁单号</label>
+          <span class="code">{{ returnTarget?.orderNo || '—' }}</span>
+        </div>
+        <div class="field">
+          <label>押金金额</label>
+          <span class="money">{{ formatMoney(returnTarget?.depositAmount) }}</span>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>实际归还时间</label>
+            <input v-model="returnForm.returnTime" type="datetime-local" class="input" />
+          </div>
+          <div class="field">
+            <label>验收结果</label>
+            <select v-model="returnForm.damageResult" class="select">
+              <option v-for="item in damageResultOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>逾期费</label>
+            <input v-model.number="returnForm.overdueFee" type="number" min="0" step="0.01" class="input" placeholder="留空由系统计算" />
+          </div>
+          <div class="field">
+            <label>损坏费</label>
+            <input v-model.number="returnForm.damageFee" type="number" min="0" step="0.01" class="input" placeholder="可手动指定" />
+          </div>
+        </div>
+        <div class="field">
+          <label>归还备注</label>
+          <textarea v-model="returnForm.remark" class="textarea" rows="2" maxlength="200" placeholder="选填"></textarea>
+        </div>
+        <div class="refund-preview">
+          <div>
+            <span class="rp-label">预计退款</span>
+            <span class="rp-calc">
+              押金 {{ formatMoney(returnTarget?.depositAmount || 0) }} − 逾期 {{ formatMoney(returnForm.overdueFee || 0) }} − 赔偿 {{ formatMoney(returnForm.damageFee || 0) }}
+            </span>
+          </div>
+          <b>{{ formatMoney(refundPreview) }}</b>
+        </div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn-outline" @click="returnDialogVisible = false">取消</button>
+        <button type="button" class="btn btn-primary" :disabled="returnSaving" @click="submitReturn">确认归还</button>
+      </div>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.small {
-  font-size: 12px;
-  line-height: 1.5;
-}
-</style>

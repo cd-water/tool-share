@@ -266,6 +266,8 @@ public class DamageService {
         vo.setToolId(report.getToolId());
         vo.setToolCode(report.getToolCode());
         vo.setToolName(report.getToolName());
+        Tool tool = toolMapper.selectById(report.getToolId());
+        vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
         vo.setUserId(report.getUserId());
         vo.setReporterName(report.getReporterName());
         vo.setReporterPhone(IdCardCipher.maskPhone(report.getReporterPhone()));

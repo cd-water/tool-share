@@ -15,6 +15,8 @@ public class DamageReportVO {
     private Long toolId;
     private String toolCode;
     private String toolName;
+    /** 工具主图（MinIO 路径） */
+    private String toolImageUrl;
     private Long userId;
     private String reporterName;
     private String reporterPhone;

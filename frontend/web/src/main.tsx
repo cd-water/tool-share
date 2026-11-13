@@ -4,7 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router/dom'
 import { Toaster } from '@/components/ui/toast'
 import { router } from '@/router'
+import { initFx } from '@/lib/fx'
 import './index.css'
+import './styles/design.css'
+
+document.body.dataset.app = 'web'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,3 +24,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+initFx()
