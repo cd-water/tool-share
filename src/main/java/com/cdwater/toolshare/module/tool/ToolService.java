@@ -19,6 +19,7 @@ import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.PageVO;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -52,6 +53,9 @@ public class ToolService {
     private final ToolIndexService toolIndexService;
     private final ToolVoMapper toolVoMapper;
     private final ToolLogVoMapper toolLogVoMapper;
+
+    @Value("${toolshare.rental.pending-payment-timeout-minutes:30}")
+    private long pendingPaymentTimeoutMinutes = 30;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
@@ -278,12 +282,8 @@ public class ToolService {
         if (start == null || end == null || !start.isBefore(end)) {
             return new AvailabilityVO(false, "租赁开始时间必须早于结束时间", List.of());
         }
-        List<Rental> conflicts = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
-                .eq(Rental::getToolId, toolId)
-                .in(Rental::getStatus, ACTIVE_RENTAL_STATUS)
-                .lt(Rental::getStartTime, end)
-                .gt(Rental::getEndTime, start)
-                .orderByAsc(Rental::getEndTime));
+        List<Rental> conflicts = rentalMapper.selectConflicts(toolId, start, end,
+                pendingPaymentTimeoutMinutes);
         if (conflicts.isEmpty()) {
             return new AvailabilityVO(true, "该时段可预约", List.of());
         }

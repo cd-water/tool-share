@@ -3,6 +3,7 @@ package com.cdwater.toolshare.module.rental;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -42,6 +43,10 @@ public class Rental {
 
     /** PENDING_PAYMENT/RESERVED/PICKED_UP/RETURNED/CANCELLED/OVERDUE */
     private String status;
+
+    /** 乐观锁版本号，所有状态流转原子更新时自增 */
+    @Version
+    private Integer version;
 
     private LocalDateTime actualReturnTime;
 

@@ -21,7 +21,8 @@ public class ReminderService {
     private final RentalService rentalService;
 
     /**
-     * 每 2 分钟扫描一次：取件前 2 小时提醒、逾期状态刷新、逾期兜底提醒。
+     * 每 2 分钟扫描一次：待支付超时取消、取件前 2 小时提醒、逾期状态刷新、逾期兜底提醒。
+     * <p>待支付超时复用现有 2 分钟调度节奏（ADR-0004 单实例假设），不额外新增调度器。
      * <p>到期前提醒由用户自定义（{@link RentalReminderService}）；这里负责“到期仍未归还”的兜底提醒，
      * 即使用户选择了「不提醒」也会收到。
      */
@@ -29,6 +30,8 @@ public class ReminderService {
     public void scan() {
         LocalDateTime now = LocalDateTime.now();
         try {
+            rentalService.expirePending();
+
             List<Rental> pickups = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
                     .eq(Rental::getStatus, "RESERVED")
                     .between(Rental::getStartTime, now, now.plusHours(2)));

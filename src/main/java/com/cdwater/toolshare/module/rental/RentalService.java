@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
+import com.cdwater.toolshare.shared.enums.DepositStatus;
+import com.cdwater.toolshare.shared.enums.RentalStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.security.IdCardCipher;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
@@ -26,7 +28,9 @@ import com.cdwater.toolshare.module.rental.RentalExportRow;
 import com.cdwater.toolshare.module.rental.RentalVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -44,8 +48,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RentalService {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final List<String> ACTIVE_STATUS =
-            List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
     private static final BigDecimal HOUR_FEE = new BigDecimal("5");
     private static final BigDecimal SEVERE_DAMAGE_FEE = new BigDecimal("50");
 
@@ -57,6 +59,9 @@ public class RentalService {
     private final MessageService messageService;
     private final RentalReminderService reminderService;
     private final RentalVoMapper rentalVoMapper;
+
+    @Value("${toolshare.rental.pending-payment-timeout-minutes:30}")
+    private long pendingPaymentTimeoutMinutes = 30;
 
     /** 逾期状态由定时任务物化，列表查询前做一次惰性刷新，避免筛选存在最长 10 分钟的窗口 */
     private final AtomicLong lastOverdueRefresh = new AtomicLong(0);
@@ -76,13 +81,18 @@ public class RentalService {
         }
     }
 
-    @Transactional
+    // READ_COMMITTED：拿到工具行锁后，冲突查询必须看到前一事务已提交的租赁单（RR 快照会漏读）
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public RentalVO create(RentalCreateDTO dto) {
         User user = currentUser();
         if (!StringUtils.hasText(user.getRealName()) || !StringUtils.hasText(user.getIdCard())) {
             throw new BizException(ResultCode.BAD_REQUEST, "请先在个人中心完善真实姓名与身份证号");
         }
-        Tool tool = toolService.getTool(dto.getToolId());
+        // 先锁工具行，再查冲突并插入，串行化同一工具的并发预约
+        Tool tool = toolMapper.selectByIdForUpdate(dto.getToolId());
+        if (tool == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "工具不存在");
+        }
         if (tool.getAuditStatus() == null || tool.getAuditStatus() != AuditStatus.APPROVED.code()) {
             throw new BizException(ResultCode.BAD_REQUEST, "工具尚未通过审核，暂不可预约");
         }
@@ -97,11 +107,8 @@ public class RentalService {
         if (!dto.getStartTime().isBefore(dto.getEndTime())) {
             throw new BizException(ResultCode.BAD_REQUEST, "结束时间必须晚于开始时间");
         }
-        List<Rental> conflicts = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
-                .eq(Rental::getToolId, tool.getId())
-                .in(Rental::getStatus, ACTIVE_STATUS)
-                .lt(Rental::getStartTime, dto.getEndTime())
-                .gt(Rental::getEndTime, dto.getStartTime()));
+        List<Rental> conflicts = rentalMapper.selectConflicts(tool.getId(),
+                dto.getStartTime(), dto.getEndTime(), pendingPaymentTimeoutMinutes);
         if (!conflicts.isEmpty()) {
             String suggestion = conflicts.stream()
                     .map(item -> item.getEndTime().plusHours(1).format(DATE_TIME))
@@ -121,8 +128,8 @@ public class RentalService {
         rental.setEndTime(dto.getEndTime());
         rental.setPickupPerson(dto.getPickupPerson().trim());
         rental.setDepositAmount(tool.getDeposit());
-        rental.setDepositStatus("UNPAID");
-        rental.setStatus("PENDING_PAYMENT");
+        rental.setDepositStatus(DepositStatus.UNPAID.code());
+        rental.setStatus(RentalStatus.PENDING_PAYMENT.code());
         rental.setOverdueFee(BigDecimal.ZERO);
         rental.setDamageFee(BigDecimal.ZERO);
         rental.setRefundAmount(BigDecimal.ZERO);
@@ -130,19 +137,20 @@ public class RentalService {
         // 按用户选择的提前量登记到期提醒（0 = 不提醒）
         reminderService.schedule(rental, dto.getRemindBeforeMinutes());
         messageService.notifyUser(user.getId(), "RESERVATION", "预约已创建",
-                "预约单 " + rental.getOrderNo() + " 已创建，请在 30 分钟内完成押金支付。");
+                "预约单 " + rental.getOrderNo() + " 已创建，请在 " + pendingPaymentTimeoutMinutes
+                        + " 分钟内完成押金支付。");
         return toVO(rental);
     }
 
     @Transactional
     public void pay(Long id) {
         Rental rental = getUserRental(id);
-        if (!"PENDING_PAYMENT".equals(rental.getStatus())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "当前状态不可支付");
+        RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.RESERVED);
+        if (rentalMapper.pay(id, pendingPaymentTimeoutMinutes) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "当前状态不可支付或支付已超时");
         }
-        rental.setDepositStatus("PAID");
-        rental.setStatus("RESERVED");
-        rentalMapper.updateById(rental);
+        rental.setDepositStatus(DepositStatus.PAID.code());
+        rental.setStatus(RentalStatus.RESERVED.code());
         // 支付完成后确保提醒仍在调度中（用户可能在下单后修改过提前量）
         reminderService.schedule(rental, reminderService.leadOf(rental.getId()));
         messageService.notifyUser(rental.getUserId(), "RESERVATION", "预约成功",
@@ -152,11 +160,9 @@ public class RentalService {
     @Transactional
     public void cancelByUser(Long id, String reason) {
         Rental rental = getUserRental(id);
-        if (!"PENDING_PAYMENT".equals(rental.getStatus()) && !"RESERVED".equals(rental.getStatus())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "当前状态不可取消");
-        }
+        RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.CANCELLED);
         if (LocalDateTime.now().isAfter(rental.getStartTime().minusHours(24))) {
-            throw new BizException(ResultCode.BAD_REQUEST, "取件前 24 小时内不可取消，请联系社区工作人员");
+            throw new BizException(ResultCode.CONFLICT, "取件前 24 小时内不可取消，请联系社区工作人员");
         }
         doCancel(rental, reason, "用户取消");
     }
@@ -164,21 +170,15 @@ public class RentalService {
     @Transactional
     public void cancelByAdmin(Long id, String reason) {
         Rental rental = getRental(id);
-        if (!"PENDING_PAYMENT".equals(rental.getStatus()) && !"RESERVED".equals(rental.getStatus())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "当前状态不可取消");
-        }
+        RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.CANCELLED);
         doCancel(rental, reason, "管理员取消");
     }
 
     private void doCancel(Rental rental, String reason, String operator) {
-        rental.setStatus("CANCELLED");
-        rental.setCancelReason(StringUtils.hasText(reason) ? reason : operator);
-        rental.setCancelTime(LocalDateTime.now());
-        if ("PAID".equals(rental.getDepositStatus())) {
-            rental.setDepositStatus("REFUNDED");
-            rental.setRefundAmount(rental.getDepositAmount());
+        String cancelReason = StringUtils.hasText(reason) ? reason : operator;
+        if (rentalMapper.cancel(rental.getId(), cancelReason) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "当前状态不可取消");
         }
-        rentalMapper.updateById(rental);
         reminderService.cancel(rental.getId());
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
                 "预约单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
@@ -187,12 +187,19 @@ public class RentalService {
     @Transactional
     public void pickup(Long id) {
         Rental rental = getRental(id);
-        if (!"RESERVED".equals(rental.getStatus())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "仅已预约的租赁可确认取件");
+        if (!DepositStatus.PAID.code().equals(rental.getDepositStatus())) {
+            throw new BizException(ResultCode.CONFLICT, "押金尚未支付，不可取件");
         }
+        RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.PICKED_UP);
         Tool tool = toolService.getTool(rental.getToolId());
-        rental.setStatus("PICKED_UP");
-        rentalMapper.updateById(rental);
+        if (!ToolStatus.AVAILABLE.code().equals(tool.getStatus())) {
+            throw new BizException(ResultCode.CONFLICT, "工具当前状态不可取件："
+                    + Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
+        }
+        if (rentalMapper.transit(id, RentalStatus.RESERVED.code(),
+                RentalStatus.PICKED_UP.code()) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "当前状态不可取件");
+        }
         tool.setRentalCount((tool.getRentalCount() == null ? 0 : tool.getRentalCount()) + 1);
         toolService.transition(tool, ToolStatus.RENTED, "PICKUP", "取件后工具状态变为已租出");
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "工具已取件",
@@ -205,9 +212,7 @@ public class RentalService {
             throw new BizException(ResultCode.BAD_REQUEST, "无效的验收结果");
         }
         Rental rental = getRental(id);
-        if (!"PICKED_UP".equals(rental.getStatus()) && !"OVERDUE".equals(rental.getStatus())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "当前状态不可归还");
-        }
+        RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.RETURNED);
         LocalDateTime now = LocalDateTime.now();
         BigDecimal overdueFee = dto.getOverdueFee() != null
                 ? dto.getOverdueFee() : calcOverdueFee(rental, now);
@@ -219,15 +224,10 @@ public class RentalService {
         BigDecimal refund = rental.getDepositAmount().subtract(overdueFee).subtract(damageFee)
                 .max(BigDecimal.ZERO);
 
-        rental.setActualReturnTime(now);
-        rental.setOverdueFee(overdueFee);
-        rental.setDamageFee(damageFee);
-        rental.setRefundAmount(refund);
-        rental.setDepositStatus("REFUNDED");
-        rental.setDamageResult(dto.getDamageResult());
-        rental.setReturnRemark(dto.getRemark());
-        rental.setStatus("RETURNED");
-        rentalMapper.updateById(rental);
+        if (rentalMapper.returnRental(id, now, overdueFee, damageFee, refund,
+                dto.getDamageResult(), dto.getRemark()) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "当前状态不可归还");
+        }
         reminderService.cancel(rental.getId());
 
         Tool tool = toolService.getTool(rental.getToolId());
@@ -349,15 +349,36 @@ public class RentalService {
 
     public void markOverdue() {
         List<Rental> list = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
-                .eq(Rental::getStatus, "PICKED_UP")
+                .eq(Rental::getStatus, RentalStatus.PICKED_UP.code())
                 .lt(Rental::getEndTime, LocalDateTime.now()));
         for (Rental rental : list) {
-            rental.setStatus("OVERDUE");
-            rentalMapper.updateById(rental);
+            RentalStateMachine.assertTransition(RentalStatus.PICKED_UP, RentalStatus.OVERDUE);
+            if (rentalMapper.markOverdue(rental.getId()) == 0) {
+                continue;
+            }
             messageService.notifyUserOnce(rental.getUserId(), "OVERDUE", "租赁已逾期",
                     "预约单 " + rental.getOrderNo() + " 已逾期，逾期费按每小时 5 元计算，最高不超过押金。",
                     "OVERDUE:" + rental.getId());
         }
+    }
+
+    /** 待支付超时：原子取消并释放档期。由 ReminderService 每 2 分钟调度一次。 */
+    public void expirePending() {
+        List<Rental> list = rentalMapper.selectExpiredPending(pendingPaymentTimeoutMinutes);
+        for (Rental rental : list) {
+            if (rentalMapper.expirePending(rental.getId()) == 0) {
+                continue;
+            }
+            reminderService.cancel(rental.getId());
+            messageService.notifyUserOnce(rental.getUserId(), "SYSTEM", "预约已取消",
+                    "预约单 " + rental.getOrderNo() + " 超过支付时限，已自动取消并释放档期。",
+                    "PENDING_EXPIRE:" + rental.getId());
+        }
+    }
+
+    private RentalStatus statusOf(Rental rental) {
+        return RentalStatus.fromCode(rental.getStatus())
+                .orElseThrow(() -> new BizException(ResultCode.CONFLICT, "无效的租赁状态"));
     }
 
     private User currentUser() {
