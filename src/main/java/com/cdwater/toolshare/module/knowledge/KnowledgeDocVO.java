@@ -11,5 +11,6 @@ public class KnowledgeDocVO {
     private String title;
     private String fileName;
     private String contentPreview;
+    private Boolean indexed;
     private LocalDateTime createTime;
 }

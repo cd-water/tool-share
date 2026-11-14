@@ -89,6 +89,8 @@ bash ops/verify.sh
 
 > 部署与运维入口统一在 `ops/`：`docker-compose.yml` 与 `.env` 均位于该目录，因此 compose 命令需在 `ops/` 下执行（`cd ops && docker compose up -d`）。
 
+> **单实例部署假设**（ADR-0004）：定时提醒、逾期物化、蹲守通知与 Redis 提醒队列按单实例设计，应用只能部署一个副本。横向扩容前必须先重新设计 `@Scheduled` 任务、Redis 提醒队列与蹲守集合的并发语义。
+
 初始化种子账号（密码均为 `Aa123456`）：
 
 | 端 | 账号 | 说明 |

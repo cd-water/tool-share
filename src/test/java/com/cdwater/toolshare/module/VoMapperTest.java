@@ -210,7 +210,10 @@ class VoMapperTest {
         doc.setTitle("规则");
         doc.setFileName("rules.txt");
         doc.setContent("  社区共享\n工具租赁规则  ");
-        assertEquals("社区共享 工具租赁规则", knowledgeDocVoMapper.toVO(doc).getContentPreview());
+        doc.setIndexed(true);
+        KnowledgeDocVO mapped = knowledgeDocVoMapper.toVO(doc);
+        assertEquals("社区共享 工具租赁规则", mapped.getContentPreview());
+        assertEquals(true, mapped.getIndexed());
 
         doc.setContent("a".repeat(130));
         KnowledgeDocVO vo = knowledgeDocVoMapper.toVO(doc);

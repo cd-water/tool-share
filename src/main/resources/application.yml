@@ -76,11 +76,23 @@ toolshare:
     max-image-bytes: 5242880
     # 解码后的像素上限，防止小文件压缩炸弹
     max-image-pixels: 40000000
+  message:
+    # 是否启用 Mock 短信渠道；关闭时 SMS 偏好回退为站内消息
+    sms-enabled: false
+    # 用户未设置偏好时使用的默认渠道（SYSTEM/SMS）
+    default-channel: SYSTEM
   rental:
     # 用户下单未选择「到期提醒」时使用的默认提前量（分钟），0 表示默认不提醒
     default-remind-minutes: 1440
     # 待支付租赁单超时时间（分钟），超时自动取消并释放档期
     pending-payment-timeout-minutes: 30
+  availability:
+    # 可预约时段的槽位粒度（分钟）
+    slot-minutes: 30
+    # 单次最多返回的建议窗口数
+    max-suggestions: 3
+    # 建议窗口向前搜索的天数上限
+    search-days: 30
   ai:
     recommend:
       # 向量召回数量

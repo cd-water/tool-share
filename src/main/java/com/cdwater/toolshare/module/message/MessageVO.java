@@ -13,6 +13,8 @@ public class MessageVO {
     private String title;
     private String content;
     private String channel;
+    private String deliveryStatus;
+    private LocalDateTime sentTime;
     private Boolean readStatus;
     private LocalDateTime createTime;
 }

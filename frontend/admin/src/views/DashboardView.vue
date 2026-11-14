@@ -67,18 +67,12 @@ function icon(name: string, cls = 'ic'): string {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ''}</svg>`
 }
 
-/* ---------- KPI(主指标,含迷你趋势) ---------- */
-const KPI_SPARKS: Record<string, number[]> = {
-  toolTotal: [3, 4, 4, 5, 6, 7, 8],
-  activeRentalCount: [2, 3, 2, 4, 3, 5, 3],
-  overdueRentalCount: [0, 1, 0, 1, 1, 2, 1],
-  pendingDamageCount: [1, 2, 1, 3, 2, 2, 2],
-}
+/* ---------- KPI(主指标,仅展示真实统计) ---------- */
 const kpiItems = computed(() => [
-  { label: '工具总数', value: statValue('toolTotal'), icon: 'box', fg: 'var(--brand)', bg: 'var(--brand-bg)', delta: '+2 本月', deltaTone: 'up', spark: KPI_SPARKS.toolTotal },
-  { label: '活跃租赁', value: statValue('activeRentalCount'), icon: 'list', fg: 'var(--info)', bg: 'var(--info-bg)', delta: '+12.5%', deltaTone: 'up', spark: KPI_SPARKS.activeRentalCount },
-  { label: '逾期预警', value: statValue('overdueRentalCount'), icon: 'warn', fg: 'var(--bad)', bg: 'var(--bad-bg)', delta: '需跟进', deltaTone: 'down', spark: KPI_SPARKS.overdueRentalCount },
-  { label: '待处理报修', value: statValue('pendingDamageCount'), icon: 'shield', fg: 'var(--warn)', bg: 'var(--warn-bg)', delta: `${statValue('pendingDamageCount')} 待核验`, deltaTone: 'down', spark: KPI_SPARKS.pendingDamageCount },
+  { label: '工具总数', value: statValue('toolTotal'), icon: 'box', fg: 'var(--brand)', bg: 'var(--brand-bg)', note: '全部台账' },
+  { label: '活跃租赁', value: statValue('activeRentalCount'), icon: 'list', fg: 'var(--info)', bg: 'var(--info-bg)', note: '预约与使用中' },
+  { label: '逾期预警', value: statValue('overdueRentalCount'), icon: 'warn', fg: 'var(--bad)', bg: 'var(--bad-bg)', note: '需跟进' },
+  { label: '待处理报修', value: statValue('pendingDamageCount'), icon: 'shield', fg: 'var(--warn)', bg: 'var(--warn-bg)', note: '未完结报修' },
 ])
 
 /* ---------- 状态环 / 图例(真实数据) ---------- */
@@ -92,7 +86,7 @@ const statusLegend = computed(() => [
 const todoCount = computed(() => statValue('pendingDamageCount') + statValue('overdueRentalCount'))
 const todoItems = computed(() => {
   const list = [
-    { title: '核验报修', value: statValue('pendingDamageCount'), unit: '条报修待核验', fg: 'var(--warn)', bg: 'var(--warn-bg)', icon: 'warn', path: '/damage' },
+    { title: '处理报修', value: statValue('pendingDamageCount'), unit: '条报修待处理', fg: 'var(--warn)', bg: 'var(--warn-bg)', icon: 'warn', path: '/damage' },
     { title: '催还逾期', value: statValue('overdueRentalCount'), unit: '笔租赁已逾期', fg: 'var(--bad)', bg: 'var(--bad-bg)', icon: 'warn', path: '/rentals' },
     { title: '租赁跟进', value: statValue('activeRentalCount'), unit: '笔租赁进行中', fg: 'var(--info)', bg: 'var(--info-bg)', icon: 'list', path: '/rentals' },
     { title: '维修验收', value: statValue('maintenanceToolCount'), unit: '件工具维修中', fg: 'var(--ok)', bg: 'var(--ok-bg)', icon: 'shield', path: '/tools' },
@@ -127,21 +121,11 @@ const miniStats = computed(() => [
 
 /* ---------- MiniChart(Canvas 柱/线/环/迷你图) ---------- */
 interface BarDatum { v: number; label: string; c?: string; c2?: string }
-interface LineDatum { v: number; label: string }
 interface DonutDatum { label: string; v: number; c: string }
 
 type MiniChartCfg =
   | { type: 'bar'; height?: number; data: BarDatum[] }
-  | { type: 'line'; height?: number; color?: string; data: LineDatum[] }
   | { type: 'donut'; height?: number; center?: number; centerLabel?: string; data: DonutDatum[] }
-  | { type: 'spark'; height?: number; color?: string; data: number[] }
-
-function hexToRgba(hex: string, a: number): string {
-  let h = hex.replace('#', '')
-  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
-  const n = parseInt(h, 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
-}
 
 function drawMiniChart(canvas: HTMLCanvasElement, cfg: MiniChartCfg) {
   const dpr = Math.min(2, window.devicePixelRatio || 1)
@@ -207,53 +191,6 @@ function drawMiniChart(canvas: HTMLCanvasElement, cfg: MiniChartCfg) {
     })
   }
 
-  const drawLine = (p: number) => {
-    const d = cfg.data as LineDatum[]
-    const n = d.length
-    const pad = 30
-    const max = Math.max(...d.map((x) => x.v)) || 1
-    const pts = d.map((x, i) => [pad + ((W - pad * 2) * i) / (n - 1), H - 26 - (H - 52) * (x.v / max) * p] as [number, number])
-    ctx.strokeStyle = col('var(--line)')
-    ctx.lineWidth = 1
-    for (let g = 0; g <= 3; g++) {
-      const y = H - 26 - ((H - 52) * g) / 3
-      ctx.beginPath()
-      ctx.moveTo(pad, y)
-      ctx.lineTo(W - pad, y)
-      ctx.stroke()
-    }
-    const bc = col((cfg as { color?: string }).color || 'var(--brand)')
-    const area = ctx.createLinearGradient(0, 0, 0, H)
-    area.addColorStop(0, hexToRgba(bc, 0.22))
-    area.addColorStop(1, hexToRgba(bc, 0))
-    ctx.beginPath()
-    ctx.moveTo(pts[0][0], H - 26)
-    pts.forEach((pt) => ctx.lineTo(pt[0], pt[1]))
-    ctx.lineTo(pts[n - 1][0], H - 26)
-    ctx.closePath()
-    ctx.fillStyle = area
-    ctx.fill()
-    ctx.beginPath()
-    pts.forEach((pt, i) => (i ? ctx.lineTo(pt[0], pt[1]) : ctx.moveTo(pt[0], pt[1])))
-    ctx.strokeStyle = bc
-    ctx.lineWidth = 2.4
-    ctx.lineJoin = 'round'
-    ctx.stroke()
-    pts.forEach((pt, i) => {
-      ctx.beginPath()
-      ctx.arc(pt[0], pt[1], 3.4, 0, 7)
-      ctx.fillStyle = col('var(--surface)')
-      ctx.fill()
-      ctx.strokeStyle = bc
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.fillStyle = col('var(--ink-3)')
-      ctx.font = '10px ' + font
-      ctx.textAlign = 'center'
-      ctx.fillText(d[i].label, pt[0], H - 8)
-    })
-  }
-
   const drawDonut = (p: number) => {
     const d = cfg.data as DonutDatum[]
     const total = d.reduce((s, x) => s + x.v, 0) || 1
@@ -284,30 +221,6 @@ function drawMiniChart(canvas: HTMLCanvasElement, cfg: MiniChartCfg) {
     ctx.textBaseline = 'alphabetic'
   }
 
-  const drawSpark = (p: number) => {
-    const d = cfg.data as number[]
-    const n = d.length
-    const max = Math.max(...d) || 1
-    const min = Math.min(...d)
-    const pts = d.map((v, i) => [4 + ((W - 8) * i) / (n - 1), H - 4 - (H - 8) * ((v - min) / (max - min || 1)) * p] as [number, number])
-    const bc = col((cfg as { color?: string }).color || 'var(--brand)')
-    const area = ctx.createLinearGradient(0, 0, 0, H)
-    area.addColorStop(0, hexToRgba(bc, 0.2))
-    area.addColorStop(1, hexToRgba(bc, 0))
-    ctx.beginPath()
-    ctx.moveTo(pts[0][0], H)
-    pts.forEach((pt) => ctx.lineTo(pt[0], pt[1]))
-    ctx.lineTo(pts[n - 1][0], H)
-    ctx.closePath()
-    ctx.fillStyle = area
-    ctx.fill()
-    ctx.beginPath()
-    pts.forEach((pt, i) => (i ? ctx.lineTo(pt[0], pt[1]) : ctx.moveTo(pt[0], pt[1])))
-    ctx.strokeStyle = bc
-    ctx.lineWidth = 1.8
-    ctx.stroke()
-  }
-
   let t0: number | null = null
   const dur = 900
   const ease = (p: number) => 1 - Math.pow(1 - p, 3)
@@ -316,34 +229,18 @@ function drawMiniChart(canvas: HTMLCanvasElement, cfg: MiniChartCfg) {
     const p = ease(Math.min(1, (ts - t0) / dur))
     ctx.clearRect(0, 0, W, H)
     if (cfg.type === 'bar') drawBar(p)
-    else if (cfg.type === 'line') drawLine(p)
-    else if (cfg.type === 'donut') drawDonut(p)
-    else drawSpark(p)
+    else drawDonut(p)
     if (p < 1) requestAnimationFrame(draw)
   }
   requestAnimationFrame(draw)
 }
 
 /* ---------- 图表绘制编排 ---------- */
-// 演示数据:后端暂未提供近 7 日趋势接口,此处沿用原型示例数据
-const WEEK_LABELS = ['周四', '周五', '周六', '周日', '周一', '周二', '周三']
-const WEEK_TREND = [4, 6, 3, 8, 5, 7, 3]
-
-const kpiRow = ref<HTMLElement | null>(null)
-const trendCanvas = ref<HTMLCanvasElement | null>(null)
 const statusCanvas = ref<HTMLCanvasElement | null>(null)
 const catCanvas = ref<HTMLCanvasElement | null>(null)
 
 function drawCharts() {
   if (!stats.value) return
-  if (trendCanvas.value) {
-    drawMiniChart(trendCanvas.value, {
-      type: 'line',
-      height: 230,
-      color: 'var(--brand)',
-      data: WEEK_LABELS.map((label, i) => ({ v: WEEK_TREND[i], label })),
-    })
-  }
   if (statusCanvas.value) {
     drawMiniChart(statusCanvas.value, {
       type: 'donut',
@@ -355,13 +252,6 @@ function drawCharts() {
   }
   if (catCanvas.value) {
     drawMiniChart(catCanvas.value, { type: 'bar', height: 210, data: categoryBars.value })
-  }
-  if (kpiRow.value) {
-    const sparks = Array.from(kpiRow.value.querySelectorAll('canvas.k-spark'))
-    kpiItems.value.forEach((item, i) => {
-      const c = sparks[i]
-      if (c) drawMiniChart(c as HTMLCanvasElement, { type: 'spark', height: 40, color: item.fg, data: item.spark })
-    })
   }
 }
 
@@ -448,26 +338,26 @@ onUnmounted(() => {
     <!-- 数据内容 -->
     <template v-else>
       <!-- KPI 主指标 -->
-      <div class="kpi-row reveal" ref="kpiRow">
+      <div class="kpi-row reveal">
         <div class="kpi" v-for="item in kpiItems" :key="item.label">
           <div class="k-top">
             <span class="k-label">{{ item.label }}</span>
             <span class="k-ic" :style="{ color: item.fg, background: item.bg }" v-html="icon(item.icon)"></span>
           </div>
           <b class="k-val num" :data-count="item.value">0</b>
-          <div class="k-foot">
-            <span class="delta" :class="item.deltaTone">{{ item.delta }}</span>
-            <span>较上周</span>
-          </div>
-          <canvas class="k-spark"></canvas>
+          <div class="k-foot"><span>{{ item.note }}</span></div>
         </div>
       </div>
 
       <!-- Bento 布局 -->
       <div class="bento">
         <div class="panel b-trend reveal">
-          <h3 class="panel-title">近 7 日租赁趋势<span class="badge ok">+12.5%</span></h3>
-          <div class="chart-box"><canvas ref="trendCanvas"></canvas></div>
+          <h3 class="panel-title">近 7 日租赁趋势</h3>
+          <!-- TODO(#32): 后端暂无按日趋势接口，接入真实数据后再绘制 -->
+          <div class="empty">
+            <h4>趋势数据待接入</h4>
+            <p>当前只展示实时统计，不虚构趋势。</p>
+          </div>
         </div>
 
         <div class="panel b-status reveal">
@@ -540,10 +430,6 @@ onUnmounted(() => {
 .kpi .k-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center}
 .kpi .k-val{display:block;font-size:var(--t-4xl);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
 .kpi .k-foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:var(--t-2xs);color:var(--ink-3)}
-.kpi .k-spark{position:absolute;right:0;bottom:0;width:110px;height:40px;opacity:.9}
-.kpi .delta{font-weight:700;padding:1px 7px;border-radius:99px}
-.kpi .delta.up{color:var(--ok);background:var(--ok-bg)}
-.kpi .delta.down{color:var(--bad);background:var(--bad-bg)}
 .bento{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .b-trend{grid-column:span 2}
 .b-status{grid-column:span 1}

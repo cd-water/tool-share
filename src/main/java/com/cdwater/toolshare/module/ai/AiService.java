@@ -29,16 +29,25 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AiService {
 
+    private static final int CHUNK_SIZE = 700;
+    private static final int CHUNK_OVERLAP = 80;
+    private static final int MAX_CHUNKS = 60;
+
     private final KnowledgeDocMapper knowledgeDocMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ObjectProvider<ChatClient.Builder> chatClientBuilderProvider;
 
+    /**
+     * 重建文档索引：先清空该文档的全部旧 chunk，再写入当前内容。
+     * 重复执行幂等；外部向量库失败返回 false，由调用方保留 indexed=0 等待重试。
+     */
     public boolean index(KnowledgeDoc doc) {
         VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
-        if (vectorStore == null || !StringUtils.hasText(doc.getContent())) {
+        if (vectorStore == null || doc == null || doc.getId() == null || !StringUtils.hasText(doc.getContent())) {
             return false;
         }
         try {
+            vectorStore.delete(chunkIds(doc.getId()));
             List<Document> chunks = split(doc);
             if (!chunks.isEmpty()) {
                 vectorStore.add(chunks);
@@ -50,19 +59,22 @@ public class AiService {
         }
     }
 
-    public void removeIndex(KnowledgeDoc doc) {
+    /**
+     * 清空文档的全部向量 chunk。按 id 推导固定范围的确定性主键，不依赖文档内容是否仍在数据库。
+     *
+     * @return 是否已清理；未配置向量库时视为无需清理
+     */
+    public boolean removeIndex(Long docId) {
         VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
-        if (vectorStore == null || doc == null || doc.getId() == null) {
-            return;
-        }
-        List<String> ids = chunkIds(doc);
-        if (ids.isEmpty()) {
-            return;
+        if (vectorStore == null || docId == null) {
+            return true;
         }
         try {
-            vectorStore.delete(ids);
+            vectorStore.delete(chunkIds(docId));
+            return true;
         } catch (Exception e) {
-            log.warn("删除向量索引失败: {}", e.getMessage());
+            log.warn("删除向量索引失败 docId={}: {}", docId, e.getMessage());
+            return false;
         }
     }
 
@@ -248,12 +260,14 @@ public class AiService {
         return docs;
     }
 
-    /** 与 split 使用同一套规则派生确定性向量主键，保证删除时能按文档清空对应 chunk。 */
-    private List<String> chunkIds(KnowledgeDoc doc) {
-        List<String> texts = chunkTexts(doc.getContent());
-        List<String> ids = new ArrayList<>();
-        for (int i = 0; i < texts.size(); i++) {
-            ids.add(documentId(doc.getId(), i));
+    /**
+     * 与 split 使用同一套确定性主键规则（{@code kb-{docId}-{chunk}}），覆盖切块上限内的全部下标，
+     * 保证内容变短后残留的高位 chunk 也能被清空。
+     */
+    private List<String> chunkIds(Long docId) {
+        List<String> ids = new ArrayList<>(MAX_CHUNKS);
+        for (int i = 0; i < MAX_CHUNKS; i++) {
+            ids.add(documentId(docId, i));
         }
         return ids;
     }
@@ -269,11 +283,9 @@ public class AiService {
         }
         String normalized = content.replaceAll("\\r\\n", "\n").trim();
         List<String> texts = new ArrayList<>();
-        int chunkSize = 700;
-        int overlap = 80;
         int start = 0;
-        while (start < normalized.length() && texts.size() < 60) {
-            int end = Math.min(normalized.length(), start + chunkSize);
+        while (start < normalized.length() && texts.size() < MAX_CHUNKS) {
+            int end = Math.min(normalized.length(), start + CHUNK_SIZE);
             String chunk = normalized.substring(start, end);
             if (StringUtils.hasText(chunk)) {
                 texts.add(chunk);
@@ -281,7 +293,7 @@ public class AiService {
             if (end >= normalized.length()) {
                 break;
             }
-            start = Math.max(end - overlap, start + 1);
+            start = Math.max(end - CHUNK_OVERLAP, start + 1);
         }
         return texts;
     }

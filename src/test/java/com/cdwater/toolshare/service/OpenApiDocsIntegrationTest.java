@@ -51,6 +51,8 @@ class OpenApiDocsIntegrationTest extends AbstractIntegrationTest {
             "/api/user/messages/unread-count",
             "/api/user/messages/{id}/read",
             "/api/user/messages/read-all",
+            "/api/user/notification-prefs",
+            "/api/user/notification-prefs/{type}",
             "/api/user/ai/chat",
             "/api/user/ai/chat/stream",
             "/api/user/ai/tool-recommend",

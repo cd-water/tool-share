@@ -22,6 +22,7 @@ import com.cdwater.toolshare.shared.enums.ReportStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.enums.VerifyResult;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
+import com.cdwater.toolshare.shared.tx.AfterCommit;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.PageVO;
@@ -60,6 +61,7 @@ public class DamageService {
     private final SequenceService sequenceService;
     private final MessageService messageService;
     private final DamageReportVoMapper damageReportVoMapper;
+    private final AfterCommit afterCommit;
 
     @Transactional
     public DamageReportVO create(DamageCreateDTO dto) {
@@ -97,10 +99,10 @@ public class DamageService {
         } catch (DuplicateKeyException e) {
             throw new BizException(ResultCode.CONFLICT, "该租赁已有处理中的报修单");
         }
-        messageService.notifyAdmins("REPAIR", "新的损坏报修",
+        afterCommit.run(() -> messageService.notifyAdmins("REPAIR", "新的损坏报修",
                 report.getReporterName() + " 提交了报修单 " + report.getReportNo()
                         + "（工具 " + report.getToolCode() + "），请及时核验。",
-                "REPAIR_SUBMIT:" + report.getId());
+                "REPAIR_SUBMIT:" + report.getId()));
         return toVO(report);
     }
 
@@ -137,14 +139,14 @@ public class DamageService {
         }
 
         if (result == VerifyResult.FALSE) {
-            messageService.notifyUser(report.getUserId(), "REPAIR", "报修已驳回",
-                    "报修单 " + report.getReportNo() + " 经核验为误报，工具无需维修。");
+            afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "报修已驳回",
+                    "报修单 " + report.getReportNo() + " 经核验为误报，工具无需维修。"));
             return;
         }
         Tool tool = toolService.getTool(report.getToolId());
         toolService.transition(tool, ToolStatus.MAINTENANCE, "REPAIR", "报修核验确认，工具转维修中");
-        messageService.notifyUser(report.getUserId(), "REPAIR", "报修已确认",
-                "报修单 " + report.getReportNo() + " 已核验，维修人员将尽快处理。");
+        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "报修已确认",
+                "报修单 " + report.getReportNo() + " 已核验，维修人员将尽快处理。"));
     }
 
     @Transactional
@@ -179,15 +181,17 @@ public class DamageService {
         if (damageReportMapper.update(null, update) == 0) {
             throw new BizException(ResultCode.CONFLICT, "报修单状态已变更，请刷新后重试");
         }
-        messageService.notifyUser(report.getUserId(), "REPAIR", "维修进度更新",
-                "报修单 " + report.getReportNo() + " 进度：" + progress.label()
-                        + "。" + dto.getProgressNote());
-        if (progress == RepairProgress.COMPLETED) {
-            messageService.notifyAdmins("REPAIR", "维修已完成",
-                    "报修单 " + report.getReportNo() + "（工具 " + report.getToolCode()
-                            + "）维修已完成，请及时验收。",
-                    "REPAIR_COMPLETE:" + id);
-        }
+        afterCommit.run(() -> {
+            messageService.notifyUser(report.getUserId(), "REPAIR", "维修进度更新",
+                    "报修单 " + report.getReportNo() + " 进度：" + progress.label()
+                            + "。" + dto.getProgressNote());
+            if (progress == RepairProgress.COMPLETED) {
+                messageService.notifyAdmins("REPAIR", "维修已完成",
+                        "报修单 " + report.getReportNo() + "（工具 " + report.getToolCode()
+                                + "）维修已完成，请及时验收。",
+                        "REPAIR_COMPLETE:" + id);
+            }
+        });
     }
 
     @Transactional
@@ -244,9 +248,9 @@ public class DamageService {
             case UNQUALIFIED -> DamageLevel.SEVERE.code();
         });
         toolService.transition(tool, target, "REPAIR", "维修验收：" + result.label());
-        messageService.notifyUser(report.getUserId(), "REPAIR", "维修验收完成",
+        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "维修验收完成",
                 "报修单 " + report.getReportNo() + " 验收结果：" + result.label()
-                        + "，工具状态：" + target.label() + "。");
+                        + "，工具状态：" + target.label() + "。"));
     }
 
     /**

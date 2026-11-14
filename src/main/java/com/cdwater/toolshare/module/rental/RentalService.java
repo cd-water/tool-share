@@ -14,6 +14,7 @@ import com.cdwater.toolshare.shared.enums.RentalStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.security.IdCardCipher;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
+import com.cdwater.toolshare.shared.tx.AfterCommit;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
@@ -70,6 +71,7 @@ public class RentalService {
     private final RentalReminderService reminderService;
     private final RentalVoMapper rentalVoMapper;
     private final IdCardCipher idCardCipher;
+    private final AfterCommit afterCommit;
 
     @Value("${toolshare.rental.pending-payment-timeout-minutes:30}")
     private long pendingPaymentTimeoutMinutes = 30;
@@ -151,11 +153,13 @@ public class RentalService {
         rental.setDamageFee(BigDecimal.ZERO);
         rental.setRefundAmount(BigDecimal.ZERO);
         rentalMapper.insert(rental);
-        // 按用户选择的提前量登记到期提醒（0 = 不提醒）
-        reminderService.schedule(rental, dto.getRemindBeforeMinutes());
-        messageService.notifyUser(user.getId(), "RESERVATION", "预约已创建",
-                "预约单 " + rental.getOrderNo() + " 已创建，请在 " + pendingPaymentTimeoutMinutes
-                        + " 分钟内完成押金支付。");
+        afterCommit.run(() -> {
+            // 按用户选择的提前量登记到期提醒（0 = 不提醒）
+            reminderService.schedule(rental, dto.getRemindBeforeMinutes());
+            messageService.notifyUser(user.getId(), "RESERVATION", "预约已创建",
+                    "预约单 " + rental.getOrderNo() + " 已创建，请在 " + pendingPaymentTimeoutMinutes
+                            + " 分钟内完成押金支付。");
+        });
         return toVO(rental);
     }
 
@@ -170,10 +174,12 @@ public class RentalService {
         rental.setStatus(RentalStatus.RESERVED.code());
         recordPayment(rental.getId(), PaymentRecordType.DEPOSIT_IN, rental.getDepositAmount(),
                 rental.getRenterName(), "押金支付");
-        // 支付完成后确保提醒仍在调度中（用户可能在下单后修改过提前量）
-        reminderService.schedule(rental, reminderService.leadOf(rental.getId()));
-        messageService.notifyUser(rental.getUserId(), "RESERVATION", "预约成功",
-                "预约单 " + rental.getOrderNo() + " 押金支付成功，请按预约时间取件。");
+        afterCommit.run(() -> {
+            // 支付完成后确保提醒仍在调度中（用户可能在下单后修改过提前量）
+            reminderService.schedule(rental, reminderService.leadOf(rental.getId()));
+            messageService.notifyUser(rental.getUserId(), "RESERVATION", "预约成功",
+                    "预约单 " + rental.getOrderNo() + " 押金支付成功，请按预约时间取件。");
+        });
     }
 
     @Transactional
@@ -206,9 +212,11 @@ public class RentalService {
             recordPayment(cancelled.getId(), PaymentRecordType.DEPOSIT_REFUND,
                     cancelled.getRefundAmount(), updatedBy, "取消租赁退还押金");
         }
-        reminderService.cancel(rental.getId());
-        messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
-                "预约单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
+        afterCommit.run(() -> {
+            reminderService.cancel(rental.getId());
+            messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
+                    "预约单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
+        });
     }
 
     @Transactional
@@ -229,8 +237,8 @@ public class RentalService {
         }
         tool.setRentalCount((tool.getRentalCount() == null ? 0 : tool.getRentalCount()) + 1);
         toolService.transition(tool, ToolStatus.RENTED, "PICKUP", "取件后工具状态变为已租出");
-        messageService.notifyUser(rental.getUserId(), "SYSTEM", "工具已取件",
-                "预约单 " + rental.getOrderNo() + " 已确认取件，请按时归还。");
+        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), "SYSTEM", "工具已取件",
+                "预约单 " + rental.getOrderNo() + " 已确认取件，请按时归还。"));
     }
 
     @Transactional
@@ -295,7 +303,7 @@ public class RentalService {
             recordPayment(rental.getId(), PaymentRecordType.RECEIVABLE, receivable,
                     operator, "赔偿超出押金的应收");
         }
-        reminderService.cancel(rental.getId());
+        afterCommit.run(() -> reminderService.cancel(rental.getId()));
 
         Tool tool = toolService.getTool(rental.getToolId());
         if (damageResult == DamageResult.SEVERE) {
@@ -309,11 +317,12 @@ public class RentalService {
             toolService.transition(tool, ToolStatus.AVAILABLE, "RETURN",
                     "归还验收完成，工具恢复可用");
         }
-        messageService.notifyUser(rental.getUserId(), "SYSTEM", "归还验收完成",
+        BigDecimal waivedFinal = waived;
+        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), "SYSTEM", "归还验收完成",
                 "预约单 " + rental.getOrderNo() + " 已归还，逾期费 " + overdueFee
-                        + " 元，损坏赔偿 " + damageFee + " 元，减免 " + waived
+                        + " 元，损坏赔偿 " + damageFee + " 元，减免 " + waivedFinal
                         + " 元，退还押金 " + refund + " 元"
-                        + (receivable.signum() > 0 ? "，另有应收 " + receivable + " 元。" : "。"));
+                        + (receivable.signum() > 0 ? "，另有应收 " + receivable + " 元。" : "。")));
     }
 
     /** 逾期费按实际归还时间计算：超过结束时间的小时数向上取整，每小时 5 元，封顶押金。 */

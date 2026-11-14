@@ -33,6 +33,10 @@ public class ToolVO {
     private Long createdBy;
     private String createdByName;
     private Integer rentalCount;
+    /** 平均分（一位小数），无评价时为 0.0 */
+    private BigDecimal ratingAvg;
+    /** 评价数量 */
+    private Long reviewCount;
     private LocalDateTime lastRepairTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

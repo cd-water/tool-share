@@ -8,11 +8,14 @@ import com.cdwater.toolshare.module.damage.DamageReport;
 import com.cdwater.toolshare.module.damage.DamageReportMapper;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
+import com.cdwater.toolshare.module.review.ToolRatingStats;
+import com.cdwater.toolshare.module.review.ToolReviewMapper;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.html.HtmlSanitizer;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
+import com.cdwater.toolshare.shared.tx.AfterCommit;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
 import com.cdwater.toolshare.shared.web.PageQuery;
@@ -24,9 +27,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,12 +58,23 @@ public class ToolService {
     private final AdminMapper adminMapper;
     private final SequenceService sequenceService;
     private final ToolWatchService toolWatchService;
+    private final ToolReviewMapper toolReviewMapper;
     private final ToolIndexService toolIndexService;
     private final ToolVoMapper toolVoMapper;
     private final ToolLogVoMapper toolLogVoMapper;
+    private final AfterCommit afterCommit;
 
     @Value("${toolshare.rental.pending-payment-timeout-minutes:30}")
     private long pendingPaymentTimeoutMinutes = 30;
+
+    @Value("${toolshare.availability.slot-minutes:30}")
+    private long availabilitySlotMinutes = 30;
+
+    @Value("${toolshare.availability.max-suggestions:3}")
+    private int availabilityMaxSuggestions = 3;
+
+    @Value("${toolshare.availability.search-days:30}")
+    private long availabilitySearchDays = 30;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
@@ -229,9 +248,8 @@ public class ToolService {
         }
         toolMapper.updateById(tool);
         logStructured(tool.getId(), action, from.code(), target.code(), remark);
-        if (target == ToolStatus.SCRAPPED) {
-            toolIndexService.remove(tool.getId());
-        } else if (target == ToolStatus.AVAILABLE || target == ToolStatus.MAINTENANCE) {
+        if (target == ToolStatus.SCRAPPED
+                || target == ToolStatus.AVAILABLE || target == ToolStatus.MAINTENANCE) {
             syncIndex(tool);
         }
         notifyWatchersIfAvailable(tool);
@@ -266,13 +284,21 @@ public class ToolService {
         return toVO(tool);
     }
 
-    /** 索引与数据库保持一致：通过审核且未报废才写入，其余一律删除。 */
+    /** 索引与数据库保持一致：通过审核且未报废才写入，其余一律删除；在事务提交后执行。 */
     private void syncIndex(Tool tool) {
-        if (isApproved(tool) && !ToolStatus.SCRAPPED.code().equals(tool.getStatus())) {
-            toolIndexService.upsert(tool);
-        } else {
-            toolIndexService.remove(tool.getId());
+        if (tool == null || tool.getId() == null) {
+            return;
         }
+        Long toolId = tool.getId();
+        boolean indexable = isApproved(tool)
+                && !ToolStatus.SCRAPPED.code().equals(tool.getStatus());
+        afterCommit.run(() -> {
+            if (indexable) {
+                toolIndexService.upsert(tool);
+            } else {
+                toolIndexService.remove(toolId);
+            }
+        });
     }
 
     private boolean hasActiveRental(Long toolId) {
@@ -287,12 +313,15 @@ public class ToolService {
                 .in(DamageReport::getStatus, UNFINISHED_REPORT_STATUS)) > 0;
     }
 
-    /** 工具恢复可用时提醒蹲守用户（手动改状态/归还/维修完成都会走到这里） */
+    /** 工具恢复可用时提醒蹲守用户（手动改状态/归还/维修完成都会走到这里），事务提交后执行。 */
     public void notifyWatchersIfAvailable(Tool tool) {
         if (tool == null || !ToolStatus.AVAILABLE.code().equals(tool.getStatus())) {
             return;
         }
-        toolWatchService.notifyAvailable(tool.getId(), tool.getName());
+        Long toolId = tool.getId();
+        String toolName = tool.getName();
+        LocalDateTime availableAt = tool.getLastRepairTime();
+        afterCommit.run(() -> toolWatchService.notifyAvailable(toolId, toolName, availableAt));
     }
 
     public List<ToolLogVO> logs(Long toolId) {
@@ -305,29 +334,126 @@ public class ToolService {
     public AvailabilityVO availability(Long toolId, LocalDateTime start, LocalDateTime end) {
         Tool tool = getTool(toolId);
         if (!isApproved(tool)) {
-            return new AvailabilityVO(false, "工具待审核，暂不可预约", List.of());
+            return unavailable("工具待审核，暂不可预约");
         }
         if (!ToolStatus.AVAILABLE.code().equals(tool.getStatus())) {
-            return new AvailabilityVO(false,
-                    "工具当前状态为" + Dict.label(Dict.TOOL_STATUS, tool.getStatus()) + "，暂不可预约",
-                    List.of());
+            return unavailable("工具当前状态为"
+                    + Dict.label(Dict.TOOL_STATUS, tool.getStatus()) + "，暂不可预约");
         }
         if (start == null || end == null || !start.isBefore(end)) {
-            return new AvailabilityVO(false, "租赁开始时间必须早于结束时间", List.of());
+            return unavailable("租赁开始时间必须早于结束时间");
         }
-        List<Rental> conflicts = rentalMapper.selectConflicts(toolId, start, end,
-                pendingPaymentTimeoutMinutes);
-        if (conflicts.isEmpty()) {
-            return new AvailabilityVO(true, "该时段可预约", List.of());
+        if (!start.isAfter(LocalDateTime.now())) {
+            return unavailable("租赁开始时间必须晚于当前时间");
         }
-        List<String> suggestions = new ArrayList<>();
-        for (Rental rental : conflicts) {
-            if (suggestions.size() >= 3) {
+        Duration duration = Duration.between(start, end);
+        LocalDateTime horizonEnd = start.plusDays(availabilitySearchDays);
+        List<AvailabilityVO.TimeWindow> occupied = mergeOccupied(
+                rentalMapper.selectConflicts(toolId, start, horizonEnd, pendingPaymentTimeoutMinutes));
+        boolean available = !overlaps(occupied, start, end);
+        List<AvailabilityVO.TimeWindow> freeWindows = freeWindows(occupied, start, end);
+        if (available) {
+            return new AvailabilityVO(true, "该时段可预约", List.of(), freeWindows, List.of());
+        }
+        List<AvailabilityVO.TimeWindow> suggestionWindows =
+                suggestWindows(occupied, start, duration, horizonEnd);
+        List<String> suggestions = suggestionWindows.stream()
+                .map(window -> window.startTime().format(SUGGEST_FORMAT)
+                        + " 至 " + window.endTime().format(SUGGEST_FORMAT))
+                .toList();
+        return new AvailabilityVO(false,
+                suggestionWindows.isEmpty()
+                        ? "该时段已被预约，近期暂无满足时长的空闲时段"
+                        : "该时段已被预约，可尝试其他时间",
+                suggestions, freeWindows, suggestionWindows);
+    }
+
+    private AvailabilityVO unavailable(String message) {
+        return new AvailabilityVO(false, message, List.of(), List.of(), List.of());
+    }
+
+    /** 活动租赁区间按开始时间排序并合并，首尾相接视为连续占用。 */
+    private List<AvailabilityVO.TimeWindow> mergeOccupied(List<Rental> rentals) {
+        List<AvailabilityVO.TimeWindow> merged = new ArrayList<>();
+        rentals.stream()
+                .map(rental -> new AvailabilityVO.TimeWindow(rental.getStartTime(), rental.getEndTime()))
+                .sorted(Comparator.comparing(AvailabilityVO.TimeWindow::startTime))
+                .forEach(window -> {
+                    if (merged.isEmpty()
+                            || window.startTime().isAfter(merged.get(merged.size() - 1).endTime())) {
+                        merged.add(window);
+                        return;
+                    }
+                    AvailabilityVO.TimeWindow last = merged.remove(merged.size() - 1);
+                    merged.add(new AvailabilityVO.TimeWindow(last.startTime(),
+                            window.endTime().isAfter(last.endTime()) ? window.endTime() : last.endTime()));
+                });
+        return merged;
+    }
+
+    private boolean overlaps(List<AvailabilityVO.TimeWindow> occupied,
+                             LocalDateTime start, LocalDateTime end) {
+        return occupied.stream()
+                .anyMatch(window -> window.startTime().isBefore(end) && window.endTime().isAfter(start));
+    }
+
+    /** 期望窗口减去占用区间后的真实空闲区间。 */
+    private List<AvailabilityVO.TimeWindow> freeWindows(List<AvailabilityVO.TimeWindow> occupied,
+                                                        LocalDateTime start, LocalDateTime end) {
+        List<AvailabilityVO.TimeWindow> free = new ArrayList<>();
+        LocalDateTime cursor = start;
+        for (AvailabilityVO.TimeWindow window : occupied) {
+            if (!window.startTime().isBefore(end)) {
                 break;
             }
-            suggestions.add(rental.getEndTime().plusHours(1).format(SUGGEST_FORMAT) + " 之后");
+            if (window.endTime().isAfter(cursor)) {
+                if (window.startTime().isAfter(cursor)) {
+                    free.add(new AvailabilityVO.TimeWindow(cursor, window.startTime()));
+                }
+                cursor = window.endTime();
+                if (!cursor.isBefore(end)) {
+                    return free;
+                }
+            }
         }
-        return new AvailabilityVO(false, "该时段已被预约，可尝试其他时间", suggestions);
+        if (cursor.isBefore(end)) {
+            free.add(new AvailabilityVO.TimeWindow(cursor, end));
+        }
+        return free;
+    }
+
+    /** 从期望开始时间起，按槽位粒度寻找满足所需时长的最近空闲窗口。 */
+    private List<AvailabilityVO.TimeWindow> suggestWindows(List<AvailabilityVO.TimeWindow> occupied,
+                                                           LocalDateTime from, Duration duration,
+                                                           LocalDateTime horizonEnd) {
+        List<AvailabilityVO.TimeWindow> suggestions = new ArrayList<>();
+        LocalDateTime candidate = ceilToSlot(from);
+        while (suggestions.size() < availabilityMaxSuggestions
+                && !candidate.plus(duration).isAfter(horizonEnd)) {
+            LocalDateTime windowStart = candidate;
+            LocalDateTime candidateEnd = candidate.plus(duration);
+            AvailabilityVO.TimeWindow blocker = occupied.stream()
+                    .filter(window -> window.startTime().isBefore(candidateEnd)
+                            && window.endTime().isAfter(windowStart))
+                    .findFirst().orElse(null);
+            if (blocker == null) {
+                suggestions.add(new AvailabilityVO.TimeWindow(candidate, candidateEnd));
+                candidate = ceilToSlot(candidateEnd);
+            } else {
+                candidate = ceilToSlot(blocker.endTime());
+            }
+        }
+        return suggestions;
+    }
+
+    private LocalDateTime ceilToSlot(LocalDateTime time) {
+        LocalDateTime minute = time.truncatedTo(ChronoUnit.MINUTES);
+        if (minute.isBefore(time)) {
+            minute = minute.plusMinutes(1);
+        }
+        long minuteOfDay = minute.getHour() * 60L + minute.getMinute();
+        long remainder = minuteOfDay % availabilitySlotMinutes;
+        return remainder == 0 ? minute : minute.plusMinutes(availabilitySlotMinutes - remainder);
     }
 
     private void logStructured(Long toolId, String action,
@@ -397,6 +523,7 @@ public class ToolService {
             Admin admin = adminMapper.selectById(tool.getCreatedBy());
             vo.setCreatedByName(admin == null ? null : admin.getUsername());
         }
+        applyRating(vo, toolReviewMapper.selectStatsByToolId(tool.getId()));
         return vo;
     }
 
@@ -409,10 +536,26 @@ public class ToolService {
                 ? Map.of()
                 : adminMapper.selectBatchIds(creatorIds).stream()
                         .collect(Collectors.toMap(Admin::getId, Admin::getUsername));
+        List<Long> toolIds = result.getRecords().stream().map(Tool::getId).toList();
+        Map<Long, ToolRatingStats> ratings = toolIds.isEmpty() ? Map.of()
+                : toolReviewMapper.selectStatsByToolIds(toolIds).stream()
+                        .collect(Collectors.toMap(ToolRatingStats::getToolId, stats -> stats));
         return PageVO.of(result, tool -> {
             ToolVO vo = toolVoMapper.toVO(tool);
             vo.setCreatedByName(names.get(tool.getCreatedBy()));
+            applyRating(vo, ratings.get(tool.getId()));
             return vo;
         });
+    }
+
+    /** 平均分保留一位小数；无评价时明确返回 0.0 与 0。 */
+    private void applyRating(ToolVO vo, ToolRatingStats stats) {
+        if (stats == null || stats.getReviewCount() == null || stats.getReviewCount() == 0) {
+            vo.setRatingAvg(BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP));
+            vo.setReviewCount(0L);
+            return;
+        }
+        vo.setRatingAvg(stats.getRatingAvg().setScale(1, RoundingMode.HALF_UP));
+        vo.setReviewCount(stats.getReviewCount());
     }
 }

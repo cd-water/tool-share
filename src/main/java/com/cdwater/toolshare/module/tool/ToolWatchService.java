@@ -6,8 +6,11 @@ import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
@@ -27,6 +30,19 @@ public class ToolWatchService {
     private static final String KEY_TOOL = "watch:tool:";
     private static final String KEY_USER = "watch:user:";
 
+    /** 两侧集合必须同时写入/删除，避免出现半套蹲守关系。 */
+    private static final DefaultRedisScript<Long> ADD_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('SADD', KEYS[1], ARGV[1])
+            redis.call('SADD', KEYS[2], ARGV[2])
+            return 1
+            """, Long.class);
+
+    private static final DefaultRedisScript<Long> REMOVE_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('SREM', KEYS[1], ARGV[1])
+            redis.call('SREM', KEYS[2], ARGV[2])
+            return 1
+            """, Long.class);
+
     private final StringRedisTemplate redis;
     private final ToolMapper toolMapper;
     private final MessageService messageService;
@@ -41,8 +57,8 @@ public class ToolWatchService {
             throw new BizException(ResultCode.BAD_REQUEST, "该工具当前可租，无需蹲守");
         }
         try {
-            redis.opsForSet().add(KEY_TOOL + toolId, String.valueOf(userId));
-            redis.opsForSet().add(KEY_USER + userId, String.valueOf(toolId));
+            redis.execute(ADD_SCRIPT, List.of(KEY_TOOL + toolId, KEY_USER + userId),
+                    String.valueOf(userId), String.valueOf(toolId));
         } catch (Exception e) {
             log.warn("登记蹲守失败 userId={} toolId={}: {}", userId, toolId, e.getMessage());
             throw new BizException(ResultCode.BAD_REQUEST, "蹲守登记失败，请稍后重试");
@@ -51,8 +67,8 @@ public class ToolWatchService {
 
     public void unwatch(Long userId, Long toolId) {
         try {
-            redis.opsForSet().remove(KEY_TOOL + toolId, String.valueOf(userId));
-            redis.opsForSet().remove(KEY_USER + userId, String.valueOf(toolId));
+            redis.execute(REMOVE_SCRIPT, List.of(KEY_TOOL + toolId, KEY_USER + userId),
+                    String.valueOf(userId), String.valueOf(toolId));
         } catch (Exception e) {
             log.warn("取消蹲守失败 userId={} toolId={}: {}", userId, toolId, e.getMessage());
         }
@@ -84,12 +100,14 @@ public class ToolWatchService {
 
     /**
      * 工具恢复可用时通知所有蹲守用户，并清理登记。
+     * <p>只有消息写入成功才清理两侧关系；失败保留，等待下一次可用事件按同一 biz_key 幂等重试。
+     *
+     * @param availableAt 本次可用事件的时间戳，用于生成幂等 biz_key
      */
-    public void notifyAvailable(Long toolId, String toolName) {
-        String key = KEY_TOOL + toolId;
+    public void notifyAvailable(Long toolId, String toolName, LocalDateTime availableAt) {
         Set<String> users;
         try {
-            users = redis.opsForSet().members(key);
+            users = redis.opsForSet().members(KEY_TOOL + toolId);
         } catch (Exception e) {
             log.warn("读取蹲守用户失败 toolId={}: {}", toolId, e.getMessage());
             return;
@@ -97,19 +115,32 @@ public class ToolWatchService {
         if (users == null || users.isEmpty()) {
             return;
         }
+        long version = availableAt == null ? 0L
+                : availableAt.atZone(ZoneId.systemDefault()).toEpochSecond();
         for (String uid : users) {
-            try {
-                messageService.notifyUser(Long.valueOf(uid), "TOOL_AVAILABLE", "蹲守工具已可租",
-                        "你蹲守的《" + toolName + "》已重新上架，快去预约吧。");
-                redis.opsForSet().remove(KEY_USER + uid, String.valueOf(toolId));
-            } catch (Exception e) {
-                log.warn("蹲守通知失败 userId={} toolId={}: {}", uid, toolId, e.getMessage());
+            Long userId = parseId(uid);
+            if (userId == null) {
+                removePair(toolId, uid);
+                continue;
             }
+            String bizKey = "TOOL_AVAILABLE:" + toolId + ":" + userId + ":" + version;
+            boolean sent = messageService.notifyUserOnce(userId, "TOOL_AVAILABLE", "蹲守工具已可租",
+                    "你蹲守的《" + toolName + "》已重新上架，快去预约吧。", bizKey);
+            if (!sent) {
+                log.warn("蹲守通知写入失败，保留蹲守关系 userId={} toolId={}", userId, toolId);
+                continue;
+            }
+            removePair(toolId, uid);
         }
+    }
+
+    /** 原子删除两侧关系；失败时保留，下次可用事件按 biz_key 幂等重试。 */
+    private void removePair(Long toolId, String userId) {
         try {
-            redis.delete(key);
-        } catch (Exception ignored) {
-            // 下轮工具可用时若仍有残留，会在通知后清理
+            redis.execute(REMOVE_SCRIPT, List.of(KEY_TOOL + toolId, KEY_USER + userId),
+                    userId, String.valueOf(toolId));
+        } catch (Exception e) {
+            log.warn("清理蹲守关系失败 userId={} toolId={}: {}", userId, toolId, e.getMessage());
         }
     }
 

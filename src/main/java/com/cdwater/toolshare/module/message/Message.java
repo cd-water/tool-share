@@ -28,6 +28,11 @@ public class Message {
     /** SYSTEM/SMS */
     private String channel;
 
+    /** PENDING/SENT/DELIVERED/FAILED */
+    private String deliveryStatus;
+
+    private LocalDateTime sentTime;
+
     private Integer readStatus;
 
     private String bizKey;

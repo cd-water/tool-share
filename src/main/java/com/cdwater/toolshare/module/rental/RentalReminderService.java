@@ -212,29 +212,32 @@ public class RentalReminderService {
                 if (rental == null) {
                     // 订单已不存在，连同意愿记录一起清理
                     redis.opsForHash().delete(KEY_LEAD, member);
+                    redis.opsForZSet().remove(KEY_AT, member);
                     continue;
                 }
                 Integer lead = leadOf(rentalId);
-                if (rental != null
-                        && ACTIVE_STATUS.contains(rental.getStatus())
+                boolean shouldNotify = ACTIVE_STATUS.contains(rental.getStatus())
                         && rental.getEndTime() != null
-                        && rental.getEndTime().isAfter(LocalDateTime.now())) {
+                        && rental.getEndTime().isAfter(LocalDateTime.now());
+                boolean done = true;
+                if (shouldNotify) {
                     String suffix = lead != null && lead > 0
                             ? "（你设置了提前 " + describeLead(lead) + "提醒）" : "";
-                    messageService.notifyUserOnce(rental.getUserId(), "RENT_DUE", "租赁到期提醒",
+                    done = messageService.notifyUserOnce(rental.getUserId(), "RENT_DUE", "租赁到期提醒",
                             "预约单 " + rental.getOrderNo() + " 将于 "
                                     + rental.getEndTime().format(FMT) + " 到期" + suffix + "，请按时归还。",
                             "RENT_DUE:" + rentalId + ":" + lead);
                 }
-            } catch (Exception e) {
-                log.warn("发送到期提醒失败 rentalId={}: {}", rentalId, e.getMessage());
-            } finally {
-                // 只出队，不删除用户选择的提前量：未支付被跳过时，支付后仍能按原选择重新调度
-                try {
+                if (done) {
+                    // 只出队，不删除用户选择的提前量：未支付被跳过时，支付后仍能按原选择重新调度
                     redis.opsForZSet().remove(KEY_AT, member);
-                } catch (Exception ignored) {
-                    // Redis 异常时下轮扫描再清理
+                } else {
+                    // 消息未写入成功：保留在 ZSet，下一轮扫描重试（biz_key 保证不会重复打扰）
+                    log.warn("到期提醒未写入，保留在队列等待重试 rentalId={}", rentalId);
                 }
+            } catch (Exception e) {
+                // Redis / 数据库异常同样保留，下一轮扫描重试
+                log.warn("发送到期提醒失败 rentalId={}: {}", rentalId, e.getMessage());
             }
         }
     }
