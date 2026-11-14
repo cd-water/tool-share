@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import com.cdwater.toolshare.shared.config.StpKit;
+import com.cdwater.toolshare.shared.enums.AdminRole;
 import com.cdwater.toolshare.module.auth.AdminLoginDTO;
 import com.cdwater.toolshare.module.auth.Admin;
 import com.cdwater.toolshare.module.auth.AdminMapper;
@@ -13,6 +14,8 @@ import com.cdwater.toolshare.module.auth.LoginVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -54,5 +57,25 @@ public class AdminService {
     /** 当前会话注销 */
     public void logout() {
         StpKit.ADMIN.logout();
+    }
+
+    /** 管理员账号列表（仅系统管理员） */
+    public List<AdminVO> list() {
+        return adminMapper.selectList(new LambdaQueryWrapper<Admin>().orderByAsc(Admin::getId))
+                .stream()
+                .map(adminVoMapper::toVO)
+                .toList();
+    }
+
+    /** 修改管理员角色（仅系统管理员） */
+    public void updateRole(Long id, String roleCode) {
+        AdminRole role = AdminRole.fromCode(roleCode)
+                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的管理员角色"));
+        Admin admin = adminMapper.selectById(id);
+        if (admin == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "管理员不存在");
+        }
+        admin.setRole(role.code());
+        adminMapper.updateById(admin);
     }
 }

@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
@@ -30,28 +29,21 @@ public class StorageService {
     private final MinioProperties properties;
     private volatile boolean bucketReady;
 
-    public FileVO upload(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BizException(ResultCode.BAD_REQUEST, "请选择文件");
-        }
-        ensureBucket();
-        String original = StringUtils.hasText(file.getOriginalFilename())
-                ? file.getOriginalFilename() : "file";
-        String safeName = original.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String key = UUID.randomUUID().toString().replace("-", "") + "-" + safeName;
+    /**
+     * 存储已通过 {@link ImageUploadProcessor} 校验与重编码的图片。
+     * Content-Type 与扩展名都由服务端决定，不接收客户端声明。
+     */
+    public FileVO store(byte[] bytes, String contentType, String storedName) {
+        String key = UUID.randomUUID().toString().replace("-", "") + "-" + storedName;
         try {
-            s3Client.putObject(PutObjectRequest.builder()
-                            .bucket(properties.getBucket())
-                            .key(key)
-                            .contentType(file.getContentType())
-                            .build(),
-                    software.amazon.awssdk.core.sync.RequestBody.fromInputStream(
-                            file.getInputStream(), file.getSize()));
+            put(key, bytes, contentType);
+        } catch (BizException e) {
+            throw e;
         } catch (Exception e) {
             log.error("文件上传失败", e);
             throw new BizException(ResultCode.INTERNAL_SERVER_ERROR, "文件上传失败，请检查对象存储服务");
         }
-        return new FileVO("/api/files/" + key, original);
+        return new FileVO(url(key), storedName);
     }
 
     public FileContent read(String key) {

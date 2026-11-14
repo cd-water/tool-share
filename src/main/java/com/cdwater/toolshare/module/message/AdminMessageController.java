@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.message;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.module.message.MessageService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/messages")
 @RequiredArgsConstructor
+@SaCheckPermission(type = "admin", value = "message:manage")
 public class AdminMessageController {
 
     private final MessageService messageService;

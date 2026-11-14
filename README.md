@@ -75,7 +75,8 @@ erDiagram
 cp ops/.env.example ops/.env
 cd ops && docker compose up -d && cd ..   # ollama-model-init 首次会拉取 bge-m3，耗时较长
 
-# 2. 启动后端（:8900）
+# 2. 启动后端（:8900）；导出 ops/.env 中的 ID_CARD_AES_KEY 等变量（无默认密钥，缺失会拒绝启动）
+set -a; source ops/.env; set +a
 ./mvnw spring-boot:run
 
 # 3. 启动用户端（:5901）与管理端（:5902）
@@ -96,7 +97,7 @@ bash ops/verify.sh
 | 用户端 `:5901` | `13800000001` | 居民（有密码） |
 | 用户端 `:5901` | `13800000002` | 居民（无密码，仅验证码登录） |
 
-用户端也支持手机号 + 验证码登录（短信为 MOCK，验证码在响应与日志 `[MOCK SMS]` 中）。
+用户端也支持手机号 + 验证码登录（短信为 MOCK）。生产默认只返回「已发送」，验证码写入日志 `[MOCK SMS]`；本地联调可设置 `toolshare.auth.expose-captcha=true` 让接口直接返回验证码。
 
 ## 技术栈
 

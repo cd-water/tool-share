@@ -19,6 +19,9 @@ public class Admin {
     /** BCrypt 密文 */
     private String password;
 
+    /** STAFF / SUPER_ADMIN */
+    private String role;
+
     /** 0-禁用 1-启用 */
     private Integer status;
 

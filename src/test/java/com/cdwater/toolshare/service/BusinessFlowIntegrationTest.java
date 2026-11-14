@@ -23,11 +23,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,6 +41,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -151,12 +157,15 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void upload_and_read_file() {
+    void upload_and_read_file() throws Exception {
         String userToken = userLogin();
+        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(image, "png", out));
         MultipartBodyBuilder body = new MultipartBodyBuilder();
-        body.part("file", new ByteArrayResource("集成测试文件内容".getBytes(StandardCharsets.UTF_8)))
-                .filename("测试-集成.txt")
-                .contentType(MediaType.TEXT_PLAIN);
+        body.part("file", new ByteArrayResource(out.toByteArray()))
+                .filename("测试-集成.png")
+                .contentType(MediaType.IMAGE_PNG);
 
         String raw = client.post().uri("/api/user/upload")
                 .header("Authorization", "Bearer " + userToken)
@@ -167,8 +176,9 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         String url = node.get("data").get("url").asString();
         assertTrue(url.startsWith("/api/files/"));
 
-        byte[] content = client.get().uri(url).retrieve().body(byte[].class);
-        assertEquals("集成测试文件内容", new String(content, StandardCharsets.UTF_8));
+        ResponseEntity<byte[]> read = client.get().uri(url).retrieve().toEntity(byte[].class);
+        assertEquals(MediaType.IMAGE_PNG, read.getHeaders().getContentType());
+        assertNotNull(ImageIO.read(new ByteArrayInputStream(read.getBody())));
     }
 
     @Test

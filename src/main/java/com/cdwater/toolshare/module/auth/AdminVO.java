@@ -8,4 +8,7 @@ public class AdminVO {
     private Long id;
 
     private String username;
+
+    /** STAFF / SUPER_ADMIN */
+    private String role;
 }

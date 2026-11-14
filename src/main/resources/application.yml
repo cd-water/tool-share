@@ -56,12 +56,26 @@ minio:
   secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
   bucket: ${MINIO_BUCKET:tool-share}
 
-# 身份证 AES 密钥（32 字符）
+# 身份证 AES 密钥（16/24/32 字节），生产环境必须通过环境变量注入，无默认值
 security:
-  id-card-key: ${ID_CARD_AES_KEY:toolshare-idcard-secret-key-2026}
+  id-card-key: ${ID_CARD_AES_KEY:}
 
 # 业务参数（不落库，按需覆盖）
 toolshare:
+  auth:
+    # 开发/测试可打开以在响应中返回验证码；生产环境保持 false
+    expose-captcha: false
+    # 同一验证码允许的最大尝试次数，达到后验证码失效
+    max-attempts: 5
+    rate-limit:
+      phone-per-minute: 1
+      phone-per-hour: 5
+      ip-per-hour: 10
+  upload:
+    # 单张图片业务上限（5MB）；spring.servlet.multipart 的 50MB 只是容器兜底
+    max-image-bytes: 5242880
+    # 解码后的像素上限，防止小文件压缩炸弹
+    max-image-pixels: 40000000
   rental:
     # 用户下单未选择「到期提醒」时使用的默认提前量（分钟），0 表示默认不提醒
     default-remind-minutes: 1440

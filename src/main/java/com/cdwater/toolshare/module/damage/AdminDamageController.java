@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.damage;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.module.damage.DamageAcceptDTO;
 import com.cdwater.toolshare.module.damage.DamageProgressDTO;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/damage-reports")
 @RequiredArgsConstructor
+@SaCheckPermission(type = "admin", value = "damage:manage")
 public class AdminDamageController {
 
     private final DamageService damageService;

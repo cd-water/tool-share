@@ -7,6 +7,7 @@ import com.cdwater.toolshare.module.auth.SendCodeDTO;
 import com.cdwater.toolshare.module.auth.UserService;
 import com.cdwater.toolshare.module.auth.LoginVO;
 import com.cdwater.toolshare.module.auth.UserVO;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,8 +24,8 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/send-code")
-    public Result<String> sendCode(@Valid @RequestBody SendCodeDTO dto) {
-        return Result.success(userService.sendCode(dto.getPhone()));
+    public Result<String> sendCode(@Valid @RequestBody SendCodeDTO dto, HttpServletRequest request) {
+        return Result.success(userService.sendCode(dto.getPhone(), request.getRemoteAddr()));
     }
 
     @PostMapping("/login/by-code")

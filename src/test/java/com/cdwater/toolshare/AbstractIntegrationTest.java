@@ -39,8 +39,12 @@ public abstract class AbstractIntegrationTest {
         REDIS.start();
     }
 
+    /** 测试环境注入身份证 AES 密钥（生产环境由 ID_CARD_AES_KEY 提供，无默认值）。 */
+    static final String TEST_ID_CARD_KEY = "0123456789abcdef0123456789abcdef";
+
     @DynamicPropertySource
     static void testcontainersProperties(DynamicPropertyRegistry registry) {
+        registry.add("security.id-card-key", () -> TEST_ID_CARD_KEY);
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);

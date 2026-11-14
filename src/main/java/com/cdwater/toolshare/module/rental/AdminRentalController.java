@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.rental;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.alibaba.excel.EasyExcel;
 import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.module.rental.CancelDTO;
@@ -26,6 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/rentals")
 @RequiredArgsConstructor
+@SaCheckPermission(type = "admin", value = "rental:manage")
 public class AdminRentalController {
 
     private final RentalService rentalService;

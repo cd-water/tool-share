@@ -16,12 +16,14 @@ import com.cdwater.toolshare.module.auth.UserVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -29,34 +31,79 @@ import java.time.Duration;
 public class UserService {
 
     private static final String CAPTCHA_KEY = "captcha:user:";
+    private static final String CAPTCHA_ATTEMPT_KEY = "captcha:attempt:user:";
+    private static final String RATE_PHONE_MINUTE = "captcha:rl:phone:min:";
+    private static final String RATE_PHONE_HOUR = "captcha:rl:phone:hour:";
+    private static final String RATE_IP_HOUR = "captcha:rl:ip:hour:";
     private static final Duration CAPTCHA_TTL = Duration.ofMinutes(5);
     private static final String NICKNAME_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+    /**
+     * 原子校验并消费验证码：正确即删除（等价 GETDEL 的一次性语义，并发下仅一个请求成功）；
+     * 错误则累加尝试次数，达到上限时删除验证码。
+     */
+    private static final DefaultRedisScript<Long> VERIFY_CAPTCHA_SCRIPT = new DefaultRedisScript<>("""
+            local saved = redis.call('GET', KEYS[1])
+            if not saved then return 0 end
+            if saved == ARGV[1] then
+              redis.call('DEL', KEYS[1])
+              redis.call('DEL', KEYS[2])
+              return 1
+            end
+            local attempts = redis.call('INCR', KEYS[2])
+            if attempts == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end
+            if attempts >= tonumber(ARGV[3]) then redis.call('DEL', KEYS[1]) end
+            return 0
+            """, Long.class);
 
     private final UserMapper userMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final IdCardCipher idCardCipher;
     private final UserVoMapper userVoMapper;
+    private final AuthProperties authProperties;
     private final SecureRandom random = new SecureRandom();
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
-     * 发送验证码（MOCK 短信：无真实通道，验证码放日志并直接返回给前端便于联调）
+     * 发送验证码（MOCK 短信：无真实通道，验证码仅写日志）。
+     * 生产模式只返回「已发送」；开发/测试可通过 toolshare.auth.expose-captcha 打开返回。
      */
-    public String sendCode(String phone) {
+    public String sendCode(String phone, String ip) {
+        checkRateLimit(phone, ip);
         String code = String.format("%06d", random.nextInt(1_000_000));
         stringRedisTemplate.opsForValue().set(CAPTCHA_KEY + phone, code, CAPTCHA_TTL);
+        stringRedisTemplate.delete(CAPTCHA_ATTEMPT_KEY + phone);
         log.info("[MOCK SMS] phone={}, code={}", phone, code);
-        return code;
+        return authProperties.exposeCaptcha() ? code : "已发送";
+    }
+
+    private void checkRateLimit(String phone, String ip) {
+        AuthProperties.RateLimit limit = authProperties.rateLimit();
+        if (increment(RATE_PHONE_MINUTE + phone, 60) > limit.phonePerMinute()
+                || increment(RATE_PHONE_HOUR + phone, 3600) > limit.phonePerHour()
+                || increment(RATE_IP_HOUR + ip, 3600) > limit.ipPerHour()) {
+            throw new BizException(ResultCode.TOO_MANY_REQUESTS, "发送太频繁，请稍后再试");
+        }
+    }
+
+    private long increment(String key, long ttlSeconds) {
+        Long value = stringRedisTemplate.opsForValue().increment(key);
+        if (value != null && value == 1L) {
+            stringRedisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+        }
+        return value == null ? 0 : value;
     }
 
     /**
      * 手机号 + 验证码登录，用户不存在则静默注册（密码为空、昵称自动生成、状态启用）
      */
     public LoginVO loginByCode(CodeLoginDTO dto) {
-        String key = CAPTCHA_KEY + dto.getPhone();
-        // 一次性：原子消费（GETDEL），并发下同一验证码只能成功一次，防重放
-        String saved = stringRedisTemplate.opsForValue().getAndDelete(key);
-        if (saved == null || !saved.equals(dto.getCode())) {
+        Long verified = stringRedisTemplate.execute(VERIFY_CAPTCHA_SCRIPT,
+                List.of(CAPTCHA_KEY + dto.getPhone(), CAPTCHA_ATTEMPT_KEY + dto.getPhone()),
+                dto.getCode(),
+                String.valueOf(CAPTCHA_TTL.toSeconds()),
+                String.valueOf(authProperties.maxAttempts()));
+        if (verified == null || verified != 1L) {
             throw new BizException(ResultCode.BAD_REQUEST, "验证码错误或已过期");
         }
 

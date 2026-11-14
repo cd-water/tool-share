@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.knowledge;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.module.ai.AiChatDTO;
 import com.cdwater.toolshare.module.ai.AiService;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@SaCheckPermission(type = "admin", value = "knowledge:manage")
 public class AdminKnowledgeController {
 
     private final KnowledgeService knowledgeService;

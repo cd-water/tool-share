@@ -20,7 +20,7 @@ class CodeLabelTest {
     private static final List<Class<? extends Enum<?>>> TYPES = List.of(
             ToolCategory.class, DamageLevel.class, ToolStatus.class, RentalStatus.class,
             DepositStatus.class, DamageResult.class, ReportStatus.class, VerifyResult.class,
-            RepairProgress.class, AcceptResult.class, MessageType.class);
+            RepairProgress.class, AcceptResult.class, MessageType.class, AdminRole.class);
 
     @Test
     void every_enum_has_code_label_and_no_duplicate_codes() {

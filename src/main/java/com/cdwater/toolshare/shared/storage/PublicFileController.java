@@ -1,6 +1,5 @@
 package com.cdwater.toolshare.shared.storage;
 
-import com.cdwater.toolshare.shared.storage.StorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -10,12 +9,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 @RestController
 @RequiredArgsConstructor
 public class PublicFileController {
 
     private static final String PREFIX = "/api/files/";
+
+    /** 只回显服务端可确认安全的图片类型；历史遗留的 text/html、image/svg+xml 一律降级为下载。 */
+    private static final Set<String> SAFE_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp");
 
     private final StorageService storageService;
 
@@ -27,8 +31,11 @@ public class PublicFileController {
         String key = index >= 0 ? uri.substring(index + PREFIX.length()) : "";
         key = URLDecoder.decode(key, StandardCharsets.UTF_8);
         StorageService.FileContent content = storageService.read(key);
+        String contentType = SAFE_CONTENT_TYPES.contains(content.contentType())
+                ? content.contentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(content.contentType()))
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(contentType))
                 .body(content.bytes());
     }
 }

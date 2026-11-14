@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.tool;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.module.tool.ToolSaveDTO;
 import com.cdwater.toolshare.module.tool.ToolStatusDTO;
@@ -24,6 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/tools")
 @RequiredArgsConstructor
+@SaCheckPermission(type = "admin", value = "tool:manage")
 public class AdminToolController {
 
     private final ToolService toolService;

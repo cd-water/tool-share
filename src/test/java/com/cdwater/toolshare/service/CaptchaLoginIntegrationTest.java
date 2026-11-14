@@ -34,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 集成测试：发送验证码 + 手机号验证码登录（静默注册）。
  * 依赖 Testcontainers 自动启动 MySQL/Redis。
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "toolshare.auth.expose-captcha=true")
 @Import(TestStorageConfig.class)
 class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
 
@@ -56,7 +57,17 @@ class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         client = RestClient.builder().baseUrl("http://localhost:" + port).build();
         redis.delete("captcha:user:" + NEW_PHONE);
+        redis.delete("captcha:attempt:user:" + NEW_PHONE);
+        var rateKeys = redis.keys("captcha:rl:*");
+        if (rateKeys != null && !rateKeys.isEmpty()) {
+            redis.delete(rateKeys);
+        }
         userMapper.delete(new LambdaQueryWrapper<User>().eq(User::getPhone, NEW_PHONE));
+    }
+
+    /** 构造一个必定不等于真实验证码的 6 位错误码 */
+    private String wrongCode(String code) {
+        return "000000".equals(code) ? "000001" : "000000";
     }
 
     private JsonNode post(String url, Map<String, String> body) {
@@ -162,5 +173,40 @@ class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void send_code_is_rate_limited_per_phone_per_minute() {
+        sendCode(NEW_PHONE);
+        JsonNode second = post("/api/user/send-code", Map.of("phone", NEW_PHONE));
+        assertEquals("C429", second.get("code").asString());
+    }
+
+    @Test
+    void login_by_code_within_attempt_limit_still_succeeds_with_correct_code() {
+        String code = sendCode(NEW_PHONE);
+        for (int i = 0; i < 4; i++) {
+            JsonNode wrong = post("/api/user/login/by-code",
+                    Map.of("phone", NEW_PHONE, "code", wrongCode(code)));
+            assertEquals("C400", wrong.get("code").asString());
+        }
+        JsonNode login = post("/api/user/login/by-code",
+                Map.of("phone", NEW_PHONE, "code", code));
+        assertEquals("A200", login.get("code").asString());
+    }
+
+    @Test
+    void login_by_code_attempt_limit_invalidates_captcha() {
+        String code = sendCode(NEW_PHONE);
+        for (int i = 0; i < 5; i++) {
+            JsonNode wrong = post("/api/user/login/by-code",
+                    Map.of("phone", NEW_PHONE, "code", wrongCode(code)));
+            assertEquals("C400", wrong.get("code").asString());
+        }
+        // 达到尝试上限后验证码失效，即使提交正确验证码也不再通过
+        JsonNode login = post("/api/user/login/by-code",
+                Map.of("phone", NEW_PHONE, "code", code));
+        assertEquals("C400", login.get("code").asString());
+        assertNull(redis.opsForValue().get("captcha:user:" + NEW_PHONE));
     }
 }

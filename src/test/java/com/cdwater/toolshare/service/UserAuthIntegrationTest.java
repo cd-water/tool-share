@@ -5,6 +5,7 @@ import com.cdwater.toolshare.AbstractIntegrationTest;
 import com.cdwater.toolshare.TestStorageConfig;
 import com.cdwater.toolshare.module.auth.User;
 import com.cdwater.toolshare.module.auth.UserMapper;
+import com.cdwater.toolshare.shared.security.IdCardCipher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -39,6 +41,12 @@ class UserAuthIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     UserMapper userMapper;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    IdCardCipher idCardCipher;
 
     RestClient client;
     final ObjectMapper om = new ObjectMapper();
@@ -71,6 +79,18 @@ class UserAuthIntegrationTest extends AbstractIntegrationTest {
         }
         String raw = spec.retrieve().onStatus(status -> true, (request, response) -> {
                 }).body(String.class);
+        return om.readTree(raw == null ? "{}" : raw);
+    }
+
+    private JsonNode put(String url, Map<String, String> body, String tokenValue) {
+        String raw = client.put().uri(url)
+                .header("Authorization", "Bearer " + tokenValue)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .onStatus(status -> true, (request, response) -> {
+                })
+                .body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 
@@ -200,6 +220,33 @@ class UserAuthIntegrationTest extends AbstractIntegrationTest {
         assertEquals("A200", logout.get("code").asString());
         JsonNode node = get("/api/user/info", token);
         assertEquals("C401", node.get("code").asString());
+    }
+
+    @Test
+    void profile_update_rejects_invalid_id_card_checksum() {
+        String token = login(USER1_PHONE, PASSWORD);
+        JsonNode node = put("/api/user/profile", Map.of("idCard", "310101199001011235"), token);
+        assertEquals("C400", node.get("code").asString());
+    }
+
+    @Test
+    void profile_update_encrypts_id_card_with_random_iv() {
+        String token = login(USER1_PHONE, PASSWORD);
+        String original = jdbcTemplate.queryForObject(
+                "SELECT id_card FROM t_user WHERE phone = ?", String.class, USER1_PHONE);
+        try {
+            String newId = "11010519491231002X";
+            JsonNode node = put("/api/user/profile", Map.of("idCard", newId), token);
+            assertEquals("A200", node.get("code").asString());
+            assertEquals("1101********002X", node.get("data").get("idCard").asString());
+
+            String stored = jdbcTemplate.queryForObject(
+                    "SELECT id_card FROM t_user WHERE phone = ?", String.class, USER1_PHONE);
+            assertTrue(stored.startsWith("enc:v2:"), stored);
+            assertEquals(newId, idCardCipher.decrypt(stored));
+        } finally {
+            jdbcTemplate.update("UPDATE t_user SET id_card = ? WHERE phone = ?", original, USER1_PHONE);
+        }
     }
 
     @Test
