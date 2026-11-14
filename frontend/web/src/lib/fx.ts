@@ -28,6 +28,8 @@ const SoundFX = (() => {
   function ac() {
     if (!ctx) {
       try {
+        // Safari 仍只提供带前缀的 webkitAudioContext。
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
       } catch {
         /* noop */
@@ -430,7 +432,11 @@ function initCmdK() {
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
-      mask!.classList.contains('show') ? mask!.classList.remove('show') : open()
+      if (mask!.classList.contains('show')) {
+        mask!.classList.remove('show')
+      } else {
+        open()
+      }
     }
   })
   input.addEventListener('input', () => {

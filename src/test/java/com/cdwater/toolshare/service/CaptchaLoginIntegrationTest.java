@@ -1,6 +1,8 @@
 package com.cdwater.toolshare.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import com.cdwater.toolshare.module.auth.User;
 import com.cdwater.toolshare.module.auth.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -29,10 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 集成测试：发送验证码 + 手机号验证码登录（静默注册）。
- * 前置：docker compose up -d（MySQL + Redis）。
+ * 依赖 Testcontainers 自动启动 MySQL/Redis。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class CaptchaLoginIntegrationTest {
+@Import(TestStorageConfig.class)
+class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
 
     private static final String NEW_PHONE = "13900001111";
 

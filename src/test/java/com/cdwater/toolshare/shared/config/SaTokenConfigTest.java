@@ -1,8 +1,11 @@
 package com.cdwater.toolshare.shared.config;
 
 import cn.dev33.satoken.config.SaTokenConfig;
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -10,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-class SaTokenConfigTest {
+@Import(TestStorageConfig.class)
+class SaTokenConfigTest extends AbstractIntegrationTest {
 
     @Test
     void user_config_matches_spec() {

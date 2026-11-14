@@ -1,6 +1,8 @@
 package com.cdwater.toolshare.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import com.cdwater.toolshare.module.auth.User;
 import com.cdwater.toolshare.module.auth.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -22,10 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 集成测试：密码登录、登出、用户信息。
- * 前置：docker compose up -d；seed 用户1 13800000001/Aa123456、用户2 13800000002 无密码。
+ * 依赖 Testcontainers 自动启动 MySQL/Redis；seed 用户1 13800000001/Aa123456、用户2 13800000002 无密码。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class UserAuthIntegrationTest {
+@Import(TestStorageConfig.class)
+class UserAuthIntegrationTest extends AbstractIntegrationTest {
 
     private static final String USER1_PHONE = "13800000001";
     private static final String PASSWORD = "Aa123456";

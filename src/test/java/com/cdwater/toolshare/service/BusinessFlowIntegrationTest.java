@@ -1,11 +1,15 @@
 package com.cdwater.toolshare.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import com.cdwater.toolshare.module.damage.DamageReport;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.tool.Tool;
 import com.cdwater.toolshare.module.tool.ToolLog;
 import com.cdwater.toolshare.module.damage.DamageReportMapper;
+import com.cdwater.toolshare.module.knowledge.KnowledgeDoc;
+import com.cdwater.toolshare.module.knowledge.KnowledgeDocMapper;
 import com.cdwater.toolshare.module.rental.RentalMapper;
 import com.cdwater.toolshare.module.tool.ToolLogMapper;
 import com.cdwater.toolshare.module.tool.ToolMapper;
@@ -15,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,10 +40,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 集成测试：工具创建 → 预约 → 支付 → 取件 → 报修 → 维修验收 → 归还。
- * 前置：docker compose up -d；seed 用户 13800000001/Aa123456、admin/Aa123456。
+ * 依赖 Testcontainers 自动启动 MySQL/Redis；seed 用户 13800000001/Aa123456、admin/Aa123456。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class BusinessFlowIntegrationTest {
+@Import(TestStorageConfig.class)
+class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
 
     private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final String PREFIX = "IT-集成测试-";
@@ -57,6 +63,9 @@ class BusinessFlowIntegrationTest {
 
     @Autowired
     ToolLogMapper toolLogMapper;
+
+    @Autowired
+    KnowledgeDocMapper knowledgeDocMapper;
 
     RestClient client;
     final ObjectMapper om = new ObjectMapper();
@@ -79,6 +88,8 @@ class BusinessFlowIntegrationTest {
                     .eq(ToolLog::getToolId, tool.getId()));
             toolMapper.deleteById(tool.getId());
         }
+        knowledgeDocMapper.delete(new LambdaQueryWrapper<KnowledgeDoc>()
+                .likeRight(KnowledgeDoc::getTitle, PREFIX));
     }
 
     @Test

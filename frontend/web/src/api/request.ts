@@ -25,6 +25,8 @@ instance.interceptors.request.use((config) => {
 })
 
 instance.interceptors.response.use(
+  // 拦截器在此解包统一响应 envelope，返回值无法用 AxiosResponse 表达。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (resp): any => {
     const body = resp.data as Result<unknown>
     if (body.code === SUCCESS_CODE) {

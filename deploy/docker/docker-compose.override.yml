@@ -1,4 +1,0 @@
-# 本地适配：MinIO 官方镜像下架，改用 pgsty/silo 兼容镜像（勿提交）
-services:
-  minio:
-    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z

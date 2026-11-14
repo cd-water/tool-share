@@ -1,12 +1,15 @@
 package com.cdwater.toolshare.module.auth;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import com.cdwater.toolshare.module.auth.Admin;
 import com.cdwater.toolshare.module.auth.AdminMapper;
 import com.cdwater.toolshare.module.auth.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -14,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-class AuthMapperTest {
+@Import(TestStorageConfig.class)
+class AuthMapperTest extends AbstractIntegrationTest {
 
     @Autowired
     private UserMapper userMapper;

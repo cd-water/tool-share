@@ -1,10 +1,13 @@
 package com.cdwater.toolshare.service;
 
+import com.cdwater.toolshare.AbstractIntegrationTest;
+import com.cdwater.toolshare.TestStorageConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -17,10 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * 集成测试：管理端三接口 + 双账号体系隔离。
- * 前置：docker compose up -d；seed 管理员 admin/Aa123456。
+ * 依赖 Testcontainers 自动启动 MySQL/Redis；seed 管理员 admin/Aa123456。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class AdminAuthIntegrationTest {
+@Import(TestStorageConfig.class)
+class AdminAuthIntegrationTest extends AbstractIntegrationTest {
 
     @LocalServerPort
     int port;

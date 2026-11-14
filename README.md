@@ -71,9 +71,9 @@ erDiagram
 前置要求：JDK 21 · pnpm · Docker（含 Compose）
 
 ```bash
-# 1. 配置并启动中间件（MySQL/Redis/RabbitMQ/MinIO/Qdrant/Ollama，端口映射见 .env）
-cp .env.example .env
-docker compose up -d      # ollama-model-init 首次会拉取 bge-m3，耗时较长
+# 1. 配置并启动中间件（MySQL/Redis/RabbitMQ/MinIO/Qdrant/Ollama，端口映射见 ops/.env）
+cp ops/.env.example ops/.env
+cd ops && docker compose up -d && cd ..   # ollama-model-init 首次会拉取 bge-m3，耗时较长
 
 # 2. 启动后端（:8900）
 ./mvnw spring-boot:run
@@ -81,7 +81,12 @@ docker compose up -d      # ollama-model-init 首次会拉取 bge-m3，耗时较
 # 3. 启动用户端（:5901）与管理端（:5902）
 cd frontend/web && pnpm install && pnpm dev
 cd frontend/admin && pnpm install && pnpm dev
+
+# 4. 一键验证（后端编译 + 用户端 lint/构建 + 管理端构建）
+bash ops/verify.sh
 ```
+
+> 部署与运维入口统一在 `ops/`：`docker-compose.yml` 与 `.env` 均位于该目录，因此 compose 命令需在 `ops/` 下执行（`cd ops && docker compose up -d`）。
 
 初始化种子账号（密码均为 `Aa123456`）：
 
@@ -144,7 +149,10 @@ tool-share/
 │   │       └── dashboard/        # 用户端 / 管理端统计
 │   └── resources/db/migration/   # Flyway V1 schema + V2 seed
 ├── docs/                         # PRD、附录、diagrams/
-└── docker-compose.yml            # 中间件编排
+└── ops/                          # 部署与运维入口
+    ├── docker-compose.yml        # 中间件编排
+    ├── .env.example              # 环境变量模板（复制为 .env）
+    └── verify.sh                 # 本地一键验证
 ```
 
 > 模块内部统一为 `controller / service / entity / mapper / dto / vo` 分层；跨模块仅依赖对方的 service / entity，公共能力一律走 `shared/`。

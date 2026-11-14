@@ -42,3 +42,5 @@ AGENTS.md
 docs/superpowers
 .playwright-cli/
 node_modules/
+
+.claude/worktrees/
