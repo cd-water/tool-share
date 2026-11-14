@@ -70,18 +70,49 @@ cd frontend/admin && pnpm install && pnpm dev    # :5902，/api 代理到 :8900
 
 ## 环境变量
 
-完整清单与业务开关见根 [README](../README.md#环境变量)。运维必须关注：
+`ops/.env.example` 是本地模板，复制为 `ops/.env` 后由 `source` 注入后端进程；Compose 与 Spring Boot 共用同一批中间件变量。
 
-| 变量 | 必填 | 说明 |
+### 必填 / 中间件
+
+| 变量 | 默认模板值 | 说明 |
 | --- | --- | --- |
-| `ID_CARD_AES_KEY` | 是 | 16/24/32 字节；缺失或长度错误时后端拒绝启动 |
-| `MYSQL_ROOT_PASSWORD` / `MYSQL_DATABASE` | 是 | Compose 与 Spring Boot 共用 |
-| `REDIS_PASSWORD` | 是 | Compose 与 Spring Boot 共用 |
-| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | 是 | MinIO 与应用 S3 凭据 |
-| `MINIO_PUBLIC_ENDPOINT` | 否 | 浏览器直连对象地址，默认同 `MINIO_ENDPOINT`；生产必须设为公开域名或反向代理 |
-| `QDRANT_API_KEY` | 是 | 应用访问 Qdrant |
-| `DEEPSEEK_API_KEY` | 否 | 留空时 AI 走降级路径，不影响启动 |
-| `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` | 否 | 预留组件，当前业务未使用 |
+| `MYSQL_ROOT_PASSWORD` | `toolmysql` | MySQL root 密码 |
+| `MYSQL_DATABASE` | `tool_share` | 数据库名 |
+| `REDIS_PASSWORD` | `toolredis` | Redis 密码 |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | `toolminio` | MinIO 账号，同时作为应用 S3 凭据 |
+| `QDRANT_API_KEY` | `toolqdrant` | Qdrant API Key |
+| `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` | `toolrabbitmq` | 预留组件凭据，当前业务未使用 |
+| `ID_CARD_AES_KEY` | 示例值 | **必填**，16/24/32 字节；缺失会拒绝启动。生成示例：`openssl rand -hex 16` |
+
+### AI 与连接地址（可选覆盖）
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DEEPSEEK_API_KEY` | 空 | 留空或调用失败时 AI 问答走兜底回答、推荐走降级路径 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容地址 |
+| `DEEPSEEK_CHAT_MODEL` | `deepseek-v4-flash` | 对话模型 |
+| `OLLAMA_BASE_URL` | `http://localhost:11934/v1` | 向量化服务 |
+| `QDRANT_HOST` | `localhost` | Qdrant gRPC 主机（端口固定 `6834`） |
+| `MINIO_ENDPOINT` | `http://localhost:9500` | 后端 S3 客户端使用的 MinIO 地址 |
+| `MINIO_PUBLIC_ENDPOINT` | `http://localhost:9500` | 浏览器直连对象使用的地址，生产必须设为公开域名或反向代理 |
+| `MINIO_BUCKET` | `tool-share` | 桶名，首次使用时自动创建并设置公开读 |
+
+### 业务开关（`application.yml` 中的 `toolshare.*`）
+
+| 配置 | 默认 | 说明 |
+| --- | --- | --- |
+| `toolshare.demo.seed-enabled` | `true` | 空库启动时自动写入演示数据；生产可设 `false` |
+| `toolshare.auth.expose-captcha` | `true` | Mock 短信演示默认直接返回验证码；接入真实短信或对外部署前改为 `false` |
+| `toolshare.auth.rate-limit.*` | 1/分钟、5/小时、10/IP/小时 | 验证码频控 |
+| `toolshare.message.sms-enabled` | `false` | Mock 短信渠道开关 |
+| `toolshare.message.default-channel` | `SYSTEM` | 未设置偏好时的默认渠道 |
+| `toolshare.rental.pending-payment-timeout-minutes` | `30` | 待支付超时自动取消 |
+| `toolshare.rental.default-remind-minutes` | `1440` | 默认到期提醒提前量 |
+| `toolshare.availability.slot-minutes` | `30` | 可预约时段粒度 |
+| `toolshare.ai.recommend.top-k` / `max-results` | `20` / `5` | 向量召回与返回上限 |
+| `toolshare.ai.recommend.index-on-startup` | `true` | 启动时重建工具向量索引 |
+
+Spring Boot 支持用环境变量覆盖这些配置，例如对外部署时设置 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA=false`、`TOOLSHARE_DEMO_SEED_ENABLED=false`。
 
 > **密钥稳定性**：`ID_CARD_AES_KEY` 一旦用于生产数据，不能随意更换；更换后既有 `enc:v2:` 身份证密文将无法解密。轮换密钥需要先解密再以新密钥重加密，属于离线迁移操作。
 
