@@ -45,7 +45,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -66,6 +69,7 @@ public class RentalService {
     private final MessageService messageService;
     private final RentalReminderService reminderService;
     private final RentalVoMapper rentalVoMapper;
+    private final IdCardCipher idCardCipher;
 
     @Value("${toolshare.rental.pending-payment-timeout-minutes:30}")
     private long pendingPaymentTimeoutMinutes = 30;
@@ -134,9 +138,12 @@ public class RentalService {
         rental.setUserId(user.getId());
         rental.setRenterName(StringUtils.hasText(user.getRealName()) ? user.getRealName() : user.getNickname());
         rental.setRenterPhone(user.getPhone());
+        rental.setRenterIdCardMasked(idCardCipher.mask(user.getIdCard()));
         rental.setStartTime(dto.getStartTime());
         rental.setEndTime(dto.getEndTime());
         rental.setPickupPerson(dto.getPickupPerson().trim());
+        rental.setCreatedByName(rental.getRenterName());
+        rental.setUpdatedByName(rental.getRenterName());
         rental.setDepositAmount(tool.getDeposit());
         rental.setDepositStatus(DepositStatus.UNPAID.code());
         rental.setStatus(RentalStatus.PENDING_PAYMENT.code());
@@ -188,7 +195,8 @@ public class RentalService {
 
     private void doCancel(Rental rental, String reason, String operator) {
         String cancelReason = StringUtils.hasText(reason) ? reason : operator;
-        if (rentalMapper.cancel(rental.getId(), cancelReason) == 0) {
+        String updatedBy = operatorName(rental);
+        if (rentalMapper.cancel(rental.getId(), cancelReason, updatedBy) == 0) {
             throw new BizException(ResultCode.CONFLICT, "当前状态不可取消");
         }
         // 支付与取消可能并发，以原子更新后的押金状态为准补记退款流水
@@ -196,7 +204,7 @@ public class RentalService {
         if (cancelled != null && DepositStatus.REFUNDED.code().equals(cancelled.getDepositStatus())
                 && cancelled.getRefundAmount() != null && cancelled.getRefundAmount().signum() > 0) {
             recordPayment(cancelled.getId(), PaymentRecordType.DEPOSIT_REFUND,
-                    cancelled.getRefundAmount(), operatorName(rental), "取消租赁退还押金");
+                    cancelled.getRefundAmount(), updatedBy, "取消租赁退还押金");
         }
         reminderService.cancel(rental.getId());
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
@@ -257,12 +265,12 @@ public class RentalService {
         BigDecimal refund = rental.getDepositAmount().subtract(netCharges).max(BigDecimal.ZERO);
         BigDecimal receivable = netCharges.subtract(rental.getDepositAmount()).max(BigDecimal.ZERO);
 
+        String operator = operatorName(rental);
         if (rentalMapper.returnRental(id, actualReturnTime, overdueFee, damageFee, refund,
-                damageResult.code(), dto.getRemark()) == 0) {
+                damageResult.code(), dto.getRemark(), operator) == 0) {
             throw new BizException(ResultCode.CONFLICT, "当前状态不可归还");
         }
 
-        String operator = operatorName(rental);
         if (overdueFee.signum() > 0) {
             recordFee(rental.getId(), RentalFeeType.OVERDUE, overdueFee,
                     "按实际归还时间计算的逾期费用", operator);
@@ -361,18 +369,28 @@ public class RentalService {
         }
         Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
                 wrapper.orderByDesc(Rental::getCreateTime));
-        return PageVO.of(result, rentalVoMapper::toVO);
+        return pageOf(result);
     }
 
     public PageVO<RentalVO> adminPage(String keyword, String status, String overdue,
-                                      long page, long size) {
+                                      String damageResult, long page, long size) {
         ensureOverdueFresh();
         Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
-                adminWrapper(keyword, status, overdue).orderByDesc(Rental::getCreateTime));
-        return PageVO.of(result, rentalVoMapper::toVO);
+                adminWrapper(keyword, status, overdue, damageResult)
+                        .orderByDesc(Rental::getCreateTime));
+        return pageOf(result);
     }
 
-    private LambdaQueryWrapper<Rental> adminWrapper(String keyword, String status, String overdue) {
+    /**
+     * 管理端筛选口径：
+     * <ul>
+     *   <li>overdue=true：已物化 OVERDUE，或仍在使用中但已过结束时间（兜底定时任务延迟）</li>
+     *   <li>overdue=false：排除 OVERDUE，且排除使用中但已过结束时间</li>
+     *   <li>overdue=all/空：不按逾期过滤</li>
+     * </ul>
+     */
+    private LambdaQueryWrapper<Rental> adminWrapper(String keyword, String status, String overdue,
+                                                    String damageResult) {
         LambdaQueryWrapper<Rental> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w.like(Rental::getOrderNo, keyword)
@@ -381,15 +399,29 @@ public class RentalService {
                     .or().like(Rental::getRenterName, keyword)
                     .or().like(Rental::getRenterPhone, keyword));
         }
-        if (StringUtils.hasText(status)) {
+        if (StringUtils.hasText(status) && !"all".equalsIgnoreCase(status)) {
             wrapper.eq(Rental::getStatus, status);
         }
         if ("true".equalsIgnoreCase(overdue)) {
-            wrapper.and(w -> w.eq(Rental::getStatus, "OVERDUE")
-                    .or(x -> x.eq(Rental::getStatus, "PICKED_UP")
+            wrapper.and(w -> w.eq(Rental::getStatus, RentalStatus.OVERDUE.code())
+                    .or(x -> x.eq(Rental::getStatus, RentalStatus.PICKED_UP.code())
                             .lt(Rental::getEndTime, LocalDateTime.now())));
+        } else if ("false".equalsIgnoreCase(overdue)) {
+            wrapper.ne(Rental::getStatus, RentalStatus.OVERDUE.code())
+                    .and(w -> w.ne(Rental::getStatus, RentalStatus.PICKED_UP.code())
+                            .or().ge(Rental::getEndTime, LocalDateTime.now()));
+        }
+        if (StringUtils.hasText(damageResult) && !"all".equalsIgnoreCase(damageResult)) {
+            DamageResult result = DamageResult.fromCode(damageResult)
+                    .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的验收结果"));
+            wrapper.eq(Rental::getDamageResult, result.code());
         }
         return wrapper;
+    }
+
+    private PageVO<RentalVO> pageOf(Page<Rental> result) {
+        return PageVO.of(toVOList(result.getRecords()), result.getTotal(),
+                result.getCurrent(), result.getSize());
     }
 
     public RentalVO userDetail(Long id) {
@@ -416,29 +448,41 @@ public class RentalService {
         return rental;
     }
 
-    public List<RentalExportRow> exportRows(String keyword, String status, String overdue) {
+    /** 导出直接读租赁行快照，不查工具表也不查 Redis，避免逐行查询。 */
+    public List<RentalExportRow> exportRows(String keyword, String status, String overdue,
+                                            String damageResult) {
         List<Rental> rentals = rentalMapper.selectList(
-                adminWrapper(keyword, status, overdue).orderByDesc(Rental::getCreateTime));
-        return rentals.stream().map(this::toVO).map(vo -> {
-            RentalExportRow row = new RentalExportRow();
-            row.setOrderNo(vo.getOrderNo());
-            row.setToolCode(vo.getToolCode());
-            row.setToolName(vo.getToolName());
-            row.setRenterName(vo.getRenterName());
-            row.setRenterPhone(IdCardCipher.maskPhone(vo.getRenterPhone()));
-            row.setPickupPerson(vo.getPickupPerson());
-            row.setStartTime(format(vo.getStartTime()));
-            row.setEndTime(format(vo.getEndTime()));
-            row.setDepositAmount(vo.getDepositAmount() == null ? "" : vo.getDepositAmount().toPlainString());
-            row.setStatusName(vo.getStatusName());
-            row.setDepositStatusName(vo.getDepositStatusName());
-            row.setActualReturnTime(format(vo.getActualReturnTime()));
-            row.setDamageResultName(vo.getDamageResultName());
-            row.setOverdueFee(vo.getOverdueFee() == null ? "" : vo.getOverdueFee().toPlainString());
-            row.setDamageFee(vo.getDamageFee() == null ? "" : vo.getDamageFee().toPlainString());
-            row.setRefundAmount(vo.getRefundAmount() == null ? "" : vo.getRefundAmount().toPlainString());
-            return row;
-        }).toList();
+                adminWrapper(keyword, status, overdue, damageResult)
+                        .orderByDesc(Rental::getCreateTime));
+        return rentals.stream().map(this::toExportRow).toList();
+    }
+
+    private RentalExportRow toExportRow(Rental rental) {
+        RentalExportRow row = new RentalExportRow();
+        row.setOrderNo(rental.getOrderNo());
+        row.setToolCode(rental.getToolCode());
+        row.setToolName(rental.getToolName());
+        row.setRenterName(rental.getRenterName());
+        row.setRenterPhone(IdCardCipher.maskPhone(rental.getRenterPhone()));
+        row.setRenterIdCardMasked(rental.getRenterIdCardMasked());
+        row.setPickupPerson(rental.getPickupPerson());
+        row.setCreatedByName(rental.getCreatedByName());
+        row.setUpdatedByName(rental.getUpdatedByName());
+        row.setStartTime(format(rental.getStartTime()));
+        row.setEndTime(format(rental.getEndTime()));
+        row.setDepositAmount(amount(rental.getDepositAmount()));
+        row.setStatusName(Dict.label(Dict.RENTAL_STATUS, rental.getStatus()));
+        row.setDepositStatusName(Dict.label(Dict.DEPOSIT_STATUS, rental.getDepositStatus()));
+        row.setActualReturnTime(format(rental.getActualReturnTime()));
+        row.setDamageResultName(Dict.label(Dict.DAMAGE_RESULT, rental.getDamageResult()));
+        row.setOverdueFee(amount(rental.getOverdueFee()));
+        row.setDamageFee(amount(rental.getDamageFee()));
+        row.setRefundAmount(amount(rental.getRefundAmount()));
+        return row;
+    }
+
+    private String amount(BigDecimal value) {
+        return value == null ? "" : value.toPlainString();
     }
 
     public void markOverdue() {
@@ -483,6 +527,7 @@ public class RentalService {
         return user;
     }
 
+    /** 单条详情：实时读取提醒状态。 */
     private RentalVO toVO(Rental rental) {
         RentalVO vo = rentalVoMapper.toVO(rental);
         Tool tool = toolMapper.selectById(rental.getToolId());
@@ -490,6 +535,29 @@ public class RentalService {
         vo.setRemindBeforeMinutes(reminderService.leadOf(rental.getId()));
         vo.setRemindAt(reminderService.remindAtOf(rental.getId()));
         return vo;
+    }
+
+    /** 列表/分页：工具一次批量加载，提醒一次批量读取，避免 N+1。 */
+    private List<RentalVO> toVOList(List<Rental> rentals) {
+        if (rentals.isEmpty()) {
+            return List.of();
+        }
+        List<Long> toolIds = rentals.stream().map(Rental::getToolId)
+                .filter(Objects::nonNull).distinct().toList();
+        Map<Long, Tool> tools = toolIds.isEmpty() ? Map.of()
+                : toolMapper.selectBatchIds(toolIds).stream()
+                .collect(Collectors.toMap(Tool::getId, tool -> tool));
+        List<Long> rentalIds = rentals.stream().map(Rental::getId).toList();
+        Map<Long, Integer> leads = reminderService.leadsOf(rentalIds);
+        Map<Long, LocalDateTime> remindAts = reminderService.remindAtsOf(rentalIds);
+        return rentals.stream().map(rental -> {
+            RentalVO vo = rentalVoMapper.toVO(rental);
+            Tool tool = tools.get(rental.getToolId());
+            vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
+            vo.setRemindBeforeMinutes(leads.get(rental.getId()));
+            vo.setRemindAt(remindAts.get(rental.getId()));
+            return vo;
+        }).toList();
     }
 
     private String format(LocalDateTime time) {

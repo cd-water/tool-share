@@ -24,11 +24,12 @@ import {
 const loading = ref(false)
 const list = ref<RentalVO[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 10, keyword: '', status: '', overdue: '' })
+const query = reactive({ page: 1, size: 10, keyword: '', status: '', overdue: 'all', damageResult: '' })
 
 const statusOptions = optionList(RENTAL_STATUS_LABELS)
 const damageResultOptions = optionList(DAMAGE_RESULT_LABELS)
 const overdueOptions = [
+  { value: 'all', label: '全部逾期状态' },
   { value: 'true', label: '仅看逾期' },
   { value: 'false', label: '未逾期' },
 ]
@@ -51,7 +52,8 @@ function handleSearch() {
 function handleReset() {
   query.keyword = ''
   query.status = ''
-  query.overdue = ''
+  query.overdue = 'all'
+  query.damageResult = ''
   query.page = 1
   loadList()
 }
@@ -267,8 +269,11 @@ onMounted(loadList)
       <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
     </select>
     <select v-model="query.overdue" class="select f-item">
-      <option value="">全部</option>
       <option v-for="item in overdueOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+    </select>
+    <select v-model="query.damageResult" class="select f-item">
+      <option value="">全部验收结果</option>
+      <option v-for="item in damageResultOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
     </select>
     <button type="submit" class="btn btn-primary"><el-icon class="ic"><Search /></el-icon>查询</button>
     <button type="button" class="btn btn-outline" @click="handleReset"><el-icon class="ic"><Refresh /></el-icon>重置</button>
@@ -391,8 +396,14 @@ onMounted(loadList)
             <dd>{{ detail.renterName }}</dd>
             <dt>联系电话</dt>
             <dd>{{ detail.renterPhone }}</dd>
+            <dt>身份证（脱敏）</dt>
+            <dd>{{ detail.renterIdCardMasked || '—' }}</dd>
             <dt>取件人</dt>
             <dd>{{ detail.pickupPerson || '—' }}</dd>
+            <dt>录入人</dt>
+            <dd>{{ detail.createdByName || '—' }}</dd>
+            <dt>更新人</dt>
+            <dd>{{ detail.updatedByName || '—' }}</dd>
             <dt>租赁状态</dt>
             <dd><span :class="badgeClass(rentalStatusTag(detail.status))">{{ detail.statusName || enumLabel(RENTAL_STATUS_LABELS, detail.status) }}</span></dd>
             <dt>开始时间</dt>

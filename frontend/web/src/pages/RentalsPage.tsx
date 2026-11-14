@@ -104,6 +104,8 @@ function RentalDetail({ rental }: { rental: Rental }) {
         <dd>{formatDateTime(rental.startTime)} → {formatDateTime(rental.endTime)}</dd>
         <dt>取件人</dt>
         <dd>{rental.pickupPerson || '—'}</dd>
+        <dt>身份证</dt>
+        <dd>{rental.renterIdCardMasked || '—'}</dd>
         <dt>到期提醒</dt>
         <dd>{describeRemind(rental)}</dd>
         <dt>押金</dt>
@@ -136,10 +138,13 @@ function RentalDetail({ rental }: { rental: Rental }) {
   )
 }
 
+const PAGE_SIZE = 10
+
 export default function RentalsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'' | RentalStatus>('')
+  const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [detailId, setDetailId] = useState<number | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Rental | null>(null)
@@ -149,8 +154,8 @@ export default function RentalsPage() {
   const [removed, setRemoved] = useState<number[]>([])
 
   const rentalsQuery = useQuery({
-    queryKey: ['rentals', 'all'],
-    queryFn: () => rentalsApi.list({ page: 1, size: 200 }),
+    queryKey: ['rentals', 'user', page, status],
+    queryFn: () => rentalsApi.list({ page, size: PAGE_SIZE, status: status || undefined }),
   })
   const all = useMemo(
     () => (rentalsQuery.data?.records ?? []).filter((item) => !removed.includes(item.id)),
@@ -191,20 +196,21 @@ export default function RentalsPage() {
     },
   })
 
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {}
-    all.forEach((item) => (map[item.status] = (map[item.status] ?? 0) + 1))
-    return map
-  }, [all])
+  const total = rentalsQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / (rentalsQuery.data?.size || PAGE_SIZE)))
 
   const list = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return all.filter((item) => {
-      if (status && item.status !== status) return false
       if (kw && !(`${item.toolName}${item.orderNo}`.toLowerCase().includes(kw))) return false
       return true
     })
-  }, [all, status, keyword])
+  }, [all, keyword])
+
+  function selectStatus(next: '' | RentalStatus) {
+    setStatus(next)
+    setPage(1)
+  }
 
   function removeRecord(rental: Rental) {
     setRemoved((prev) => [...prev, rental.id])
@@ -271,10 +277,9 @@ export default function RentalsPage() {
               key={tab.value || 'all'}
               type="button"
               className={status === tab.value ? 'active' : ''}
-              onClick={() => setStatus(tab.value)}
+              onClick={() => selectStatus(tab.value)}
             >
               {tab.label}
-              <span className="cnt">{tab.value ? counts[tab.value] ?? 0 : all.length}</span>
             </button>
           ))}
         </div>
@@ -363,6 +368,26 @@ export default function RentalsPage() {
           <h4>暂无相关租赁</h4>
           <p>当前筛选下没有记录，去工具广场借一件吧。</p>
           <button className="btn btn-primary" onClick={() => navigate('/tools')}>前往工具广场</button>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="between" style={{ marginTop: 18 }}>
+          <span className="tiny">共 {total} 条</span>
+          <div className="pager">
+            <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button>
+            {Array.from({ length: pageCount }).map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                className={page === index + 1 ? 'active' : ''}
+                onClick={() => setPage(index + 1)}
+              >
+                {index + 1}
+              </button>
+            ))}
+            <button type="button" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>下一页</button>
+          </div>
         </div>
       )}
 

@@ -37,9 +37,11 @@ public class AdminRentalController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String overdue,
+            @RequestParam(required = false) String damageResult,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        return Result.success(rentalService.adminPage(keyword, status, overdue, page, size));
+        return Result.success(rentalService.adminPage(keyword, status, overdue, damageResult,
+                page, size));
     }
 
     @GetMapping("/{id}")
@@ -70,8 +72,10 @@ public class AdminRentalController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String overdue,
+            @RequestParam(required = false) String damageResult,
             HttpServletResponse response) throws Exception {
-        List<RentalExportRow> rows = rentalService.exportRows(keyword, status, overdue);
+        List<RentalExportRow> rows = rentalService.exportRows(keyword, status, overdue,
+                damageResult);
         String fileName = URLEncoder.encode("租赁记录.xlsx", StandardCharsets.UTF_8);
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");

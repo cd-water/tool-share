@@ -22,9 +22,12 @@ export interface RentalVO {
   userId: number
   renterName: string
   renterPhone: string
+  renterIdCardMasked?: string
   startTime: string
   endTime: string
   pickupPerson?: string
+  createdByName?: string
+  updatedByName?: string
   depositAmount: number
   depositStatus: DepositStatus
   depositStatusName?: string
@@ -47,6 +50,7 @@ export interface RentalQuery extends PageQuery {
   keyword?: string
   status?: string
   overdue?: string
+  damageResult?: string
 }
 
 export interface RentalReturnDTO {

@@ -54,9 +54,12 @@ export interface Rental {
   userId: number
   renterName: string
   renterPhone: string
+  renterIdCardMasked?: string
   startTime: string
   endTime: string
   pickupPerson: string
+  createdByName?: string
+  updatedByName?: string
   depositAmount: number
   depositStatus: DepositStatus
   depositStatusName: string

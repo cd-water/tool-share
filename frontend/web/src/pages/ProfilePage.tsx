@@ -62,7 +62,8 @@ export default function ProfilePage() {
   })
   const rentalsQuery = useQuery({
     queryKey: ['rentals', 'profile'],
-    queryFn: () => rentalsApi.list({ page: 1, size: 200 }),
+    // 与后端 PageQuery.MAX_SIZE 对齐，避免请求被静默截断
+    queryFn: () => rentalsApi.list({ page: 1, size: 100 }),
   })
   const rentals = rentalsQuery.data?.records ?? []
   const rentalTotal = rentalsQuery.data?.total ?? rentals.length

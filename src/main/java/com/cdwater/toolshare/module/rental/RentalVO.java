@@ -18,9 +18,15 @@ public class RentalVO {
     private Long userId;
     private String renterName;
     private String renterPhone;
+    /** 身份证脱敏快照 */
+    private String renterIdCardMasked;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String pickupPerson;
+    /** 录入人 */
+    private String createdByName;
+    /** 归还/取消经办人 */
+    private String updatedByName;
     private BigDecimal depositAmount;
     private String depositStatus;
     private String depositStatusName;

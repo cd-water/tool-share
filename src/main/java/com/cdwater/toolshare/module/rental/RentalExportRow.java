@@ -21,8 +21,17 @@ public class RentalExportRow {
     @ExcelProperty("联系方式")
     private String renterPhone;
 
+    @ExcelProperty("身份证（脱敏）")
+    private String renterIdCardMasked;
+
     @ExcelProperty("取件人")
     private String pickupPerson;
+
+    @ExcelProperty("录入人")
+    private String createdByName;
+
+    @ExcelProperty("更新人")
+    private String updatedByName;
 
     @ExcelProperty("租赁开始")
     private String startTime;

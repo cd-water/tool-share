@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +16,12 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -104,6 +110,65 @@ public class RentalReminderService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** 批量读取用户选择的提前量，避免列表逐行查询 Redis。 */
+    public Map<Long, Integer> leadsOf(Collection<Long> rentalIds) {
+        List<Long> ids = distinctIds(rentalIds);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            List<String> keys = ids.stream().map(String::valueOf).toList();
+            List<String> values = redis.<String, String>opsForHash().multiGet(KEY_LEAD, keys);
+            Map<Long, Integer> result = new HashMap<>();
+            for (int i = 0; i < ids.size(); i++) {
+                String value = values.get(i);
+                if (value != null) {
+                    result.put(ids.get(i), Integer.valueOf(value));
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    /** 批量读取计划提醒时刻。提醒集合只包含活跃租赁，单次读取即可覆盖当页。 */
+    public Map<Long, LocalDateTime> remindAtsOf(Collection<Long> rentalIds) {
+        List<Long> ids = distinctIds(rentalIds);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            Set<Long> wanted = Set.copyOf(ids);
+            Set<ZSetOperations.TypedTuple<String>> tuples =
+                    redis.opsForZSet().rangeWithScores(KEY_AT, 0, -1);
+            Map<Long, LocalDateTime> result = new HashMap<>();
+            if (tuples == null) {
+                return result;
+            }
+            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+                if (tuple.getValue() == null || tuple.getScore() == null) {
+                    continue;
+                }
+                Long rentalId = Long.valueOf(tuple.getValue());
+                if (wanted.contains(rentalId)) {
+                    result.put(rentalId, java.time.Instant.ofEpochSecond(tuple.getScore().longValue())
+                            .atZone(ZoneId.systemDefault()).toLocalDateTime());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private List<Long> distinctIds(Collection<Long> rentalIds) {
+        if (rentalIds == null || rentalIds.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(rentalIds.stream().filter(Objects::nonNull).distinct().toList());
     }
 
     /** 读取计划提醒时刻，null 表示不提醒或读取失败 */

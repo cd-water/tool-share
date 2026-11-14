@@ -54,13 +54,15 @@ public interface RentalMapper extends BaseMapper<Rental> {
             SET status = 'CANCELLED',
                 cancel_reason = #{reason},
                 cancel_time = NOW(),
+                updated_by_name = #{updatedBy},
                 refund_amount = IF(deposit_status = 'PAID', deposit_amount, refund_amount),
                 deposit_status = IF(deposit_status = 'PAID', 'REFUNDED', deposit_status),
                 update_time = NOW(),
                 version = version + 1
             WHERE id = #{id} AND status IN ('PENDING_PAYMENT', 'RESERVED')
             """)
-    int cancel(@Param("id") Long id, @Param("reason") String reason);
+    int cancel(@Param("id") Long id, @Param("reason") String reason,
+               @Param("updatedBy") String updatedBy);
 
     /** 通用条件状态流转。 */
     @Update("""
@@ -98,6 +100,7 @@ public interface RentalMapper extends BaseMapper<Rental> {
                 deposit_status = 'REFUNDED',
                 damage_result = #{damageResult},
                 return_remark = #{remark},
+                updated_by_name = #{updatedBy},
                 update_time = NOW(),
                 version = version + 1
             WHERE id = #{id} AND status IN ('PICKED_UP', 'OVERDUE')
@@ -108,5 +111,6 @@ public interface RentalMapper extends BaseMapper<Rental> {
                      @Param("damageFee") BigDecimal damageFee,
                      @Param("refundAmount") BigDecimal refundAmount,
                      @Param("damageResult") String damageResult,
-                     @Param("remark") String remark);
+                     @Param("remark") String remark,
+                     @Param("updatedBy") String updatedBy);
 }

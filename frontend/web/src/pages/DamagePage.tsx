@@ -432,7 +432,8 @@ export default function DamagePage() {
 
   const reportsQuery = useQuery({
     queryKey: ['damage-reports', 'all'],
-    queryFn: () => damageApi.list({ page: 1, size: 200 }),
+    // 与后端 PageQuery.MAX_SIZE 对齐，避免请求被静默截断
+    queryFn: () => damageApi.list({ page: 1, size: 100 }),
   })
 
   const allReports = reportsQuery.data?.records ?? []
