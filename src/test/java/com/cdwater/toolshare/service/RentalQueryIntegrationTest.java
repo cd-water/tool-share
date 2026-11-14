@@ -218,6 +218,16 @@ class RentalQueryIntegrationTest extends AbstractIntegrationTest {
         JsonNode clamped = ok(call(HttpMethod.GET, "/api/user/rentals?size=200", user, null));
         assertEquals(100, clamped.get("data").get("size").asLong(),
                 "前端请求上限应与后端一致，后端返回实际 size");
+
+        List<Long> byToolName = ids(ok(call(HttpMethod.GET,
+                "/api/user/rentals?keyword=u-returned&size=100", user, null)));
+        assertTrue(byToolName.contains(third), byToolName.toString());
+        assertFalse(byToolName.contains(first), byToolName.toString());
+
+        List<Long> byOrderNo = ids(ok(call(HttpMethod.GET,
+                "/api/user/rentals?keyword=" + rentalMapper.selectById(first).getOrderNo()
+                        + "&size=100", user, null)));
+        assertEquals(List.of(first), byOrderNo);
     }
 
     @Test

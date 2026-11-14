@@ -43,7 +43,7 @@ public class ReviewService {
         Long userId = StpKit.USER.getLoginIdAsLong();
         Rental rental = rentalMapper.selectById(dto.getRentalId());
         if (rental == null) {
-            throw new BizException(ResultCode.NOT_FOUND, "租赁记录不存在");
+            throw new BizException(ResultCode.NOT_FOUND, "租赁单不存在");
         }
         if (!rental.getUserId().equals(userId)) {
             throw new BizException(ResultCode.FORBIDDEN, "只能评价本人的租赁单");

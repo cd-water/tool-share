@@ -42,5 +42,10 @@ AGENTS.md
 docs/superpowers
 .playwright-cli/
 node_modules/
+logs/
 
 .claude/worktrees/
+
+### E2E ###
+ops/e2e/test-results/
+ops/e2e/playwright-report/

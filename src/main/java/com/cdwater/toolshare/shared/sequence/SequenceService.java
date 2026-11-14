@@ -1,18 +1,13 @@
 package com.cdwater.toolshare.shared.sequence;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.cdwater.toolshare.module.damage.DamageReport;
-import com.cdwater.toolshare.module.rental.Rental;
-import com.cdwater.toolshare.module.tool.Tool;
-import com.cdwater.toolshare.module.damage.DamageReportMapper;
-import com.cdwater.toolshare.module.rental.RentalMapper;
-import com.cdwater.toolshare.module.tool.ToolMapper;
+import com.cdwater.toolshare.shared.enums.ToolCategory;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -22,6 +17,7 @@ import java.util.List;
 /**
  * Redis 原子序号：工具编码、租赁单号、报修单号。
  * <p>序号服务不可用时明确失败并提示重试，不回退随机数（随机数会破坏唯一性）。
+ * <p>启动校准时只依赖 shared 内的 {@link JdbcTemplate}，不反向依赖各业务模块的 Mapper。
  */
 @Slf4j
 @Service
@@ -31,9 +27,7 @@ public class SequenceService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final StringRedisTemplate redis;
-    private final ToolMapper toolMapper;
-    private final RentalMapper rentalMapper;
-    private final DamageReportMapper damageReportMapper;
+    private final JdbcTemplate jdbc;
 
     /**
      * 启动时按数据库已有最大编号校准 Redis 序号，避免种子数据导致编码冲突。
@@ -41,12 +35,13 @@ public class SequenceService {
     @PostConstruct
     void initSequence() {
         try {
-            for (String category : List.of("WX", "YY", "QJ", "QT", "OTHER")) {
-                raiseTo("tool:seq:" + category, maxToolSeq(category));
+            for (ToolCategory category : ToolCategory.values()) {
+                raiseTo("tool:seq:" + category.code(), maxCode("t_tool", "code",
+                        "SQ-G-" + category.code() + "-"));
             }
             String day = LocalDate.now().format(DAY);
-            raiseTo("rental:seq:" + day, maxRentalSeq(day));
-            raiseTo("damage:seq:" + day, maxDamageSeq(day));
+            raiseTo("rental:seq:" + day, maxCode("t_rental", "order_no", "SQ-ZY-" + day + "-"));
+            raiseTo("damage:seq:" + day, maxCode("t_damage_report", "report_no", "SQ-BX-" + day + "-"));
         } catch (Exception e) {
             log.error("初始化 Redis 序号失败，单号生成可能在恢复前不可用，请检查 Redis 后重试", e);
         }
@@ -62,28 +57,13 @@ public class SequenceService {
         }
     }
 
-    private long maxToolSeq(String category) {
-        Tool tool = toolMapper.selectOne(new LambdaQueryWrapper<Tool>()
-                .likeRight(Tool::getCode, "SQ-G-" + category + "-")
-                .orderByDesc(Tool::getCode)
-                .last("LIMIT 1"));
-        return tool == null ? 0 : suffix(tool.getCode());
-    }
-
-    private long maxRentalSeq(String day) {
-        Rental rental = rentalMapper.selectOne(new LambdaQueryWrapper<Rental>()
-                .likeRight(Rental::getOrderNo, "SQ-ZY-" + day + "-")
-                .orderByDesc(Rental::getOrderNo)
-                .last("LIMIT 1"));
-        return rental == null ? 0 : suffix(rental.getOrderNo());
-    }
-
-    private long maxDamageSeq(String day) {
-        DamageReport report = damageReportMapper.selectOne(new LambdaQueryWrapper<DamageReport>()
-                .likeRight(DamageReport::getReportNo, "SQ-BX-" + day + "-")
-                .orderByDesc(DamageReport::getReportNo)
-                .last("LIMIT 1"));
-        return report == null ? 0 : suffix(report.getReportNo());
+    /** 按前缀取当前最大编号；SQL 标识符来自本类固定常量，不接受外部输入。 */
+    private long maxCode(String table, String column, String prefix) {
+        List<String> codes = jdbc.queryForList(
+                "SELECT " + column + " FROM " + table + " WHERE " + column
+                        + " LIKE ? ORDER BY " + column + " DESC LIMIT 1",
+                String.class, prefix + "%");
+        return codes.isEmpty() ? 0 : suffix(codes.get(0));
     }
 
     private long suffix(String code) {

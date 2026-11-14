@@ -117,7 +117,7 @@ async function handleLogout() {
           <span class="ava" style="background: linear-gradient(135deg, #d89b43, #c07e28); color: #fff">
             {{ (auth.username || 'A').slice(0, 1).toUpperCase() }}
           </span>
-          <b>{{ auth.username || '管理员' }}</b>
+          <b>{{ auth.username || '工作人员' }}</b>
         </div>
       </header>
       <div class="admin-content">

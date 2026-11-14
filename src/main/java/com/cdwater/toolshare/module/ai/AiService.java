@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.knowledge.KnowledgeDoc;
 import com.cdwater.toolshare.module.knowledge.KnowledgeDocMapper;
 import com.cdwater.toolshare.module.ai.AiChatVO;
+import com.cdwater.toolshare.shared.ai.TextChunker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -17,7 +18,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,7 +25,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -33,9 +32,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AiService {
 
-    private static final int CHUNK_SIZE = 700;
-    private static final int CHUNK_OVERLAP = 80;
-    private static final int MAX_CHUNKS = 60;
+    private static final TextChunker CHUNKER = new TextChunker("kb", 700, 80, 60);
     /** 单次问答最多召回的知识片段数，避免把整库内容拼进 prompt。 */
     private static final int MAX_SOURCES = 4;
     /** 拼进 prompt 的知识库上下文上限（字符）。 */
@@ -314,10 +311,10 @@ public class AiService {
     }
 
     private List<Document> split(KnowledgeDoc doc) {
-        List<String> texts = chunkTexts(doc.getContent());
+        List<String> texts = CHUNKER.split(doc.getContent());
         List<Document> docs = new ArrayList<>();
         for (int i = 0; i < texts.size(); i++) {
-            docs.add(new Document(documentId(doc.getId(), i), texts.get(i), Map.of(
+            docs.add(new Document(CHUNKER.documentId(doc.getId(), i), texts.get(i), Map.of(
                     "docId", doc.getId(),
                     "title", doc.getTitle(),
                     "chunk", i
@@ -326,41 +323,7 @@ public class AiService {
         return docs;
     }
 
-    /**
-     * 与 split 使用同一套确定性主键规则（{@code kb-{docId}-{chunk}}），覆盖切块上限内的全部下标，
-     * 保证内容变短后残留的高位 chunk 也能被清空。
-     */
     private List<String> chunkIds(Long docId) {
-        List<String> ids = new ArrayList<>(MAX_CHUNKS);
-        for (int i = 0; i < MAX_CHUNKS; i++) {
-            ids.add(documentId(docId, i));
-        }
-        return ids;
-    }
-
-    private String documentId(Long docId, int chunk) {
-        return UUID.nameUUIDFromBytes(("kb-" + docId + "-" + chunk).getBytes(StandardCharsets.UTF_8))
-                .toString();
-    }
-
-    private List<String> chunkTexts(String content) {
-        if (!StringUtils.hasText(content)) {
-            return List.of();
-        }
-        String normalized = content.replaceAll("\\r\\n", "\n").trim();
-        List<String> texts = new ArrayList<>();
-        int start = 0;
-        while (start < normalized.length() && texts.size() < MAX_CHUNKS) {
-            int end = Math.min(normalized.length(), start + CHUNK_SIZE);
-            String chunk = normalized.substring(start, end);
-            if (StringUtils.hasText(chunk)) {
-                texts.add(chunk);
-            }
-            if (end >= normalized.length()) {
-                break;
-            }
-            start = Math.max(end - CHUNK_OVERLAP, start + 1);
-        }
-        return texts;
+        return CHUNKER.chunkIds(docId);
     }
 }

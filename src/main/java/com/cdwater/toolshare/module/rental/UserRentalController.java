@@ -25,10 +25,11 @@ public class UserRentalController {
 
     @GetMapping
     public Result<PageVO<RentalVO>> list(
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        return Result.success(rentalService.userPage(status, page, size));
+        return Result.success(rentalService.userPage(keyword, status, page, size));
     }
 
     @GetMapping("/{id}")

@@ -3,6 +3,7 @@ package com.cdwater.toolshare.module.ai;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
+import com.cdwater.toolshare.shared.enums.RentalStatus;
 import com.cdwater.toolshare.module.review.ToolRatingStats;
 import com.cdwater.toolshare.module.review.ToolReviewMapper;
 import com.cdwater.toolshare.module.tool.Tool;
@@ -49,8 +50,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ToolRecommendService {
 
-    private static final List<String> ACTIVE_RENTAL_STATUS =
-            List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
+    private static final List<RentalStatus> ACTIVE_RENTAL_STATUS =
+            List.of(RentalStatus.PENDING_PAYMENT, RentalStatus.RESERVED,
+                    RentalStatus.PICKED_UP, RentalStatus.OVERDUE);
 
     /** 向量召回硬上限：配置值再大也不会超过它，避免一次召回整库。 */
     private static final int HARD_RECALL_LIMIT = 50;
@@ -316,7 +318,8 @@ public class ToolRecommendService {
         List<Long> ids = filtered.stream().map(Tool::getId).toList();
         Set<Long> busy = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
                         .in(Rental::getToolId, ids)
-                        .in(Rental::getStatus, ACTIVE_RENTAL_STATUS)
+                        .in(Rental::getStatus, ACTIVE_RENTAL_STATUS.stream()
+                                .map(RentalStatus::code).toList())
                         .lt(Rental::getStartTime, dto.getEndTime())
                         .gt(Rental::getEndTime, dto.getStartTime()))
                 .stream().map(Rental::getToolId).collect(Collectors.toSet());

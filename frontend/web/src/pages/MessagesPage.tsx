@@ -55,6 +55,7 @@ const TYPE_FILTERS: { value: '' | MessageType; label: string }[] = [
   { value: 'RENT_DUE', label: '租期' },
   { value: 'OVERDUE', label: '逾期' },
   { value: 'REPAIR', label: '维修' },
+  { value: 'ANNOUNCEMENT', label: '公告' },
   { value: 'SYSTEM', label: '系统' },
 ]
 
@@ -68,6 +69,7 @@ const MESSAGE_META: Record<
   OVERDUE: { icon: TriangleAlert, fg: 'var(--bad)', bg: 'var(--bad-bg)' },
   REPAIR: { icon: Wrench, fg: 'var(--brand-2)', bg: 'var(--brand-bg)' },
   TOOL_AVAILABLE: { icon: Package, fg: 'var(--ok)', bg: 'var(--ok-bg)' },
+  ANNOUNCEMENT: { icon: Bell, fg: 'var(--brand-2)', bg: 'var(--brand-bg)' },
   SYSTEM: { icon: Bell, fg: 'var(--ink-2)', bg: 'var(--surface-2)' },
 }
 
@@ -78,6 +80,7 @@ const GO_MAP: Record<string, string> = {
   OVERDUE: '/rentals',
   REPAIR: '/damage',
   TOOL_AVAILABLE: '/tools',
+  ANNOUNCEMENT: '/tools',
   SYSTEM: '/tools',
 }
 
@@ -136,7 +139,7 @@ export default function MessagesPage() {
         <div>
           <p className="eyebrow">NOTIFICATIONS</p>
           <h1>消息中心</h1>
-          <p className="sub">预约、取件、租期、维修与系统公告，重要提醒一目了然。当前有 {unreadCount} 条未读。</p>
+          <p className="sub">租赁、取件、租期、维修与系统公告，重要提醒一目了然。当前有 {unreadCount} 条未读。</p>
         </div>
         <div className="actions">
           <button

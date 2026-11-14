@@ -1,6 +1,13 @@
 import type { BadgeTone } from '@/components/ui/badge'
+import type {
+  DamageLevel,
+  DamageReportStatus,
+  MessageType,
+  RentalStatus,
+  ToolStatus,
+} from '@/api/types'
 
-export function toolStatusTone(status: string): BadgeTone {
+export function toolStatusTone(status: ToolStatus): BadgeTone {
   switch (status) {
     case 'AVAILABLE':
       return 'success'
@@ -15,7 +22,7 @@ export function toolStatusTone(status: string): BadgeTone {
   }
 }
 
-export function rentalStatusTone(status: string): BadgeTone {
+export function rentalStatusTone(status: RentalStatus): BadgeTone {
   switch (status) {
     case 'PENDING_PAYMENT':
       return 'warning'
@@ -34,7 +41,7 @@ export function rentalStatusTone(status: string): BadgeTone {
   }
 }
 
-export function damageStatusTone(status: string): BadgeTone {
+export function damageStatusTone(status: DamageReportStatus): BadgeTone {
   switch (status) {
     case 'SUBMITTED':
       return 'info'
@@ -52,7 +59,7 @@ export function damageStatusTone(status: string): BadgeTone {
   }
 }
 
-export function messageTypeTone(type: string): BadgeTone {
+export function messageTypeTone(type: MessageType): BadgeTone {
   switch (type) {
     case 'RESERVATION':
     case 'PICKUP':
@@ -70,7 +77,7 @@ export function messageTypeTone(type: string): BadgeTone {
   }
 }
 
-export function damageLevelTone(level: string): BadgeTone {
+export function damageLevelTone(level: DamageLevel): BadgeTone {
   switch (level) {
     case 'NEW':
       return 'success'

@@ -8,6 +8,7 @@ import com.cdwater.toolshare.module.message.MessageMapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.message.UserNotificationPref;
 import com.cdwater.toolshare.module.message.UserNotificationPrefMapper;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,13 +75,13 @@ class MessageChannelIntegrationTest extends AbstractIntegrationTest {
     @Test
     void disabled_reminder_type_is_not_sent() {
         String user = userLogin("13800000001");
-        setPref(user, "RENT_DUE", false, "SYSTEM");
+        setPref(user, MessageType.RENT_DUE, false, "SYSTEM");
 
         JsonNode prefs = call(HttpMethod.GET, "/api/user/notification-prefs", user, null)
                 .body().get("data");
         assertFalse(prefOf(prefs, "RENT_DUE").get("enabled").asBoolean());
 
-        messageService.notifyUserOnce(1L, "RENT_DUE", TITLE_PREFIX + "DISABLED",
+        messageService.notifyUserOnce(1L, MessageType.RENT_DUE, TITLE_PREFIX + "DISABLED",
                 "不应送达的内容", TITLE_PREFIX + "DISABLED-KEY");
 
         assertEquals(0, countByBizKey(TITLE_PREFIX + "DISABLED-KEY"));
@@ -96,7 +97,7 @@ class MessageChannelIntegrationTest extends AbstractIntegrationTest {
         assertTrue(rejected.body().get("message").asString().contains("系统消息"),
                 rejected.body().toString());
 
-        messageService.notifyUserOnce(1L, "SYSTEM", TITLE_PREFIX + "SYSTEM",
+        messageService.notifyUserOnce(1L, MessageType.SYSTEM, TITLE_PREFIX + "SYSTEM",
                 "系统消息始终送达", TITLE_PREFIX + "SYSTEM-KEY");
         assertEquals(1, countByBizKey(TITLE_PREFIX + "SYSTEM-KEY"));
     }
@@ -104,9 +105,9 @@ class MessageChannelIntegrationTest extends AbstractIntegrationTest {
     @Test
     void sms_preference_uses_mock_and_records_sent_status() {
         String user = userLogin("13800000001");
-        setPref(user, "RENT_DUE", true, "SMS");
+        setPref(user, MessageType.RENT_DUE, true, "SMS");
 
-        messageService.notifyUserOnce(1L, "RENT_DUE", TITLE_PREFIX + "SMS",
+        messageService.notifyUserOnce(1L, MessageType.RENT_DUE, TITLE_PREFIX + "SMS",
                 "短信渠道提醒", TITLE_PREFIX + "SMS-KEY");
 
         Message message = messageMapper.selectOne(new LambdaQueryWrapper<Message>()
@@ -121,19 +122,34 @@ class MessageChannelIntegrationTest extends AbstractIntegrationTest {
     void preferences_are_scoped_to_owner() {
         String user1 = userLogin("13800000001");
         String user2 = userLoginByCode("13800000002");
-        setPref(user1, "RENT_DUE", false, "SYSTEM");
+        setPref(user1, MessageType.RENT_DUE, false, "SYSTEM");
 
         JsonNode user2Prefs = call(HttpMethod.GET, "/api/user/notification-prefs", user2, null)
                 .body().get("data");
         assertTrue(prefOf(user2Prefs, "RENT_DUE").get("enabled").asBoolean());
 
-        messageService.notifyUserOnce(1L, "RENT_DUE", TITLE_PREFIX + "OWNER-1",
+        messageService.notifyUserOnce(1L, MessageType.RENT_DUE, TITLE_PREFIX + "OWNER-1",
                 "用户1已关闭", TITLE_PREFIX + "OWNER-1-KEY");
-        messageService.notifyUserOnce(2L, "RENT_DUE", TITLE_PREFIX + "OWNER-2",
+        messageService.notifyUserOnce(2L, MessageType.RENT_DUE, TITLE_PREFIX + "OWNER-2",
                 "用户2仍开启", TITLE_PREFIX + "OWNER-2-KEY");
 
         assertEquals(0, countByBizKey(TITLE_PREFIX + "OWNER-1-KEY"));
         assertEquals(1, countByBizKey(TITLE_PREFIX + "OWNER-2-KEY"));
+    }
+
+    @Test
+    void announcement_is_available_in_preferences() {
+        String user = userLogin("13800000001");
+
+        JsonNode prefs = call(HttpMethod.GET, "/api/user/notification-prefs", user, null)
+                .body().get("data");
+        assertTrue(prefOf(prefs, "ANNOUNCEMENT").get("enabled").asBoolean());
+        assertEquals("公告", prefOf(prefs, "ANNOUNCEMENT").get("typeName").asString());
+
+        setPref(user, MessageType.ANNOUNCEMENT, false, "SYSTEM");
+        JsonNode updated = call(HttpMethod.GET, "/api/user/notification-prefs", user, null)
+                .body().get("data");
+        assertFalse(prefOf(updated, "ANNOUNCEMENT").get("enabled").asBoolean());
     }
 
     @Test
@@ -142,8 +158,8 @@ class MessageChannelIntegrationTest extends AbstractIntegrationTest {
         assertEquals(401, response.status(), response.body().toString());
     }
 
-    private void setPref(String token, String type, boolean enabled, String channel) {
-        ApiResponse response = call(HttpMethod.PUT, "/api/user/notification-prefs/" + type, token,
+    private void setPref(String token, MessageType type, boolean enabled, String channel) {
+        ApiResponse response = call(HttpMethod.PUT, "/api/user/notification-prefs/" + type.code(), token,
                 Map.of("enabled", enabled, "channel", channel));
         assertEquals(200, response.status(), response.body().toString());
         assertEquals("A200", response.body().get("code").asString());

@@ -16,6 +16,7 @@ import com.cdwater.toolshare.module.tool.ToolService;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.shared.enums.AcceptResult;
 import com.cdwater.toolshare.shared.enums.DamageLevel;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.enums.RentalStatus;
 import com.cdwater.toolshare.shared.enums.RepairProgress;
 import com.cdwater.toolshare.shared.enums.ReportStatus;
@@ -69,7 +70,7 @@ public class DamageService {
         // 锁租赁行，串行化同一租赁的并发报修；数据库唯一索引兜底
         Rental rental = rentalMapper.selectByIdForUpdate(dto.getRentalId());
         if (rental == null || !rental.getUserId().equals(userId)) {
-            throw new BizException(ResultCode.NOT_FOUND, "租赁记录不存在");
+            throw new BizException(ResultCode.NOT_FOUND, "租赁单不存在");
         }
         if (!IN_USE_RENTAL_STATUS.contains(rental.getStatus())) {
             throw new BizException(ResultCode.BAD_REQUEST, "仅使用中的租赁可以报修");
@@ -99,7 +100,7 @@ public class DamageService {
         } catch (DuplicateKeyException e) {
             throw new BizException(ResultCode.CONFLICT, "该租赁已有处理中的报修单");
         }
-        afterCommit.run(() -> messageService.notifyAdmins("REPAIR", "新的损坏报修",
+        afterCommit.run(() -> messageService.notifyAdmins(MessageType.REPAIR, "新的损坏报修",
                 report.getReporterName() + " 提交了报修单 " + report.getReportNo()
                         + "（工具 " + report.getToolCode() + "），请及时核验。",
                 "REPAIR_SUBMIT:" + report.getId()));
@@ -139,13 +140,13 @@ public class DamageService {
         }
 
         if (result == VerifyResult.FALSE) {
-            afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "报修已驳回",
+            afterCommit.run(() -> messageService.notifyUser(report.getUserId(), MessageType.REPAIR, "报修已驳回",
                     "报修单 " + report.getReportNo() + " 经核验为误报，工具无需维修。"));
             return;
         }
         Tool tool = toolService.getTool(report.getToolId());
         toolService.transition(tool, ToolStatus.MAINTENANCE, "REPAIR", "报修核验确认，工具转维修中");
-        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "报修已确认",
+        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), MessageType.REPAIR, "报修已确认",
                 "报修单 " + report.getReportNo() + " 已核验，维修人员将尽快处理。"));
     }
 
@@ -182,11 +183,11 @@ public class DamageService {
             throw new BizException(ResultCode.CONFLICT, "报修单状态已变更，请刷新后重试");
         }
         afterCommit.run(() -> {
-            messageService.notifyUser(report.getUserId(), "REPAIR", "维修进度更新",
+            messageService.notifyUser(report.getUserId(), MessageType.REPAIR, "维修进度更新",
                     "报修单 " + report.getReportNo() + " 进度：" + progress.label()
                             + "。" + dto.getProgressNote());
             if (progress == RepairProgress.COMPLETED) {
-                messageService.notifyAdmins("REPAIR", "维修已完成",
+                messageService.notifyAdmins(MessageType.REPAIR, "维修已完成",
                         "报修单 " + report.getReportNo() + "（工具 " + report.getToolCode()
                                 + "）维修已完成，请及时验收。",
                         "REPAIR_COMPLETE:" + id);
@@ -248,7 +249,7 @@ public class DamageService {
             case UNQUALIFIED -> DamageLevel.SEVERE.code();
         });
         toolService.transition(tool, target, "REPAIR", "维修验收：" + result.label());
-        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), "REPAIR", "维修验收完成",
+        afterCommit.run(() -> messageService.notifyUser(report.getUserId(), MessageType.REPAIR, "维修验收完成",
                 "报修单 " + report.getReportNo() + " 验收结果：" + result.label()
                         + "，工具状态：" + target.label() + "。"));
     }
@@ -364,7 +365,7 @@ public class DamageService {
 
     private String currentAdminName() {
         Admin admin = adminMapper.selectById(StpKit.ADMIN.getLoginIdAsLong());
-        return admin == null ? "管理员" : admin.getUsername();
+        return admin == null ? "工作人员" : admin.getUsername();
     }
 
     private DamageReportVO toVO(DamageReport report) {

@@ -10,6 +10,7 @@ public enum MessageType implements CodeLabel {
     OVERDUE("OVERDUE", "逾期提醒"),
     REPAIR("REPAIR", "报修通知"),
     TOOL_AVAILABLE("TOOL_AVAILABLE", "蹲守到货提醒"),
+    ANNOUNCEMENT("ANNOUNCEMENT", "公告"),
     SYSTEM("SYSTEM", "系统消息");
 
     private final String code;

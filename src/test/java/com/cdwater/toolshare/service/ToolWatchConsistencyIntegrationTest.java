@@ -7,6 +7,7 @@ import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.Tool;
 import com.cdwater.toolshare.module.tool.ToolMapper;
 import com.cdwater.toolshare.module.tool.ToolWatchService;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -97,13 +99,13 @@ class ToolWatchConsistencyIntegrationTest extends AbstractIntegrationTest {
         LocalDateTime availableAt = LocalDateTime.of(2026, 1, 1, 12, 0);
         watchService.watch(USER_ID, tool.getId());
 
-        when(messageService.notifyUserOnce(anyLong(), anyString(), anyString(), anyString(), anyString()))
+        when(messageService.notifyUserOnce(anyLong(), any(MessageType.class), anyString(), anyString(), anyString()))
                 .thenReturn(false);
         watchService.notifyAvailable(tool.getId(), tool.getName(), availableAt);
         assertTrue(isMember(toolKey, String.valueOf(USER_ID)), "通知失败时不能丢蹲守关系");
         assertTrue(isMember(userKey, String.valueOf(tool.getId())), "通知失败时不能丢蹲守关系");
 
-        when(messageService.notifyUserOnce(anyLong(), anyString(), anyString(), anyString(), anyString()))
+        when(messageService.notifyUserOnce(anyLong(), any(MessageType.class), anyString(), anyString(), anyString()))
                 .thenReturn(true);
         watchService.notifyAvailable(tool.getId(), tool.getName(), availableAt);
         assertFalse(isMember(toolKey, String.valueOf(USER_ID)));
@@ -111,7 +113,7 @@ class ToolWatchConsistencyIntegrationTest extends AbstractIntegrationTest {
 
         // 已清理后再次触发不应重复通知
         watchService.notifyAvailable(tool.getId(), tool.getName(), availableAt);
-        verify(messageService, times(2)).notifyUserOnce(eq(USER_ID), eq("TOOL_AVAILABLE"),
+        verify(messageService, times(2)).notifyUserOnce(eq(USER_ID), eq(MessageType.TOOL_AVAILABLE),
                 anyString(), anyString(), anyString());
     }
 

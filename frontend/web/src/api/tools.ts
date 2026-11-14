@@ -5,8 +5,8 @@ import type {
   PageResult,
   Tool,
   ToolCategory,
+  ToolRentalHistory,
   ToolStatus,
-  ToolWatchItem,
 } from '@/api/types'
 
 export interface ToolQuery extends PageParams {
@@ -20,6 +20,7 @@ export const toolsApi = {
   list: (params: ToolQuery) =>
     http.get<PageResult<Tool>>('/user/tools', { params }),
   detail: (id: number) => http.get<Tool>(`/user/tools/${id}`),
+  history: (id: number) => http.get<ToolRentalHistory>(`/user/tools/${id}/history`),
   availability: (id: number, startTime: string, endTime: string) =>
     http.get<AvailabilityResult>(`/user/tools/${id}/availability`, {
       params: { startTime, endTime },
@@ -28,5 +29,4 @@ export const toolsApi = {
   watch: (id: number) => http.post<void>(`/user/tools/${id}/watch`),
   unwatch: (id: number) => http.delete<void>(`/user/tools/${id}/watch`),
   watched: (id: number) => http.get<{ watched: boolean }>(`/user/tools/${id}/watch`),
-  watchList: () => http.get<ToolWatchItem[]>('/user/tools/watch/list'),
 }

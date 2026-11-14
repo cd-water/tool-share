@@ -1189,7 +1189,7 @@ onMounted(() => {
           </template>
           <div v-else class="empty">
             <Document class="e-ic" />
-            <h4>暂无租赁记录</h4>
+            <h4>暂无租赁单</h4>
           </div>
         </div>
         <div class="dlg-foot">

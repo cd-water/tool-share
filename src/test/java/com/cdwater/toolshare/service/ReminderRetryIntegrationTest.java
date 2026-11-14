@@ -7,6 +7,7 @@ import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
 import com.cdwater.toolshare.module.rental.RentalReminderService;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -80,12 +82,12 @@ class ReminderRetryIntegrationTest extends AbstractIntegrationTest {
         redis.opsForZSet().add(KEY_AT, member, System.currentTimeMillis() / 1000);
         redis.opsForHash().put(KEY_LEAD, member, "30");
 
-        when(messageService.notifyUserOnce(anyLong(), anyString(), anyString(), anyString(), anyString()))
+        when(messageService.notifyUserOnce(anyLong(), any(MessageType.class), anyString(), anyString(), anyString()))
                 .thenReturn(false);
         reminderService.scanDueReminders();
         assertNotNull(redis.opsForZSet().score(KEY_AT, member), "写入失败时应保留在队列中");
 
-        when(messageService.notifyUserOnce(anyLong(), anyString(), anyString(), anyString(), anyString()))
+        when(messageService.notifyUserOnce(anyLong(), any(MessageType.class), anyString(), anyString(), anyString()))
                 .thenReturn(true);
         reminderService.scanDueReminders();
         assertNull(redis.opsForZSet().score(KEY_AT, member), "写入成功后应出队");

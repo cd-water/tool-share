@@ -16,11 +16,16 @@ This repo is **single-context**:
 
 ```
 /
-├── GLOSSARY.md
+├── GLOSSARY.md                     # 领域词汇（工具、租赁单、报修单、结算、评价、信用分…）
 ├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
+│   ├── 0001-incremental-refactor.md
+│   ├── 0002-settlement-ledger.md
+│   ├── 0003-public-bucket-upload-hardening.md
+│   ├── 0004-single-instance-scheduling.md
+│   ├── 0005-no-ci-local-verification.md
+│   ├── 0006-prd-scope-cuts.md
+│   └── 0007-ai-degradation-and-eval.md
+└── src/main/java/com/cdwater/toolshare/   # shared/ + module/<业务模块>
 ```
 
 ## Use the glossary's vocabulary

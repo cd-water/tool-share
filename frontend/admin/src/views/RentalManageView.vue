@@ -62,7 +62,7 @@ async function handleExport() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `租赁记录_${exportTimestamp()}.xlsx`
+    link.download = `租赁单_${exportTimestamp()}.xlsx`
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -139,7 +139,7 @@ const detailTimeline = computed(() => {
     })
   }
   if (row.status === 'CANCELLED') {
-    list.push({ title: '已取消', time: formatDateTime(row.cancelTime), desc: row.cancelReason || '管理员取消' })
+    list.push({ title: '已取消', time: formatDateTime(row.cancelTime), desc: row.cancelReason || '工作人员取消' })
   }
   return list
 })
@@ -153,6 +153,7 @@ const returnForm = reactive<{
   waiveOverdue: boolean
   waiveDamage: boolean
   waiverReason: string
+  returnWithDamage: boolean
   remark: string
 }>({
   damageResult: 'INTACT',
@@ -160,6 +161,7 @@ const returnForm = reactive<{
   waiveOverdue: false,
   waiveDamage: false,
   waiverReason: '',
+  returnWithDamage: false,
   remark: '',
 })
 
@@ -176,6 +178,7 @@ function openReturn(row: RentalVO) {
   returnForm.waiveOverdue = false
   returnForm.waiveDamage = false
   returnForm.waiverReason = ''
+  returnForm.returnWithDamage = false
   returnForm.remark = ''
   returnDialogVisible.value = true
 }
@@ -199,6 +202,7 @@ async function submitReturn() {
   if (returnForm.waiveOverdue) payload.waiveOverdue = true
   if (returnForm.waiveDamage) payload.waiveDamage = true
   if (waiving) payload.waiverReason = returnForm.waiverReason.trim()
+  if (returnForm.returnWithDamage) payload.returnWithDamage = true
   if (returnForm.remark.trim()) payload.remark = returnForm.remark.trim()
   returnSaving.value = true
   try {
@@ -215,7 +219,7 @@ async function submitReturn() {
 async function handleCancel(row: RentalVO) {
   let reason = ''
   try {
-    const result = await ElMessageBox.prompt('请输入取消原因', '管理员取消租赁', {
+    const result = await ElMessageBox.prompt('请输入取消原因', '工作人员取消租赁', {
       confirmButtonText: '确认取消',
       cancelButtonText: '再想想',
       type: 'warning',
@@ -343,7 +347,7 @@ onMounted(loadList)
             </td>
           </tr>
           <tr v-if="!loading && list.length === 0">
-            <td colspan="10"><div class="empty" style="padding: 40px"><h4>暂无租赁记录</h4></div></td>
+            <td colspan="10"><div class="empty" style="padding: 40px"><h4>暂无租赁单</h4></div></td>
           </tr>
         </tbody>
       </table>
@@ -424,6 +428,26 @@ onMounted(loadList)
               <div class="rb-row"><span>损坏赔偿</span><span class="num">− {{ formatMoney(detail.damageFee || 0) }}</span></div>
               <div class="rb-row"><span>实际退款</span><span class="num">{{ formatMoney(detail.refundAmount || 0) }}</span></div>
             </div>
+          </template>
+          <template v-if="detail.fees.length > 0">
+            <div class="sec-label">费用明细</div>
+            <ul class="timeline">
+              <li v-for="fee in detail.fees" :key="fee.id" class="done">
+                <div class="tl-t">{{ fee.feeTypeName || fee.feeType }} · {{ formatMoney(fee.amount) }}</div>
+                <div class="tl-time">{{ formatDateTime(fee.createTime) }}</div>
+                <div class="tl-d">{{ fee.reason || '—' }}</div>
+              </li>
+            </ul>
+          </template>
+          <template v-if="detail.payments.length > 0">
+            <div class="sec-label">支付与退款流水</div>
+            <ul class="timeline">
+              <li v-for="payment in detail.payments" :key="payment.id" class="done">
+                <div class="tl-t">{{ payment.recordTypeName || payment.recordType }} · {{ formatMoney(payment.amount) }}</div>
+                <div class="tl-time">{{ formatDateTime(payment.createTime) }}</div>
+                <div class="tl-d">{{ payment.remark || '—' }}</div>
+              </li>
+            </ul>
           </template>
           <template v-if="detail.returnRemark || detail.cancelReason">
             <div class="sec-label">备注信息</div>
@@ -533,8 +557,16 @@ onMounted(loadList)
           </div>
         </div>
         <div class="field">
+          <label>带伤归还</label>
+          <label class="ck">
+            <input v-model="returnForm.returnWithDamage" type="checkbox" />
+            <span>存在未终结报修，仍确认归还</span>
+          </label>
+          <p class="hint">勾选后工具保持维修中；未勾选且存在未终结报修时，后端会拒绝归还。</p>
+        </div>
+        <div class="field">
           <label>归还备注</label>
-          <textarea v-model="returnForm.remark" class="textarea" rows="2" maxlength="200" placeholder="选填"></textarea>
+          <textarea v-model="returnForm.remark" class="textarea" rows="2" maxlength="200" placeholder="选填（带伤归还时作为保持维修中的原因）"></textarea>
         </div>
         <div class="refund-preview">
           <div>

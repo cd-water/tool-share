@@ -244,7 +244,7 @@ const BOOT_LINES: Array<[string, string, string]> = [
   ['身份核验', '通过', 'admin · 社区工作人员'],
   ['权限矩阵加载', '完成', 'OPERATIONS / FULL'],
   ['工具库同步', '8 件', '5 可借 · 2 租出 · 1 维修'],
-  ['租赁 / 报修数据', '完成', '6 订单 · 3 报修'],
+  ['租赁 / 报修数据', '完成', '6 张租赁单 · 3 张报修单'],
   ['建立安全通道', 'TLS 1.3', 'cn-east-1 · 23ms'],
 ]
 const bootVisible = ref(false)

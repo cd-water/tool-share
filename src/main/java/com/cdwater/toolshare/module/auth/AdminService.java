@@ -42,11 +42,11 @@ public class AdminService {
         return new LoginVO(info.tokenName, info.tokenValue);
     }
 
-    /** 当前登录管理员信息 */
+    /** 当前登录管理端账号信息 */
     public AdminVO info() {
         Admin admin = adminMapper.selectById(StpKit.ADMIN.getLoginIdAsLong());
         if (admin == null) {
-            throw new BizException(ResultCode.BAD_REQUEST, "管理员不存在");
+            throw new BizException(ResultCode.BAD_REQUEST, "管理端账号不存在");
         }
         if (admin.getStatus() == null || admin.getStatus() == 0) {
             throw new BizException(ResultCode.FORBIDDEN, "账号已禁用");
@@ -59,7 +59,7 @@ public class AdminService {
         StpKit.ADMIN.logout();
     }
 
-    /** 管理员账号列表（仅系统管理员） */
+    /** 管理端账号列表（仅系统管理员） */
     public List<AdminVO> list() {
         return adminMapper.selectList(new LambdaQueryWrapper<Admin>().orderByAsc(Admin::getId))
                 .stream()
@@ -67,13 +67,13 @@ public class AdminService {
                 .toList();
     }
 
-    /** 修改管理员角色（仅系统管理员） */
+    /** 修改管理端角色（仅系统管理员） */
     public void updateRole(Long id, String roleCode) {
         AdminRole role = AdminRole.fromCode(roleCode)
-                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的管理员角色"));
+                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的管理端角色"));
         Admin admin = adminMapper.selectById(id);
         if (admin == null) {
-            throw new BizException(ResultCode.NOT_FOUND, "管理员不存在");
+            throw new BizException(ResultCode.NOT_FOUND, "管理端账号不存在");
         }
         admin.setRole(role.code());
         adminMapper.updateById(admin);

@@ -27,6 +27,7 @@ import { ToolRecommendPanel } from '@/components/ToolRecommendPanel'
 import { badgeClass } from '@/lib/badge'
 import { formatDateTime, formatMoney } from '@/lib/format'
 import { queryKeys } from '@/lib/queryKeys'
+import { sanitizeHtml } from '@/lib/sanitize'
 import { damageLevelTone, toolStatusTone } from '@/lib/status'
 
 const CATEGORY_OPTIONS: { value: ToolCategory; label: string }[] = [
@@ -449,7 +450,7 @@ function UsageGuide({ guide }: { guide?: string | null }) {
   const steps = parseGuideSteps(guide)
   if (!steps) {
     return guide ? (
-      <div className="d-desc" dangerouslySetInnerHTML={{ __html: guide }} />
+      <div className="d-desc" dangerouslySetInnerHTML={{ __html: sanitizeHtml(guide) }} />
     ) : (
       <p className="d-desc">暂无使用说明</p>
     )
@@ -470,6 +471,11 @@ function UsageGuide({ guide }: { guide?: string | null }) {
 
 function ToolDetail({ tool }: { tool: Tool }) {
   const blockReason = reservationBlockReason(tool)
+  const historyQuery = useQuery({
+    queryKey: queryKeys.tools.history(tool.id),
+    queryFn: () => toolsApi.history(tool.id),
+  })
+  const history = historyQuery.data
   return (
     <div>
       <div className="d-hero">
@@ -517,6 +523,28 @@ function ToolDetail({ tool }: { tool: Tool }) {
 
       <div className="sec-label">使用说明</div>
       <UsageGuide guide={tool.usageGuide} />
+
+      <div className="sec-label">历史租赁</div>
+      {historyQuery.isLoading ? (
+        <div className="skel" style={{ height: 48 }}></div>
+      ) : history && history.completedCount > 0 ? (
+        <>
+          <p className="tiny" style={{ marginBottom: 8 }}>
+            已完成 {history.completedCount} 次租赁，以下为最近租期（仅展示时段，不含他人信息）。
+          </p>
+          <ul className="timeline">
+            {history.windows.slice(0, 6).map((window) => (
+              <li key={`${window.startTime}-${window.endTime}`} className="done">
+                <div className="tl-time">
+                  {formatDateTime(window.startTime)} 至 {formatDateTime(window.endTime)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="muted">暂无已完成的租赁单。</p>
+      )}
     </div>
   )
 }
@@ -868,7 +896,7 @@ export default function ToolsPage() {
             <div className="dlg-head">
               <div>
                 <h3>AI 帮我选工具</h3>
-                <p className="d-sub">描述使用场景、时间与预算，AI 结合社区库存推荐合适的工具</p>
+                <p className="d-sub">描述使用场景、时间与预算，AI 结合社区工具推荐合适的工具</p>
               </div>
               <button className="dlg-x" onClick={() => setRecommendOpen(false)} aria-label="关闭">
                 <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>

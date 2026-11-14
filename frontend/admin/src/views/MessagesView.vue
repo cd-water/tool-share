@@ -14,8 +14,9 @@ import {
   Tools,
   Warning,
 } from '@element-plus/icons-vue'
-import { messageApi } from '@/api/messages'
-import type { MessageVO } from '@/api/types'
+import { messageApi, messageConfigApi } from '@/api/messages'
+import type { MessageConfigVO, MessageVO } from '@/api/types'
+import { useAuthStore } from '@/stores/auth'
 import { badgeClass } from '@/utils/badge'
 import { formatDateTime } from '@/utils/format'
 import {
@@ -28,6 +29,7 @@ import {
 } from '@/utils/enums'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const loading = ref(false)
 const messages = ref<MessageVO[]>([])
@@ -94,6 +96,7 @@ const typeOptions: Array<[string, string]> = [
   ['REPAIR', '报修'],
   ['OVERDUE', '逾期'],
   ['RESERVATION', '预约'],
+  ['ANNOUNCEMENT', '公告'],
   ['SYSTEM', '系统'],
 ]
 
@@ -124,6 +127,7 @@ const TYPE_META: Record<string, TypeMeta> = {
   OVERDUE: { badge: 'bad', fg: 'var(--bad)', bg: 'var(--bad-bg)', icon: Warning },
   REPAIR: { badge: 'info', fg: 'var(--info)', bg: 'var(--info-bg)', icon: Tools },
   TOOL_AVAILABLE: { badge: 'ok', fg: 'var(--ok)', bg: 'var(--ok-bg)', icon: Box },
+  ANNOUNCEMENT: { badge: 'brand', fg: 'var(--brand-2)', bg: 'var(--brand-bg)', icon: Bell },
   SYSTEM: { badge: 'neutral', fg: 'var(--ink-2)', bg: 'var(--surface-2)', icon: Bell },
 }
 
@@ -151,10 +155,46 @@ function handleGo() {
       PICKUP: '/rentals',
       RENT_DUE: '/rentals',
       TOOL_AVAILABLE: '/dashboard',
+      ANNOUNCEMENT: '/dashboard',
       SYSTEM: '/dashboard',
     }[detail.value.type] || '/dashboard'
   dialogVisible.value = false
   router.push(path)
+}
+
+/* —— 渠道配置（仅系统管理员） —— */
+const configVisible = ref(false)
+const configLoading = ref(false)
+const configSaving = ref(false)
+const configForm = reactive<{ defaultChannel: 'SYSTEM' | 'SMS'; smsEnabled: boolean }>({
+  defaultChannel: 'SYSTEM',
+  smsEnabled: false,
+})
+
+async function openConfig() {
+  configVisible.value = true
+  configLoading.value = true
+  try {
+    const data: MessageConfigVO = await messageConfigApi.get()
+    configForm.defaultChannel = data.defaultChannel === 'SMS' ? 'SMS' : 'SYSTEM'
+    configForm.smsEnabled = Boolean(data.smsEnabled)
+  } finally {
+    configLoading.value = false
+  }
+}
+
+async function saveConfig() {
+  configSaving.value = true
+  try {
+    await messageConfigApi.update({
+      defaultChannel: configForm.defaultChannel,
+      smsEnabled: configForm.smsEnabled,
+    })
+    ElMessage.success('消息渠道配置已保存')
+    configVisible.value = false
+  } finally {
+    configSaving.value = false
+  }
 }
 
 /* —— 分页 —— */
@@ -185,9 +225,12 @@ onMounted(refresh)
       <div>
         <p class="eyebrow">OPERATIONS INBOX</p>
         <h1>消息中心</h1>
-        <p class="sub">报修待办、逾期预警、库存与系统通知，运营事项集中处理。</p>
+        <p class="sub">报修待办、逾期预警、工具与系统通知，运营事项集中处理。</p>
       </div>
       <div class="actions">
+        <button v-if="auth.isSuperAdmin" class="btn btn-outline" @click="openConfig">
+          渠道配置
+        </button>
         <button class="btn btn-outline" :class="{ loading }" @click="refresh">
           <Refresh class="ic sm" />
           刷新
@@ -304,6 +347,47 @@ onMounted(refresh)
           {{ p }}
         </button>
         <button :disabled="query.page >= totalPages" @click="goPage(query.page + 1)">›</button>
+      </div>
+    </div>
+
+    <div v-if="configVisible" class="mask show" @click.self="configVisible = false">
+      <div class="dlg narrow">
+        <div class="dlg-head">
+          <div>
+            <h3>消息渠道配置</h3>
+            <p class="d-sub">保存后立即作用于后续提醒发送</p>
+          </div>
+          <button class="dlg-x" aria-label="关闭" @click="configVisible = false">
+            <Close class="ic sm" />
+          </button>
+        </div>
+        <div class="dlg-body">
+          <div v-if="configLoading" class="skel" style="height: 120px"></div>
+          <template v-else>
+            <div class="field">
+              <label>默认渠道</label>
+              <select v-model="configForm.defaultChannel" class="select">
+                <option value="SYSTEM">站内消息</option>
+                <option value="SMS">Mock 短信</option>
+              </select>
+              <p class="hint">居民未单独设置偏好时使用该渠道。</p>
+            </div>
+            <div class="field">
+              <label>短信通道</label>
+              <label class="ck">
+                <input v-model="configForm.smsEnabled" type="checkbox" />
+                <span>启用 Mock 短信发送</span>
+              </label>
+              <p class="hint">关闭时短信偏好自动回退为站内消息。</p>
+            </div>
+          </template>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-outline" @click="configVisible = false">取消</button>
+          <button class="btn btn-primary" :disabled="configLoading || configSaving" @click="saveConfig">
+            {{ configSaving ? '保存中…' : '保存配置' }}
+          </button>
+        </div>
       </div>
     </div>
 

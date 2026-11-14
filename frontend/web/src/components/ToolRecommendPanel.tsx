@@ -6,7 +6,6 @@ import {
   MapPin,
   RefreshCw,
   Sparkles,
-  Star,
   ThumbsDown,
   ThumbsUp,
   Wrench,
@@ -302,13 +301,6 @@ export function ToolRecommendPanel({
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <Badge tone="neutral">{item.categoryName}</Badge>
                         <Badge tone="success">{item.statusName}</Badge>
-                        {item.ratingAvg != null && item.ratingAvg > 0 && (
-                          <Badge tone="neutral">
-                            <Star className="size-3 fill-current" />
-                            {item.ratingAvg.toFixed(1)}
-                            {item.reviewCount ? ` · ${item.reviewCount} 条评价` : ''}
-                          </Badge>
-                        )}
                       </div>
                       <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="size-3.5 shrink-0" />

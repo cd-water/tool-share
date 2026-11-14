@@ -152,6 +152,34 @@ class ToolHistoryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void user_tool_history_returns_completed_windows_without_personal_data() {
+        String admin = adminLogin();
+        String user = userLogin();
+        long toolId = createApprovedTool(admin, "user-history");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        insertRental(toolId, "done-1", "RETURNED", "张三", "13900000091",
+                now.minusDays(4), now.minusDays(3), "INTACT", BigDecimal.ZERO, BigDecimal.ZERO);
+        insertRental(toolId, "done-2", "RETURNED", "李四", "13900000092",
+                now.minusDays(2), now.minusDays(1), "INTACT", BigDecimal.ZERO, BigDecimal.ZERO);
+        insertRental(toolId, "active", "RESERVED", "王五", "13900000093",
+                now.plusDays(1), now.plusDays(2), null, BigDecimal.ZERO, BigDecimal.ZERO);
+
+        JsonNode data = ok(call(HttpMethod.GET,
+                "/api/user/tools/" + toolId + "/history", user, null)).get("data");
+
+        assertEquals(toolId, data.get("toolId").asLong());
+        assertEquals(2, data.get("completedCount").asLong(), "只统计已归还的租赁单");
+        assertEquals(2, data.get("windows").size(), data.toString());
+        for (JsonNode window : data.get("windows")) {
+            assertTrue(window.hasNonNull("startTime"), data.toString());
+            assertTrue(window.hasNonNull("endTime"), data.toString());
+            assertFalse(window.has("renterName"), "不得暴露他人姓名");
+            assertFalse(window.has("renterPhone"), "不得暴露他人手机号");
+            assertFalse(window.has("orderNo"), "不得暴露他人单号");
+        }
+    }
+
+    @Test
     void unknown_tool_history_is_not_found() {
         String admin = adminLogin();
         ApiResponse response = call(HttpMethod.GET,

@@ -8,6 +8,7 @@ import type {
 } from '@/api/types'
 
 export interface RentalQuery extends PageParams {
+  keyword?: string
   status?: RentalStatus
 }
 

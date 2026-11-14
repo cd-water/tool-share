@@ -244,6 +244,57 @@ class RentalSettlementIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void rental_detail_exposes_fee_and_payment_ledger() {
+        String admin = adminLogin();
+        String user = userLogin();
+        long rentalId = pickedUpRental(admin, user, "ledger", "100");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        setSlot(rentalId, now.minusHours(3), now.minusMinutes(1));
+        assertEquals(200, returnRental(admin, rentalId, now, "INTACT", Map.of()).status());
+
+        ApiResponse detail = call(HttpMethod.GET, "/api/user/rentals/" + rentalId, user, null);
+        assertEquals(200, detail.status(), detail.body().toString());
+        JsonNode data = detail.body().get("data");
+
+        assertEquals(1, data.get("fees").size(), data.toString());
+        assertEquals("OVERDUE", data.get("fees").get(0).get("feeType").asString());
+        assertEquals("逾期费", data.get("fees").get(0).get("feeTypeName").asString());
+        assertEquals(0, data.get("fees").get(0).get("amount").decimalValue()
+                .compareTo(new BigDecimal("5.00")));
+
+        assertEquals(2, data.get("payments").size(), data.toString());
+        assertEquals("DEPOSIT_IN", data.get("payments").get(0).get("recordType").asString());
+        assertEquals("DEPOSIT_REFUND", data.get("payments").get(1).get("recordType").asString());
+        assertEquals("退还押金", data.get("payments").get(1).get("recordTypeName").asString());
+    }
+
+    @Test
+    void unfinished_report_requires_explicit_damage_return() {
+        String admin = adminLogin();
+        String user = userLogin();
+        long rentalId = pickedUpRental(admin, user, "open-report", "100");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        setSlot(rentalId, now.minusHours(3), now.plusHours(1));
+        assertEquals(200, call(HttpMethod.POST, "/api/user/damage-reports", user, Map.of(
+                "rentalId", rentalId, "damagePart", "电机", "description", "异响",
+                "images", List.of())).status());
+
+        ApiResponse rejected = returnRental(admin, rentalId, now, "INTACT", Map.of());
+        assertEquals(409, rejected.status(), rejected.body().toString());
+        assertEquals("PICKED_UP", rentalMapper.selectById(rentalId).getStatus());
+
+        ApiResponse accepted = returnRental(admin, rentalId, now, "INTACT",
+                Map.of("returnWithDamage", true));
+        assertEquals(200, accepted.status(), accepted.body().toString());
+        Rental rental = rentalMapper.selectById(rentalId);
+        assertEquals("RETURNED", rental.getStatus());
+        assertEquals("存在未终结报修，带伤归还", rental.getReturnRemark());
+        assertEquals("MAINTENANCE",
+                toolMapper.selectById(rental.getToolId()).getStatus(),
+                "带伤归还时工具保持维修中");
+    }
+
+    @Test
     void client_supplied_amounts_are_ignored() {
         String admin = adminLogin();
         String user = userLogin();

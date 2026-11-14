@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.ai;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -24,6 +25,7 @@ public class ToolRecommendDTO {
     private LocalDateTime endTime;
 
     @Size(max = 16, message = "工具类别不能超过 16 个字符")
+    @Schema(allowableValues = {"WX", "YY", "QJ", "QT"})
     private String category;
 
     @DecimalMin(value = "0", message = "押金上限不能为负数")

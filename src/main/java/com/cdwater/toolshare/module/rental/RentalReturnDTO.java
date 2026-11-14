@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.rental;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
@@ -20,6 +21,7 @@ public class RentalReturnDTO {
 
     @NotBlank(message = "请选择验收结果")
     @Size(max = 16, message = "验收结果不能超过 16 个字符")
+    @Schema(allowableValues = {"INTACT", "MINOR", "SEVERE"})
     private String damageResult;
 
     /** 全额减免逾期费 */
@@ -27,6 +29,9 @@ public class RentalReturnDTO {
 
     /** 全额减免损坏赔偿 */
     private Boolean waiveDamage;
+
+    /** 存在未终结报修时，显式确认带伤归还；工具保持维修中 */
+    private Boolean returnWithDamage;
 
     /** 减免原因：任一减免标志为 true 时必填 */
     @Size(max = 500, message = "减免原因不能超过 500 个字符")

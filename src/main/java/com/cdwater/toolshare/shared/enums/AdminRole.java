@@ -4,14 +4,14 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 管理员角色：工作人员处理日常运营，系统管理员额外管理配置。
+ * 管理端角色：工作人员处理日常运营，系统管理员额外管理配置。
  */
 public enum AdminRole implements CodeLabel {
 
     STAFF("STAFF", "工作人员", List.of(
             "rental:manage", "damage:manage", "message:manage", "dashboard:view")),
     SUPER_ADMIN("SUPER_ADMIN", "系统管理员", List.of(
-            "rental:manage", "damage:manage", "message:manage", "dashboard:view",
+            "rental:manage", "damage:manage", "message:manage", "message:config", "dashboard:view",
             "tool:manage", "knowledge:manage", "admin:manage"));
 
     private final String code;

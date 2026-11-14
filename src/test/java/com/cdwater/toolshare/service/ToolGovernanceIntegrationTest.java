@@ -12,6 +12,9 @@ import com.cdwater.toolshare.module.tool.ToolIndexService;
 import com.cdwater.toolshare.module.tool.ToolLog;
 import com.cdwater.toolshare.module.tool.ToolLogMapper;
 import com.cdwater.toolshare.module.tool.ToolMapper;
+import com.cdwater.toolshare.module.tool.ToolService;
+import com.cdwater.toolshare.shared.enums.ToolStatus;
+import com.cdwater.toolshare.shared.web.BizException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +40,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.clearInvocations;
@@ -66,6 +70,9 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     DamageReportMapper damageReportMapper;
+
+    @Autowired
+    ToolService toolService;
 
     @MockitoSpyBean
     ToolIndexService toolIndexService;
@@ -172,7 +179,10 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
         rentalMapper.updateById(toReturn);
         ok(call(HttpMethod.POST, "/api/admin/rentals/" + rentalId + "/return", admin,
                 Map.of("actualReturnTime", LocalDateTime.now().withNano(0).format(FORMAT),
-                        "damageResult", "SEVERE", "remark", "带伤归还")));
+                        "damageResult", "SEVERE", "returnWithDamage", true,
+                        "remark", "带伤归还")));
+        assertEquals("MAINTENANCE", toolMapper.selectById(repairTool).getStatus(),
+                "带伤归还时工具保持维修中");
 
         ApiResponse guardedByReport = call(HttpMethod.PATCH,
                 "/api/admin/tools/" + repairTool + "/status", admin, Map.of("status", "AVAILABLE"));
@@ -185,6 +195,21 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
                 "/api/admin/tools/" + repairTool + "/status", admin, Map.of("status", "AVAILABLE"));
         assertEquals(400, scrapped.status(), scrapped.body().toString());
         assertTrue(scrapped.body().get("message").asString().contains("已报废"));
+    }
+
+    @Test
+    void stale_tool_state_update_is_rejected_instead_of_overwriting() {
+        String admin = adminLogin();
+        long toolId = createApprovedTool(admin, "version");
+        Tool stale = toolService.getTool(toolId);
+
+        ok(call(HttpMethod.PATCH, "/api/admin/tools/" + toolId + "/status",
+                admin, Map.of("status", "MAINTENANCE")));
+
+        assertThrows(BizException.class, () -> toolService.transition(stale,
+                ToolStatus.SCRAPPED, "TEST", "并发覆盖"));
+        assertEquals("MAINTENANCE", toolMapper.selectById(toolId).getStatus(),
+                "旧版本状态更新不能覆盖已提交的新状态");
     }
 
     @Test

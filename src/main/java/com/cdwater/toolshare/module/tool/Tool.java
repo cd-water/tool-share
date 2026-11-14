@@ -3,6 +3,7 @@ package com.cdwater.toolshare.module.tool;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -30,6 +31,10 @@ public class Tool {
 
     /** AVAILABLE/RENTED/MAINTENANCE/SCRAPPED */
     private String status;
+
+    /** 乐观锁版本号，所有状态变更都要求版本匹配 */
+    @Version
+    private Integer version;
 
     private BigDecimal deposit;
 

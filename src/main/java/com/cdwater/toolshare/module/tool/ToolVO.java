@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.tool;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -14,10 +15,13 @@ public class ToolVO {
     private String code;
     private String name;
     private String model;
+    @Schema(allowableValues = {"WX", "YY", "QJ", "QT"})
     private String category;
     private String categoryName;
+    @Schema(allowableValues = {"NEW", "LIGHT", "MEDIUM", "SEVERE"})
     private String damageLevel;
     private String damageLevelName;
+    @Schema(allowableValues = {"AVAILABLE", "RENTED", "MAINTENANCE", "SCRAPPED"})
     private String status;
     private String statusName;
     private BigDecimal deposit;

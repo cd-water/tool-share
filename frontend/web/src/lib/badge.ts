@@ -13,7 +13,3 @@ const TONE_CLASS: Record<BadgeTone, string> = {
 export function badgeClass(tone: BadgeTone): string {
   return 'badge ' + (TONE_CLASS[tone] ?? 'neutral')
 }
-
-export function badgeDotClass(tone: BadgeTone): string {
-  return 'badge ' + (TONE_CLASS[tone] ?? 'neutral')
-}

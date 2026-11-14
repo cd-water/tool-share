@@ -18,6 +18,7 @@ import com.cdwater.toolshare.module.tool.ToolLog;
 import com.cdwater.toolshare.module.tool.ToolLogMapper;
 import com.cdwater.toolshare.module.tool.ToolMapper;
 import com.cdwater.toolshare.module.tool.ToolService;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.tx.AfterCommit;
 import org.junit.jupiter.api.AfterEach;
@@ -110,14 +111,14 @@ class AfterCommitIntegrationTest extends AbstractIntegrationTest {
     @Test
     void message_is_sent_only_after_commit() {
         tx.executeWithoutResult(status -> {
-            afterCommit.run(() -> messageService.notifyUser(1L, "SYSTEM", PREFIX + "ROLLBACK",
+            afterCommit.run(() -> messageService.notifyUser(1L, MessageType.SYSTEM, PREFIX + "ROLLBACK",
                     "回滚时不应写入"));
             status.setRollbackOnly();
         });
         assertEquals(0, countByTitle(PREFIX + "ROLLBACK"));
 
         tx.executeWithoutResult(status -> afterCommit.run(() ->
-                messageService.notifyUser(1L, "SYSTEM", PREFIX + "COMMIT", "提交后应写入")));
+                messageService.notifyUser(1L, MessageType.SYSTEM, PREFIX + "COMMIT", "提交后应写入")));
         assertEquals(1, countByTitle(PREFIX + "COMMIT"));
     }
 

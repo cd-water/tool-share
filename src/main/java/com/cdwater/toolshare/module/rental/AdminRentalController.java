@@ -76,12 +76,12 @@ public class AdminRentalController {
             HttpServletResponse response) throws Exception {
         List<RentalExportRow> rows = rentalService.exportRows(keyword, status, overdue,
                 damageResult);
-        String fileName = URLEncoder.encode("租赁记录.xlsx", StandardCharsets.UTF_8);
+        String fileName = URLEncoder.encode("租赁单.xlsx", StandardCharsets.UTF_8);
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");
         response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
         EasyExcel.write(response.getOutputStream(), RentalExportRow.class)
-                .sheet("租赁记录")
+                .sheet("租赁单")
                 .doWrite(rows);
     }
 }

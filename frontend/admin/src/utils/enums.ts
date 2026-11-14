@@ -126,6 +126,7 @@ export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
   OVERDUE: '逾期提醒',
   REPAIR: '报修通知',
   TOOL_AVAILABLE: '蹲守到货',
+  ANNOUNCEMENT: '公告',
   SYSTEM: '系统消息',
 }
 

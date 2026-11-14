@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.tool;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,10 +23,12 @@ public class ToolSaveDTO {
 
     @NotBlank(message = "工具类别不能为空")
     @Size(max = 16, message = "工具类别不能超过 16 个字符")
+    @Schema(allowableValues = {"WX", "YY", "QJ", "QT"})
     private String category;
 
     @NotBlank(message = "损坏程度不能为空")
     @Size(max = 16, message = "损坏程度不能超过 16 个字符")
+    @Schema(allowableValues = {"NEW", "LIGHT", "MEDIUM", "SEVERE"})
     private String damageLevel;
 
     @NotNull(message = "押金不能为空")
@@ -45,5 +48,6 @@ public class ToolSaveDTO {
     private String supplier;
 
     @Size(max = 20, message = "工具状态不能超过 20 个字符")
+    @Schema(allowableValues = {"AVAILABLE", "RENTED", "MAINTENANCE", "SCRAPPED"})
     private String status;
 }

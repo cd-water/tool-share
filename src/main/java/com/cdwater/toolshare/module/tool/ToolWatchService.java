@@ -1,6 +1,7 @@
 package com.cdwater.toolshare.module.tool;
 
 import com.cdwater.toolshare.module.message.MessageService;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
@@ -124,7 +125,7 @@ public class ToolWatchService {
                 continue;
             }
             String bizKey = "TOOL_AVAILABLE:" + toolId + ":" + userId + ":" + version;
-            boolean sent = messageService.notifyUserOnce(userId, "TOOL_AVAILABLE", "蹲守工具已可租",
+            boolean sent = messageService.notifyUserOnce(userId, MessageType.TOOL_AVAILABLE, "蹲守工具已可租",
                     "你蹲守的《" + toolName + "》已重新上架，快去预约吧。", bizKey);
             if (!sent) {
                 log.warn("蹲守通知写入失败，保留蹲守关系 userId={} toolId={}", userId, toolId);

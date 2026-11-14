@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/message-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["update_3"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user/upload": {
         parameters: {
             query?: never;
@@ -564,22 +580,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/ai/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["chat_1"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/tools/{id}/status": {
         parameters: {
             query?: never;
@@ -668,6 +668,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/tools/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1102,12 +1118,15 @@ export interface components {
         };
         NotificationPrefUpdateDTO: {
             enabled: boolean;
-            channel: string;
+            /** @enum {string} */
+            channel: "SYSTEM" | "SMS";
         };
         NotificationPrefVO: {
-            type?: string;
+            /** @enum {string} */
+            type?: "RESERVATION" | "PICKUP" | "RENT_DUE" | "OVERDUE" | "REPAIR" | "TOOL_AVAILABLE" | "ANNOUNCEMENT" | "SYSTEM";
             typeName?: string;
-            channel?: string;
+            /** @enum {string} */
+            channel?: "SYSTEM" | "SMS";
             enabled?: boolean;
         };
         ResultNotificationPrefVO: {
@@ -1118,8 +1137,10 @@ export interface components {
         ToolSaveDTO: {
             name: string;
             model?: string;
-            category: string;
-            damageLevel: string;
+            /** @enum {string} */
+            category: "WX" | "YY" | "QJ" | "QT";
+            /** @enum {string} */
+            damageLevel: "NEW" | "LIGHT" | "MEDIUM" | "SEVERE";
             deposit: number;
             storageArea?: string;
             usageGuide?: string;
@@ -1127,7 +1148,8 @@ export interface components {
             /** Format: date */
             purchaseDate?: string;
             supplier?: string;
-            status?: string;
+            /** @enum {string} */
+            status?: "AVAILABLE" | "RENTED" | "MAINTENANCE" | "SCRAPPED";
         };
         ResultToolVO: {
             code?: string;
@@ -1140,11 +1162,14 @@ export interface components {
             code?: string;
             name?: string;
             model?: string;
-            category?: string;
+            /** @enum {string} */
+            category?: "WX" | "YY" | "QJ" | "QT";
             categoryName?: string;
-            damageLevel?: string;
+            /** @enum {string} */
+            damageLevel?: "NEW" | "LIGHT" | "MEDIUM" | "SEVERE";
             damageLevelName?: string;
-            status?: string;
+            /** @enum {string} */
+            status?: "AVAILABLE" | "RENTED" | "MAINTENANCE" | "SCRAPPED";
             statusName?: string;
             deposit?: number;
             storageArea?: string;
@@ -1172,6 +1197,21 @@ export interface components {
             createTime?: string;
             /** Format: date-time */
             updateTime?: string;
+        };
+        MessageConfigUpdateDTO: {
+            /** @enum {string} */
+            defaultChannel: "SYSTEM" | "SMS";
+            smsEnabled: boolean;
+        };
+        MessageConfigVO: {
+            /** @enum {string} */
+            defaultChannel?: "SYSTEM" | "SMS";
+            smsEnabled?: boolean;
+        };
+        ResultMessageConfigVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["MessageConfigVO"];
         };
         FileVO: {
             url?: string;
@@ -1237,6 +1277,30 @@ export interface components {
             /** Format: int32 */
             remindBeforeMinutes?: number;
         };
+        PaymentRecordVO: {
+            /** Format: int64 */
+            id?: number;
+            /** @enum {string} */
+            recordType?: "DEPOSIT_IN" | "DEPOSIT_REFUND" | "RECEIVABLE";
+            recordTypeName?: string;
+            amount?: number;
+            operatorName?: string;
+            remark?: string;
+            /** Format: date-time */
+            createTime?: string;
+        };
+        RentalFeeVO: {
+            /** Format: int64 */
+            id?: number;
+            /** @enum {string} */
+            feeType?: "OVERDUE" | "DAMAGE" | "WAIVER" | "OTHER";
+            feeTypeName?: string;
+            amount?: number;
+            reason?: string;
+            operatorName?: string;
+            /** Format: date-time */
+            createTime?: string;
+        };
         RentalVO: {
             /** Format: int64 */
             id?: number;
@@ -1259,16 +1323,19 @@ export interface components {
             createdByName?: string;
             updatedByName?: string;
             depositAmount?: number;
-            depositStatus?: string;
+            /** @enum {string} */
+            depositStatus?: "UNPAID" | "PAID" | "REFUNDED";
             depositStatusName?: string;
-            status?: string;
+            /** @enum {string} */
+            status?: "PENDING_PAYMENT" | "RESERVED" | "PICKED_UP" | "RETURNED" | "CANCELLED" | "OVERDUE";
             statusName?: string;
             /** Format: date-time */
             actualReturnTime?: string;
             overdueFee?: number;
             damageFee?: number;
             refundAmount?: number;
-            damageResult?: string;
+            /** @enum {string} */
+            damageResult?: "INTACT" | "MINOR" | "SEVERE";
             damageResultName?: string;
             returnRemark?: string;
             cancelReason?: string;
@@ -1278,6 +1345,8 @@ export interface components {
             remindBeforeMinutes?: number;
             /** Format: date-time */
             remindAt?: string;
+            fees?: components["schemas"]["RentalFeeVO"][];
+            payments?: components["schemas"]["PaymentRecordVO"][];
             /** Format: date-time */
             createTime?: string;
             /** Format: date-time */
@@ -1333,18 +1402,21 @@ export interface components {
             damagePart?: string;
             description?: string;
             images?: string[];
-            status?: string;
+            /** @enum {string} */
+            status?: "SUBMITTED" | "VERIFIED" | "REJECTED" | "REPAIRING" | "COMPLETED" | "SCRAPPED";
             statusName?: string;
             verifier?: string;
             /** Format: date-time */
             verifyTime?: string;
-            verifyResult?: string;
+            /** @enum {string} */
+            verifyResult?: "CONFIRMED" | "SUSPECTED" | "FALSE";
             repairPerson?: string;
             repairEstimate?: string;
             /** Format: date-time */
             repairStartTime?: string;
             repairCost?: number;
-            progressStatus?: string;
+            /** @enum {string} */
+            progressStatus?: "WAITING_PARTS" | "REPAIRING" | "COMPLETED" | "FAILED";
             progressStatusName?: string;
             /** Format: date-time */
             progressUpdateTime?: string;
@@ -1352,9 +1424,11 @@ export interface components {
             acceptor?: string;
             /** Format: date-time */
             acceptTime?: string;
-            acceptResult?: string;
+            /** @enum {string} */
+            acceptResult?: "QUALIFIED" | "UNQUALIFIED" | "PARTIAL";
             acceptResultName?: string;
-            toolStatusAfter?: string;
+            /** @enum {string} */
+            toolStatusAfter?: "AVAILABLE" | "MAINTENANCE" | "SCRAPPED";
             remark?: string;
             /** Format: date-time */
             createTime?: string;
@@ -1372,7 +1446,8 @@ export interface components {
             startTime?: string;
             /** Format: date-time */
             endTime?: string;
-            category?: string;
+            /** @enum {string} */
+            category?: "WX" | "YY" | "QJ" | "QT";
             maxDeposit?: number;
             /** Format: int32 */
             limit?: number;
@@ -1432,9 +1507,11 @@ export interface components {
         RentalReturnDTO: {
             /** Format: date-time */
             actualReturnTime: string;
-            damageResult: string;
+            /** @enum {string} */
+            damageResult: "INTACT" | "MINOR" | "SEVERE";
             waiveOverdue?: boolean;
             waiveDamage?: boolean;
+            returnWithDamage?: boolean;
             waiverReason?: string;
             remark?: string;
         };
@@ -1458,33 +1535,40 @@ export interface components {
             data?: components["schemas"]["KnowledgeDocVO"];
         };
         DamageVerifyDTO: {
-            verifyResult: string;
+            /** @enum {string} */
+            verifyResult: "CONFIRMED" | "SUSPECTED" | "FALSE";
             repairPerson?: string;
             repairEstimate?: string;
             remark?: string;
         };
         DamageProgressDTO: {
-            progressStatus: string;
+            /** @enum {string} */
+            progressStatus: "WAITING_PARTS" | "REPAIRING" | "COMPLETED" | "FAILED";
             progressNote: string;
             repairCost?: number;
             repairEstimate?: string;
             repairPerson?: string;
         };
         DamageAcceptDTO: {
-            acceptResult: string;
-            toolStatusAfter: string;
+            /** @enum {string} */
+            acceptResult: "QUALIFIED" | "UNQUALIFIED" | "PARTIAL";
+            /** @enum {string} */
+            toolStatusAfter: "AVAILABLE" | "MAINTENANCE" | "SCRAPPED";
             repairCost?: number;
             remark?: string;
         };
         ToolStatusDTO: {
-            status: string;
+            /** @enum {string} */
+            status: "AVAILABLE" | "RENTED" | "MAINTENANCE" | "SCRAPPED";
         };
         ToolAuditDTO: {
-            auditStatus: string;
+            /** @enum {string} */
+            auditStatus: "APPROVED" | "NEEDS_CHANGE";
             remark?: string;
         };
         AdminRoleUpdateDTO: {
-            role: string;
+            /** @enum {string} */
+            role: "STAFF" | "SUPER_ADMIN";
         };
         PageVOToolVO: {
             records?: components["schemas"]["ToolVO"][];
@@ -1521,6 +1605,24 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        ResultToolRentalHistoryVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["ToolRentalHistoryVO"];
+        };
+        ToolRentalHistoryVO: {
+            /** Format: int64 */
+            toolId?: number;
+            /** Format: int64 */
+            completedCount?: number;
+            windows?: components["schemas"]["Window"][];
+        };
+        Window: {
+            /** Format: date-time */
+            startTime?: string;
+            /** Format: date-time */
+            endTime?: string;
+        };
         AvailabilityVO: {
             available?: boolean;
             message?: string;
@@ -1549,7 +1651,8 @@ export interface components {
             toolId?: number;
             code?: string;
             name?: string;
-            status?: string;
+            /** @enum {string} */
+            status?: "AVAILABLE" | "RENTED" | "MAINTENANCE" | "SCRAPPED";
             statusName?: string;
             deposit?: number;
             imageUrl?: string;
@@ -1576,12 +1679,15 @@ export interface components {
         MessageVO: {
             /** Format: int64 */
             id?: number;
-            type?: string;
+            /** @enum {string} */
+            type?: "RESERVATION" | "PICKUP" | "RENT_DUE" | "OVERDUE" | "REPAIR" | "TOOL_AVAILABLE" | "ANNOUNCEMENT" | "SYSTEM";
             typeName?: string;
             title?: string;
             content?: string;
-            channel?: string;
-            deliveryStatus?: string;
+            /** @enum {string} */
+            channel?: "SYSTEM" | "SMS";
+            /** @enum {string} */
+            deliveryStatus?: "PENDING" | "SENT" | "DELIVERED" | "FAILED";
             /** Format: date-time */
             sentTime?: string;
             readStatus?: boolean;
@@ -1673,10 +1779,13 @@ export interface components {
         };
         ToolAdminQuery: {
             keyword?: string;
-            category?: string;
-            status?: string;
+            /** @enum {string} */
+            category?: "WX" | "YY" | "QJ" | "QT";
+            /** @enum {string} */
+            status?: "AVAILABLE" | "RENTED" | "MAINTENANCE" | "SCRAPPED";
             storageArea?: string;
-            orderBy?: string;
+            /** @enum {string} */
+            orderBy?: "default" | "rentalCount" | "lastRepairTime";
             /** Format: int32 */
             minRentalCount?: number;
             /** Format: int32 */
@@ -1717,7 +1826,8 @@ export interface components {
             /** Format: int64 */
             id?: number;
             username?: string;
-            role?: string;
+            /** @enum {string} */
+            role?: "STAFF" | "SUPER_ADMIN";
         };
         ResultAdminVO: {
             code?: string;
@@ -1855,6 +1965,50 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ResultToolVO"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultMessageConfigVO"];
+                };
+            };
+        };
+    };
+    update_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageConfigUpdateDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultMessageConfigVO"];
                 };
             };
         };
@@ -2026,6 +2180,7 @@ export interface operations {
     list_1: {
         parameters: {
             query?: {
+                keyword?: string;
                 status?: string;
                 page?: number;
                 size?: number;
@@ -2788,30 +2943,6 @@ export interface operations {
             };
         };
     };
-    chat_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AiChatDTO"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ResultAiChatVO"];
-                };
-            };
-        };
-    };
     updateStatus: {
         parameters: {
             query?: never;
@@ -2960,6 +3091,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ResultToolVO"];
+                };
+            };
+        };
+    };
+    history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultToolRentalHistoryVO"];
                 };
             };
         };

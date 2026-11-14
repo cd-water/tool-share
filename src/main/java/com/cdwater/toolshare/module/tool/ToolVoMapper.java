@@ -27,7 +27,8 @@ public interface ToolVoMapper {
         vo.setCategoryName(Dict.label(Dict.TOOL_CATEGORY, tool.getCategory()));
         vo.setDamageLevelName(Dict.label(Dict.DAMAGE_LEVEL, tool.getDamageLevel()));
         vo.setStatusName(Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
-        vo.setAuditStatusName(AuditStatus.labelOf(tool.getAuditStatus()));
+        vo.setAuditStatusName(AuditStatus.fromCode(tool.getAuditStatus())
+                .map(AuditStatus::label).orElse(null));
         vo.setImageUrls(parseImages(tool.getImageUrls()));
     }
 

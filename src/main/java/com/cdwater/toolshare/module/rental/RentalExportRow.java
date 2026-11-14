@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class RentalExportRow {
 
-    @ExcelProperty("租赁预约单号")
+    @ExcelProperty("租赁单号")
     private String orderNo;
 
     @ExcelProperty("工具编号")

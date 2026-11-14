@@ -2,18 +2,13 @@ package com.cdwater.toolshare.module.knowledge;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
-import com.cdwater.toolshare.module.ai.AiChatDTO;
-import com.cdwater.toolshare.module.ai.AiService;
 import com.cdwater.toolshare.module.knowledge.KnowledgeService;
-import com.cdwater.toolshare.module.ai.AiChatVO;
 import com.cdwater.toolshare.module.knowledge.KnowledgeDocVO;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,7 +23,6 @@ import java.util.List;
 public class AdminKnowledgeController {
 
     private final KnowledgeService knowledgeService;
-    private final AiService aiService;
 
     @GetMapping("/knowledge")
     public Result<List<KnowledgeDocVO>> list() {
@@ -45,10 +39,5 @@ public class AdminKnowledgeController {
     public Result<Void> delete(@PathVariable Long id) {
         knowledgeService.delete(id);
         return Result.success();
-    }
-
-    @PostMapping("/ai/chat")
-    public Result<AiChatVO> chat(@Valid @RequestBody AiChatDTO dto) {
-        return Result.success(aiService.chat(dto.getQuestion()));
     }
 }

@@ -23,9 +23,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CreditService {
 
-    public static final int INITIAL_SCORE = 100;
-    public static final int MIN_SCORE = 0;
-    public static final int MAX_SCORE = 100;
+    public static final int INITIAL_SCORE = CreditPolicy.INITIAL_SCORE;
 
     private final UserCreditEventMapper eventMapper;
     private final UserMapper userMapper;
@@ -84,7 +82,7 @@ public class CreditService {
             return;
         }
         int current = user.getCreditScore() == null ? INITIAL_SCORE : user.getCreditScore();
-        int target = Math.max(MIN_SCORE, Math.min(MAX_SCORE, current + type.delta()));
+        int target = CreditPolicy.apply(current, type);
         UserCreditEvent event = new UserCreditEvent();
         event.setUserId(userId);
         event.setEventType(type.code());

@@ -64,7 +64,7 @@ const greet = (() => {
 })()
 const WEEK_CN = ['日', '一', '二', '三', '四', '五', '六']
 const dateText = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 · 星期${WEEK_CN[now.getDay()]} · OVERVIEW`
-const displayName = computed(() => auth.username || '管理员')
+const displayName = computed(() => auth.username || '工作人员')
 
 /* ---------- 内联 SVG 图标(与原型同款描边风格) ---------- */
 const ICONS: Record<string, string> = {
@@ -115,7 +115,7 @@ const feedItems = computed(() => {
   if (statValue('overdueRentalCount') > 0)
     list.push({ text: `${statValue('overdueRentalCount')} 笔租赁已逾期`, color: 'var(--bad)', time: '需关注' })
   if (statValue('availableToolCount') > 0)
-    list.push({ text: `${statValue('availableToolCount')} 件工具可借用`, color: 'var(--ok)', time: '库存' })
+    list.push({ text: `${statValue('availableToolCount')} 件工具可借用`, color: 'var(--ok)', time: '工具' })
   if (statValue('userCount') > 0)
     list.push({ text: `${statValue('userCount')} 位注册用户`, color: 'var(--steel)', time: '累计' })
   return list

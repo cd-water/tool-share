@@ -6,7 +6,6 @@ import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,9 +23,7 @@ import java.util.stream.Collectors;
 public class NotificationPrefService {
 
     private final UserNotificationPrefMapper prefMapper;
-
-    @Value("${toolshare.message.default-channel:SYSTEM}")
-    private String defaultChannel = "SYSTEM";
+    private final MessageConfigService configService;
 
     public List<NotificationPrefVO> list(Long userId) {
         Map<String, UserNotificationPref> stored = prefMapper.selectList(
@@ -36,6 +33,7 @@ public class NotificationPrefService {
                 .collect(Collectors.toMap(UserNotificationPref::getMessageType, Function.identity()));
 
         List<NotificationPrefVO> result = new ArrayList<>();
+        String defaultChannel = configService.defaultChannel();
         for (MessageType type : MessageType.values()) {
             if (type == MessageType.SYSTEM) {
                 continue;

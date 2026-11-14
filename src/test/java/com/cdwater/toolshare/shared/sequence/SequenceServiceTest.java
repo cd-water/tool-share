@@ -1,12 +1,10 @@
 package com.cdwater.toolshare.shared.sequence;
 
-import com.cdwater.toolshare.module.damage.DamageReportMapper;
-import com.cdwater.toolshare.module.rental.RentalMapper;
-import com.cdwater.toolshare.module.tool.ToolMapper;
 import com.cdwater.toolshare.shared.web.BizException;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,8 +23,7 @@ class SequenceServiceTest {
     }
 
     private static SequenceService service(StringRedisTemplate redis) {
-        return new SequenceService(redis, mock(ToolMapper.class),
-                mock(RentalMapper.class), mock(DamageReportMapper.class));
+        return new SequenceService(redis, mock(JdbcTemplate.class));
     }
 
     @Test

@@ -115,6 +115,19 @@ class DashboardIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void overdue_count_is_computed_even_before_materialization() {
+        AdminDashboardVO before = dashboardService.adminDashboard();
+        long renterId = createUser();
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        // PICKED_UP 且已过结束时间：定时物化尚未执行，仪表盘也必须算作逾期
+        createRental(renterId, "PICKED_UP", now, now.minusHours(2), now.minusHours(1));
+
+        AdminDashboardVO after = dashboardService.adminDashboard();
+
+        assertEquals(before.getOverdueRentalCount() + 1, after.getOverdueRentalCount());
+    }
+
+    @Test
     void user_dashboard_counts_only_own_active_rentals_and_unread_messages() {
         long ownerId = createUser();
         long otherId = createUser();
@@ -177,6 +190,11 @@ class DashboardIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void createRental(long userId, String status, LocalDateTime createTime) {
+        createRental(userId, status, createTime, createTime.plusDays(1), createTime.plusDays(2));
+    }
+
+    private void createRental(long userId, String status, LocalDateTime createTime,
+                              LocalDateTime startTime, LocalDateTime endTime) {
         Rental rental = new Rental();
         rental.setOrderNo(PREFIX + SEQ.incrementAndGet());
         rental.setToolId(toolIds.isEmpty() ? 1L : toolIds.get(0));
@@ -185,8 +203,8 @@ class DashboardIntegrationTest extends AbstractIntegrationTest {
         rental.setUserId(userId);
         rental.setRenterName(PREFIX + "租赁人");
         rental.setRenterPhone("13900000000");
-        rental.setStartTime(createTime.plusDays(1));
-        rental.setEndTime(createTime.plusDays(2));
+        rental.setStartTime(startTime);
+        rental.setEndTime(endTime);
         rental.setDepositAmount(new BigDecimal("100.00"));
         rental.setDepositStatus("PAID");
         rental.setStatus(status);

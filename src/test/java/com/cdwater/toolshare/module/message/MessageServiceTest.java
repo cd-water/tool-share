@@ -2,6 +2,7 @@ package com.cdwater.toolshare.module.message;
 
 import com.cdwater.toolshare.module.auth.AdminMapper;
 import com.cdwater.toolshare.module.auth.UserMapper;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,27 +34,30 @@ class MessageServiceTest {
     SmsSender smsSender;
     @Mock
     MessageVoMapper messageVoMapper;
+    @Mock
+    MessageConfigService configService;
 
     MessageService messageService;
 
     @BeforeEach
     void setUp() {
         messageService = new MessageService(messageMapper, adminMapper, userMapper,
-                prefMapper, smsSender, messageVoMapper);
+                prefMapper, smsSender, messageVoMapper, configService);
     }
 
     @Test
     void insert_failure_returns_false() {
         when(messageMapper.insert(any(Message.class))).thenThrow(new IllegalStateException("数据库不可用"));
 
-        assertFalse(messageService.notifyUser(1L, "SYSTEM", "标题", "内容"));
+        assertFalse(messageService.notifyUser(1L, MessageType.SYSTEM, "标题", "内容"));
+
     }
 
     @Test
     void existing_biz_key_is_treated_as_success() {
         when(messageMapper.selectCount(any())).thenReturn(1L);
 
-        assertTrue(messageService.notifyUserOnce(1L, "SYSTEM", "标题", "内容", "BIZ-KEY"));
+        assertTrue(messageService.notifyUserOnce(1L, MessageType.SYSTEM, "标题", "内容", "BIZ-KEY"));
         verify(messageMapper, never()).insert(any(Message.class));
     }
 }

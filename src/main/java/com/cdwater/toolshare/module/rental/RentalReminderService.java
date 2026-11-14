@@ -2,6 +2,8 @@ package com.cdwater.toolshare.module.rental;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.message.MessageService;
+import com.cdwater.toolshare.shared.enums.MessageType;
+import com.cdwater.toolshare.shared.enums.RentalStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,7 +42,8 @@ public class RentalReminderService {
 
     private static final String KEY_AT = "remind:at";
     private static final String KEY_LEAD = "remind:lead";
-    private static final List<String> ACTIVE_STATUS = List.of("RESERVED", "PICKED_UP", "OVERDUE");
+    private static final List<RentalStatus> ACTIVE_STATUS =
+            List.of(RentalStatus.RESERVED, RentalStatus.PICKED_UP, RentalStatus.OVERDUE);
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     private final StringRedisTemplate redis;
@@ -210,21 +213,22 @@ public class RentalReminderService {
             try {
                 Rental rental = rentalMapper.selectById(rentalId);
                 if (rental == null) {
-                    // 订单已不存在，连同意愿记录一起清理
+                    // 租赁单已不存在，连同意愿记录一起清理
                     redis.opsForHash().delete(KEY_LEAD, member);
                     redis.opsForZSet().remove(KEY_AT, member);
                     continue;
                 }
                 Integer lead = leadOf(rentalId);
-                boolean shouldNotify = ACTIVE_STATUS.contains(rental.getStatus())
+                RentalStatus status = RentalStatus.fromCode(rental.getStatus()).orElse(null);
+                boolean shouldNotify = status != null && ACTIVE_STATUS.contains(status)
                         && rental.getEndTime() != null
                         && rental.getEndTime().isAfter(LocalDateTime.now());
                 boolean done = true;
                 if (shouldNotify) {
                     String suffix = lead != null && lead > 0
                             ? "（你设置了提前 " + describeLead(lead) + "提醒）" : "";
-                    done = messageService.notifyUserOnce(rental.getUserId(), "RENT_DUE", "租赁到期提醒",
-                            "预约单 " + rental.getOrderNo() + " 将于 "
+                    done = messageService.notifyUserOnce(rental.getUserId(), MessageType.RENT_DUE, "租赁到期提醒",
+                            "租赁单 " + rental.getOrderNo() + " 将于 "
                                     + rental.getEndTime().format(FMT) + " 到期" + suffix + "，请按时归还。",
                             "RENT_DUE:" + rentalId + ":" + lead);
                 }
@@ -247,12 +251,12 @@ public class RentalReminderService {
     public void rebuildOnStartup() {
         try {
             List<Rental> active = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
-                    .in(Rental::getStatus, ACTIVE_STATUS)
+                    .in(Rental::getStatus, ACTIVE_STATUS.stream().map(RentalStatus::code).toList())
                     .gt(Rental::getEndTime, LocalDateTime.now()));
             for (Rental rental : active) {
                 Integer lead = leadOf(rental.getId());
                 if (lead == null) {
-                    // 未设置过的历史订单按默认提前量补
+                    // 未设置过的历史租赁单按默认提前量补
                     schedule(rental, defaultRemindMinutes);
                 } else if (lead > 0 && remindAtOf(rental.getId()) == null) {
                     schedule(rental, lead);

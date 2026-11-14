@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.damage;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -13,6 +14,7 @@ public class DamageProgressDTO {
     /** WAITING_PARTS/REPAIRING/COMPLETED/FAILED */
     @NotBlank(message = "请选择维修进度")
     @Size(max = 20, message = "维修进度不能超过 20 个字符")
+    @Schema(allowableValues = {"WAITING_PARTS", "REPAIRING", "COMPLETED", "FAILED"})
     private String progressStatus;
 
     @NotBlank(message = "请填写进度说明")

@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.tool;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -12,12 +13,15 @@ public class ToolAdminQuery {
 
     private String keyword;
 
+    @Schema(allowableValues = {"WX", "YY", "QJ", "QT"})
     private String category;
 
+    @Schema(allowableValues = {"AVAILABLE", "RENTED", "MAINTENANCE", "SCRAPPED"})
     private String status;
 
     private String storageArea;
 
+    @Schema(allowableValues = {"default", "rentalCount", "lastRepairTime"})
     private String orderBy;
 
     private Integer minRentalCount;

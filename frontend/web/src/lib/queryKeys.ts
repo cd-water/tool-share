@@ -19,6 +19,7 @@ export const queryKeys = {
     list: (params: ToolQuery) => ['tools', 'list', params] as const,
     detail: (id: number | null) => ['tools', 'detail', id] as const,
     watch: (id: number | null) => ['tools', 'detail', id, 'watch'] as const,
+    history: (id: number | null) => ['tools', 'detail', id, 'history'] as const,
     availability: (id: number | null, startTime: string, endTime: string) =>
       ['tools', 'detail', id, 'availability', startTime, endTime] as const,
   },

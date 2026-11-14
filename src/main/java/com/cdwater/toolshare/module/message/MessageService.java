@@ -19,7 +19,6 @@ import com.cdwater.toolshare.module.message.MessageVO;
 import com.cdwater.toolshare.shared.web.PageVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -37,25 +36,21 @@ public class MessageService {
     private final UserNotificationPrefMapper prefMapper;
     private final SmsSender smsSender;
     private final MessageVoMapper messageVoMapper;
-
-    @Value("${toolshare.message.sms-enabled:false}")
-    private boolean smsEnabled;
-
-    @Value("${toolshare.message.default-channel:SYSTEM}")
-    private String defaultChannel = "SYSTEM";
+    private final MessageConfigService configService;
 
     /** @return 消息已写入或按偏好/去重规则无需发送；写入失败返回 false，调用方据此决定是否重试。 */
-    public boolean notifyUser(Long userId, String type, String title, String content) {
+    public boolean notifyUser(Long userId, MessageType type, String title, String content) {
         return insert("USER", userId, type, title, content, null);
     }
 
     /** @return 同上；bizKey 已存在视为成功（幂等去重）。 */
-    public boolean notifyUserOnce(Long userId, String type, String title, String content, String bizKey) {
+    public boolean notifyUserOnce(Long userId, MessageType type, String title, String content,
+                                  String bizKey) {
         return insert("USER", userId, type, title, content, bizKey);
     }
 
-    /** @return 全部管理员消息都写入成功；任一失败返回 false。 */
-    public boolean notifyAdmins(String type, String title, String content, String bizKey) {
+    /** @return 全部管理端消息都写入成功；任一失败返回 false。 */
+    public boolean notifyAdmins(MessageType type, String title, String content, String bizKey) {
         List<Admin> admins = adminMapper.selectList(
                 new LambdaQueryWrapper<Admin>().eq(Admin::getStatus, 1));
         boolean success = true;
@@ -66,11 +61,12 @@ public class MessageService {
         return success;
     }
 
-    private boolean insert(String receiverType, Long receiverId, String type,
+    private boolean insert(String receiverType, Long receiverId, MessageType messageType,
                            String title, String content, String bizKey) {
+        String type = messageType.code();
         String channel = MessageChannel.SYSTEM.code();
-        // 居民提醒先读偏好：关闭的类型不发送，渠道按偏好或默认
-        if ("USER".equals(receiverType) && !MessageType.SYSTEM.code().equals(type)) {
+        // 居民提醒先读偏好：关闭的类型不发送，渠道按偏好或数据库配置的默认渠道
+        if ("USER".equals(receiverType) && messageType != MessageType.SYSTEM) {
             UserNotificationPref pref = prefMapper.selectOne(
                     new LambdaQueryWrapper<UserNotificationPref>()
                             .eq(UserNotificationPref::getUserId, receiverId)
@@ -78,7 +74,8 @@ public class MessageService {
             if (pref != null && pref.getEnabled() != null && pref.getEnabled() == 0) {
                 return true;
             }
-            channel = MessageChannel.fromCode(pref == null ? defaultChannel : pref.getChannel())
+            channel = MessageChannel.fromCode(pref == null
+                            ? configService.defaultChannel() : pref.getChannel())
                     .orElse(MessageChannel.SYSTEM).code();
         }
 
@@ -91,7 +88,7 @@ public class MessageService {
         DeliveryStatus deliveryStatus = DeliveryStatus.DELIVERED;
         LocalDateTime sentTime = LocalDateTime.now();
         if (MessageChannel.SMS.code().equals(channel)) {
-            if (!smsEnabled) {
+            if (!configService.smsEnabled()) {
                 // 未启用短信通道时退回站内消息，保证提醒仍可触达
                 channel = MessageChannel.SYSTEM.code();
             } else {

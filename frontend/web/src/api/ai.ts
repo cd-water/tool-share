@@ -1,17 +1,10 @@
-import { toast } from '@/components/ui/toast'
-import http from '@/api/request'
+import http, { handleUnauthorized, type Result } from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
 import type {
-  AiChatResult,
   AiSource,
   ToolRecommendRequest,
   ToolRecommendResult,
 } from '@/api/types'
-
-interface ResultError {
-  code?: string
-  message?: string
-}
 
 export interface ChatStreamHandlers {
   onSources: (sources: AiSource[]) => void
@@ -21,8 +14,6 @@ export interface ChatStreamHandlers {
 }
 
 export const aiApi = {
-  chat: (question: string) => http.post<AiChatResult>('/user/ai/chat', { question }),
-
   /** AI 工具推荐：描述需求，返回匹配的可用工具 */
   recommend: (payload: ToolRecommendRequest) =>
     http.post<ToolRecommendResult>('/user/ai/tool-recommend', payload, {
@@ -64,38 +55,17 @@ export const aiApi = {
       return
     }
 
+    // 错误一律非 2xx：与统一请求层共用 envelope 解析和登录失效处理。
     if (!response.ok || !response.body) {
       let message = `请求失败（${response.status}）`
       try {
-        const data = (await response.json()) as ResultError
+        const data = (await response.json()) as Partial<Result<unknown>>
+        if (handleUnauthorized(data?.code)) return
         if (data?.message) message = data.message
-        if (data?.code === 'C401') {
-          useAuthStore.getState().clear()
-          toast.add({ title: '登录已过期，请重新登录', type: 'error' })
-          return
-        }
       } catch {
         // 非 JSON 响应（如 404 页面），保留默认文案
       }
       handlers.onError?.(message)
-      return
-    }
-
-    // 业务错误与正常接口一致：HTTP 200 + Result JSON（非 event-stream）
-    const contentType = response.headers.get('content-type') ?? ''
-    if (!contentType.includes('text/event-stream')) {
-      let data: ResultError | null = null
-      try {
-        data = (await response.json()) as ResultError
-      } catch {
-        // 无法解析时按通用错误处理
-      }
-      if (data?.code === 'C401') {
-        useAuthStore.getState().clear()
-        toast.add({ title: '登录已过期，请重新登录', type: 'error' })
-        return
-      }
-      handlers.onError?.(data?.message || '请求失败，请稍后再试。')
       return
     }
 

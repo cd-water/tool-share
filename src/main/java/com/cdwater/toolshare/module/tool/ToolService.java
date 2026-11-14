@@ -12,6 +12,7 @@ import com.cdwater.toolshare.module.review.ToolRatingStats;
 import com.cdwater.toolshare.module.review.ToolReviewMapper;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
+import com.cdwater.toolshare.shared.enums.RentalStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.html.HtmlSanitizer;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
@@ -46,8 +47,9 @@ import java.util.stream.Collectors;
 public class ToolService {
 
     private static final DateTimeFormatter SUGGEST_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
-    private static final List<String> ACTIVE_RENTAL_STATUS =
-            List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
+    private static final List<RentalStatus> ACTIVE_RENTAL_STATUS =
+            List.of(RentalStatus.PENDING_PAYMENT, RentalStatus.RESERVED,
+                    RentalStatus.PICKED_UP, RentalStatus.OVERDUE);
     private static final List<String> UNFINISHED_REPORT_STATUS =
             List.of("SUBMITTED", "VERIFIED", "REPAIRING");
     /** 按平均分倒序：无评价工具按 0 分参与排序，不会被从结果中过滤。 */
@@ -83,7 +85,7 @@ public class ToolService {
     public PageVO<ToolVO> userPage(String keyword, String category, String status,
                                    String orderBy, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
-                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code());
+                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.value());
         if (!StringUtils.hasText(status)) {
             wrapper.ne(Tool::getStatus, ToolStatus.SCRAPPED.code());
         }
@@ -166,13 +168,33 @@ public class ToolService {
         return tool;
     }
 
+    /** 用户端工具历史租赁：只返回已归还的租期窗口与次数，不暴露他人信息。 */
+    public ToolRentalHistoryVO userRentalHistory(Long toolId) {
+        getUserVO(toolId);
+        List<Rental> rentals = rentalMapper.selectList(new LambdaQueryWrapper<Rental>()
+                .eq(Rental::getToolId, toolId)
+                .eq(Rental::getStatus, RentalStatus.RETURNED.code())
+                .orderByDesc(Rental::getEndTime));
+        ToolRentalHistoryVO vo = new ToolRentalHistoryVO();
+        vo.setToolId(toolId);
+        vo.setCompletedCount((long) rentals.size());
+        vo.setWindows(rentals.stream().map(rental -> {
+            ToolRentalHistoryVO.Window window = new ToolRentalHistoryVO.Window();
+            window.setStartTime(rental.getStartTime());
+            window.setEndTime(rental.getEndTime());
+            return window;
+        }).toList());
+        return vo;
+    }
+
     @Transactional
     public ToolVO create(ToolSaveDTO dto) {
         validateDict(dto);
         Tool tool = new Tool();
         apply(tool, dto);
         tool.setCode(sequenceService.nextToolCode(dto.getCategory()));
-        tool.setAuditStatus(AuditStatus.PENDING.code());
+        tool.setAuditStatus(AuditStatus.PENDING.value());
+        tool.setVersion(0);
         tool.setRentalCount(0);
         tool.setStatus(StringUtils.hasText(dto.getStatus())
                 ? dto.getStatus() : ToolStatus.AVAILABLE.code());
@@ -216,7 +238,7 @@ public class ToolService {
         if (from == target) {
             return toVO(tool);
         }
-        tool.setAuditStatus(target.code());
+        tool.setAuditStatus(target.value());
         tool.setAuditRemark(dto.getRemark());
         tool.setReviewedBy(StpKit.ADMIN.getLoginIdAsLong());
         tool.setReviewedAt(LocalDateTime.now());
@@ -256,7 +278,10 @@ public class ToolService {
         if (target == ToolStatus.AVAILABLE) {
             tool.setLastRepairTime(LocalDateTime.now());
         }
-        toolMapper.updateById(tool);
+        // 乐观锁：版本不匹配说明期间已有其他状态变更，拒绝覆盖
+        if (toolMapper.updateById(tool) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "工具状态已被其他操作更新，请刷新后重试");
+        }
         logStructured(tool.getId(), action, from.code(), target.code(), remark);
         if (target == ToolStatus.SCRAPPED
                 || target == ToolStatus.AVAILABLE || target == ToolStatus.MAINTENANCE) {
@@ -286,7 +311,9 @@ public class ToolService {
         }
         tool.setStatus(ToolStatus.AVAILABLE.code());
         tool.setLastRepairTime(LocalDateTime.now());
-        toolMapper.updateById(tool);
+        if (toolMapper.updateById(tool) == 0) {
+            throw new BizException(ResultCode.CONFLICT, "工具状态已被其他操作更新，请刷新后重试");
+        }
         logStructured(id, "RESTORE", ToolStatus.SCRAPPED.code(), ToolStatus.AVAILABLE.code(),
                 dto.getReason().trim());
         syncIndex(tool);
@@ -314,7 +341,8 @@ public class ToolService {
     private boolean hasActiveRental(Long toolId) {
         return rentalMapper.selectCount(new LambdaQueryWrapper<Rental>()
                 .eq(Rental::getToolId, toolId)
-                .in(Rental::getStatus, ACTIVE_RENTAL_STATUS)) > 0;
+                .in(Rental::getStatus, ACTIVE_RENTAL_STATUS.stream()
+                        .map(RentalStatus::code).toList())) > 0;
     }
 
     private boolean hasUnfinishedReport(Long toolId) {
@@ -492,7 +520,7 @@ public class ToolService {
 
     private boolean isApproved(Tool tool) {
         return tool.getAuditStatus() != null
-                && tool.getAuditStatus() == AuditStatus.APPROVED.code();
+                && tool.getAuditStatus() == AuditStatus.APPROVED.value();
     }
 
     private ToolStatus parseStatus(String status) {

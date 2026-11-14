@@ -33,7 +33,7 @@ function progressBadgeClass(status?: string | null): string {
 }
 
 const damageSchema = z.object({
-  rentalId: z.string().min(1, '请选择租赁记录'),
+  rentalId: z.string().min(1, '请选择租赁单'),
   damagePart: z
     .string()
     .trim()
@@ -177,7 +177,7 @@ function ReportForm({
         />
         {errors.rentalId && <p className="err">{errors.rentalId.message}</p>}
         {rentalsLoading ? (
-          <p className="hint">正在加载租赁记录…</p>
+          <p className="hint">正在加载租赁单…</p>
         ) : inProgressRentals.length === 0 ? (
           <p className="hint">当前没有已取件或逾期的租赁，取件后即可发起报修。</p>
         ) : null}

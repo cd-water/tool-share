@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 管理员账号管理：仅系统管理员可访问。
+ * 管理端账号管理：仅系统管理员可访问。
  */
 @RestController
 @RequestMapping("/api/admin/admins")

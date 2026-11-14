@@ -4,14 +4,18 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.auth.Admin;
 import com.cdwater.toolshare.module.auth.AdminMapper;
 import com.cdwater.toolshare.module.credit.CreditService;
+import com.cdwater.toolshare.module.damage.DamageReport;
+import com.cdwater.toolshare.module.damage.DamageReportMapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
 import com.cdwater.toolshare.shared.enums.DamageResult;
 import com.cdwater.toolshare.shared.enums.DepositStatus;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import com.cdwater.toolshare.shared.enums.PaymentRecordType;
 import com.cdwater.toolshare.shared.enums.RentalFeeType;
 import com.cdwater.toolshare.shared.enums.RentalStatus;
+import com.cdwater.toolshare.shared.enums.ReportStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.security.IdCardCipher;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
@@ -43,7 +47,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -58,11 +61,13 @@ import java.util.stream.Collectors;
 public class RentalService {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final BigDecimal HOUR_FEE = new BigDecimal("5");
+    private static final List<ReportStatus> UNFINISHED_REPORT_STATUS =
+            List.of(ReportStatus.SUBMITTED, ReportStatus.VERIFIED, ReportStatus.REPAIRING);
 
     private final RentalMapper rentalMapper;
     private final RentalFeeMapper rentalFeeMapper;
     private final PaymentRecordMapper paymentRecordMapper;
+    private final DamageReportMapper damageReportMapper;
     private final ToolMapper toolMapper;
     private final UserMapper userMapper;
     private final AdminMapper adminMapper;
@@ -111,7 +116,7 @@ public class RentalService {
         if (tool == null) {
             throw new BizException(ResultCode.NOT_FOUND, "工具不存在");
         }
-        if (tool.getAuditStatus() == null || tool.getAuditStatus() != AuditStatus.APPROVED.code()) {
+        if (tool.getAuditStatus() == null || tool.getAuditStatus() != AuditStatus.APPROVED.value()) {
             throw new BizException(ResultCode.BAD_REQUEST, "工具尚未通过审核，暂不可预约");
         }
         if (!"AVAILABLE".equals(tool.getStatus())) {
@@ -158,8 +163,8 @@ public class RentalService {
         afterCommit.run(() -> {
             // 按用户选择的提前量登记到期提醒（0 = 不提醒）
             reminderService.schedule(rental, dto.getRemindBeforeMinutes());
-            messageService.notifyUser(user.getId(), "RESERVATION", "预约已创建",
-                    "预约单 " + rental.getOrderNo() + " 已创建，请在 " + pendingPaymentTimeoutMinutes
+            messageService.notifyUser(user.getId(), MessageType.RESERVATION, "预约已创建",
+                    "租赁单 " + rental.getOrderNo() + " 已创建，请在 " + pendingPaymentTimeoutMinutes
                             + " 分钟内完成押金支付。");
         });
         return toVO(rental);
@@ -179,8 +184,8 @@ public class RentalService {
         afterCommit.run(() -> {
             // 支付完成后确保提醒仍在调度中（用户可能在下单后修改过提前量）
             reminderService.schedule(rental, reminderService.leadOf(rental.getId()));
-            messageService.notifyUser(rental.getUserId(), "RESERVATION", "预约成功",
-                    "预约单 " + rental.getOrderNo() + " 押金支付成功，请按预约时间取件。");
+            messageService.notifyUser(rental.getUserId(), MessageType.RESERVATION, "预约成功",
+                    "租赁单 " + rental.getOrderNo() + " 押金支付成功，请按预约时间取件。");
         });
     }
 
@@ -198,7 +203,7 @@ public class RentalService {
     public void cancelByAdmin(Long id, String reason) {
         Rental rental = getRental(id);
         RentalStateMachine.assertTransition(statusOf(rental), RentalStatus.CANCELLED);
-        doCancel(rental, reason, "管理员取消");
+        doCancel(rental, reason, "工作人员取消");
     }
 
     private void doCancel(Rental rental, String reason, String operator) {
@@ -216,8 +221,8 @@ public class RentalService {
         }
         afterCommit.run(() -> {
             reminderService.cancel(rental.getId());
-            messageService.notifyUser(rental.getUserId(), "SYSTEM", "预约已取消",
-                    "预约单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
+            messageService.notifyUser(rental.getUserId(), MessageType.SYSTEM, "预约已取消",
+                    "租赁单 " + rental.getOrderNo() + " 已取消，押金将在 1-3 个工作日内退还。");
         });
     }
 
@@ -239,8 +244,8 @@ public class RentalService {
         }
         tool.setRentalCount((tool.getRentalCount() == null ? 0 : tool.getRentalCount()) + 1);
         toolService.transition(tool, ToolStatus.RENTED, "PICKUP", "取件后工具状态变为已租出");
-        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), "SYSTEM", "工具已取件",
-                "预约单 " + rental.getOrderNo() + " 已确认取件，请按时归还。"));
+        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), MessageType.SYSTEM, "工具已取件",
+                "租赁单 " + rental.getOrderNo() + " 已确认取件，请按时归还。"));
     }
 
     @Transactional
@@ -253,31 +258,34 @@ public class RentalService {
         if (actualReturnTime.isBefore(rental.getStartTime())) {
             throw new BizException(ResultCode.BAD_REQUEST, "实际归还时间不能早于租赁开始时间");
         }
+        boolean returnWithDamage = Boolean.TRUE.equals(dto.getReturnWithDamage());
+        if (!returnWithDamage && hasUnfinishedReport(id)) {
+            throw new BizException(ResultCode.CONFLICT,
+                    "该租赁存在未终结报修，请先完成维修，或显式选择带伤归还");
+        }
 
-        BigDecimal overdueFee = calcOverdueFee(rental, actualReturnTime);
-        BigDecimal damageFee = damageResult == DamageResult.SEVERE
-                ? severeDamageFee.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         boolean waiveOverdue = Boolean.TRUE.equals(dto.getWaiveOverdue());
         boolean waiveDamage = Boolean.TRUE.equals(dto.getWaiveDamage());
-        BigDecimal waived = BigDecimal.ZERO;
-        if (waiveOverdue || waiveDamage) {
-            if (!StringUtils.hasText(dto.getWaiverReason())) {
-                throw new BizException(ResultCode.BAD_REQUEST, "减免必须填写原因");
-            }
-            if (waiveOverdue) {
-                waived = waived.add(overdueFee);
-            }
-            if (waiveDamage) {
-                waived = waived.add(damageFee);
-            }
+        if ((waiveOverdue || waiveDamage) && !StringUtils.hasText(dto.getWaiverReason())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "减免必须填写原因");
         }
-        BigDecimal netCharges = overdueFee.add(damageFee).subtract(waived);
-        BigDecimal refund = rental.getDepositAmount().subtract(netCharges).max(BigDecimal.ZERO);
-        BigDecimal receivable = netCharges.subtract(rental.getDepositAmount()).max(BigDecimal.ZERO);
+        SettlementCalculator.Settlement settlement = SettlementCalculator.calculate(
+                rental, actualReturnTime, damageResult == DamageResult.SEVERE, severeDamageFee,
+                waiveOverdue, waiveDamage);
+        BigDecimal overdueFee = settlement.overdueFee();
+        BigDecimal damageFee = settlement.damageFee();
+        BigDecimal waived = settlement.waived();
+        BigDecimal refund = settlement.refund();
+        BigDecimal receivable = settlement.receivable();
 
         String operator = operatorName(rental);
+        String returnRemark = dto.getRemark();
+        if (returnWithDamage) {
+            returnRemark = StringUtils.hasText(returnRemark) ? returnRemark.trim()
+                    : "存在未终结报修，带伤归还";
+        }
         if (rentalMapper.returnRental(id, actualReturnTime, overdueFee, damageFee, refund,
-                damageResult.code(), dto.getRemark(), operator) == 0) {
+                damageResult.code(), returnRemark, operator) == 0) {
             throw new BizException(ResultCode.CONFLICT, "当前状态不可归还");
         }
 
@@ -313,7 +321,14 @@ public class RentalService {
         afterCommit.run(() -> reminderService.cancel(rental.getId()));
 
         Tool tool = toolService.getTool(rental.getToolId());
-        if (damageResult == DamageResult.SEVERE) {
+        if (returnWithDamage) {
+            // 带伤归还：报修尚未终结，工具保持维修中，原因写入返回备注与状态日志
+            if (damageResult == DamageResult.SEVERE) {
+                tool.setDamageLevel("SEVERE");
+            }
+            toolService.transition(tool, ToolStatus.MAINTENANCE, "RETURN",
+                    "带伤归还，工具保持维修中：" + returnRemark);
+        } else if (damageResult == DamageResult.SEVERE) {
             tool.setDamageLevel("SEVERE");
             toolService.transition(tool, ToolStatus.MAINTENANCE, "RETURN",
                     "归还验收为严重损坏，工具转维修中");
@@ -325,23 +340,19 @@ public class RentalService {
                     "归还验收完成，工具恢复可用");
         }
         BigDecimal waivedFinal = waived;
-        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), "SYSTEM", "归还验收完成",
-                "预约单 " + rental.getOrderNo() + " 已归还，逾期费 " + overdueFee
+        afterCommit.run(() -> messageService.notifyUser(rental.getUserId(), MessageType.SYSTEM, "归还验收完成",
+                "租赁单 " + rental.getOrderNo() + " 已归还，逾期费 " + overdueFee
                         + " 元，损坏赔偿 " + damageFee + " 元，减免 " + waivedFinal
                         + " 元，退还押金 " + refund + " 元"
-                        + (receivable.signum() > 0 ? "，另有应收 " + receivable + " 元。" : "。")));
+                        + (receivable.signum() > 0 ? "，另有应收 " + receivable + " 元。" : "。")
+                        + (returnWithDamage ? " 工具存在未终结报修，暂保持维修中。" : "")));
     }
 
-    /** 逾期费按实际归还时间计算：超过结束时间的小时数向上取整，每小时 5 元，封顶押金。 */
-    private BigDecimal calcOverdueFee(Rental rental, LocalDateTime actualReturnTime) {
-        if (!actualReturnTime.isAfter(rental.getEndTime())) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-        long seconds = Duration.between(rental.getEndTime(), actualReturnTime).getSeconds();
-        long hours = Math.max(1, (seconds + 3599) / 3600);
-        return HOUR_FEE.multiply(BigDecimal.valueOf(hours))
-                .min(rental.getDepositAmount())
-                .setScale(2, RoundingMode.HALF_UP);
+    private boolean hasUnfinishedReport(Long rentalId) {
+        return damageReportMapper.selectCount(new LambdaQueryWrapper<DamageReport>()
+                .eq(DamageReport::getRentalId, rentalId)
+                .in(DamageReport::getStatus, UNFINISHED_REPORT_STATUS.stream()
+                        .map(ReportStatus::code).toList())) > 0;
     }
 
     private void recordFee(Long rentalId, RentalFeeType feeType, BigDecimal amount,
@@ -376,10 +387,15 @@ public class RentalService {
         return rental.getRenterName();
     }
 
-    public PageVO<RentalVO> userPage(String status, long page, long size) {
+    public PageVO<RentalVO> userPage(String keyword, String status, long page, long size) {
         ensureOverdueFresh();
         LambdaQueryWrapper<Rental> wrapper = new LambdaQueryWrapper<Rental>()
                 .eq(Rental::getUserId, StpKit.USER.getLoginIdAsLong());
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like(Rental::getOrderNo, keyword)
+                    .or().like(Rental::getToolName, keyword)
+                    .or().like(Rental::getToolCode, keyword));
+        }
         if (StringUtils.hasText(status)) {
             wrapper.eq(Rental::getStatus, status);
         }
@@ -456,17 +472,17 @@ public class RentalService {
     }
 
     public RentalVO userDetail(Long id) {
-        return toVO(getUserRental(id));
+        return toDetailVO(getUserRental(id));
     }
 
     public RentalVO adminDetail(Long id) {
-        return toVO(getRental(id));
+        return toDetailVO(getRental(id));
     }
 
     public Rental getRental(Long id) {
         Rental rental = rentalMapper.selectById(id);
         if (rental == null) {
-            throw new BizException(ResultCode.NOT_FOUND, "租赁记录不存在");
+            throw new BizException(ResultCode.NOT_FOUND, "租赁单不存在");
         }
         return rental;
     }
@@ -474,7 +490,7 @@ public class RentalService {
     private Rental getUserRental(Long id) {
         Rental rental = getRental(id);
         if (!rental.getUserId().equals(StpKit.USER.getLoginIdAsLong())) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权查看该租赁记录");
+            throw new BizException(ResultCode.FORBIDDEN, "无权查看该租赁单");
         }
         return rental;
     }
@@ -525,8 +541,8 @@ public class RentalService {
             if (rentalMapper.markOverdue(rental.getId()) == 0) {
                 continue;
             }
-            messageService.notifyUserOnce(rental.getUserId(), "OVERDUE", "租赁已逾期",
-                    "预约单 " + rental.getOrderNo() + " 已逾期，逾期费按每小时 5 元计算，最高不超过押金。",
+            messageService.notifyUserOnce(rental.getUserId(), MessageType.OVERDUE, "租赁已逾期",
+                    "租赁单 " + rental.getOrderNo() + " 已逾期，逾期费按每小时 5 元计算，最高不超过押金。",
                     "OVERDUE:" + rental.getId());
         }
     }
@@ -539,8 +555,8 @@ public class RentalService {
                 continue;
             }
             reminderService.cancel(rental.getId());
-            messageService.notifyUserOnce(rental.getUserId(), "SYSTEM", "预约已取消",
-                    "预约单 " + rental.getOrderNo() + " 超过支付时限，已自动取消并释放档期。",
+            messageService.notifyUserOnce(rental.getUserId(), MessageType.SYSTEM, "预约已取消",
+                    "租赁单 " + rental.getOrderNo() + " 超过支付时限，已自动取消并释放档期。",
                     "PENDING_EXPIRE:" + rental.getId());
         }
     }
@@ -565,6 +581,46 @@ public class RentalService {
         vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
         vo.setRemindBeforeMinutes(reminderService.leadOf(rental.getId()));
         vo.setRemindAt(reminderService.remindAtOf(rental.getId()));
+        return vo;
+    }
+
+    /** 详情附带费用与支付流水：资金事实以流水为准，单行金额只作展示快照。 */
+    private RentalVO toDetailVO(Rental rental) {
+        RentalVO vo = toVO(rental);
+        vo.setFees(rentalFeeMapper.selectList(new LambdaQueryWrapper<RentalFee>()
+                        .eq(RentalFee::getRentalId, rental.getId())
+                        .orderByAsc(RentalFee::getCreateTime))
+                .stream().map(this::toFeeVO).toList());
+        vo.setPayments(paymentRecordMapper.selectList(new LambdaQueryWrapper<PaymentRecord>()
+                        .eq(PaymentRecord::getRentalId, rental.getId())
+                        .orderByAsc(PaymentRecord::getCreateTime))
+                .stream().map(this::toPaymentVO).toList());
+        return vo;
+    }
+
+    private RentalFeeVO toFeeVO(RentalFee fee) {
+        RentalFeeVO vo = new RentalFeeVO();
+        vo.setId(fee.getId());
+        vo.setFeeType(fee.getFeeType());
+        vo.setFeeTypeName(RentalFeeType.fromCode(fee.getFeeType())
+                .map(RentalFeeType::label).orElse(fee.getFeeType()));
+        vo.setAmount(fee.getAmount());
+        vo.setReason(fee.getReason());
+        vo.setOperatorName(fee.getOperatorName());
+        vo.setCreateTime(fee.getCreateTime());
+        return vo;
+    }
+
+    private PaymentRecordVO toPaymentVO(PaymentRecord record) {
+        PaymentRecordVO vo = new PaymentRecordVO();
+        vo.setId(record.getId());
+        vo.setRecordType(record.getRecordType());
+        vo.setRecordTypeName(PaymentRecordType.fromCode(record.getRecordType())
+                .map(PaymentRecordType::label).orElse(record.getRecordType()));
+        vo.setAmount(record.getAmount());
+        vo.setOperatorName(record.getOperatorName());
+        vo.setRemark(record.getRemark());
+        vo.setCreateTime(record.getCreateTime());
         return vo;
     }
 

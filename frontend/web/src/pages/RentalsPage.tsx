@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   RotateCcw,
+  Search,
   UserRound,
   Wrench,
   XCircle,
@@ -130,6 +131,52 @@ function RentalDetail({ rental }: { rental: Rental }) {
         </>
       )}
 
+      {(rental.fees ?? []).length > 0 && (
+        <>
+          <div className="sec-label">费用明细</div>
+          <ul className="act-list">
+            {(rental.fees ?? []).map((fee) => (
+              <li key={fee.id}>
+                <span className="act-dot" style={{ background: 'var(--warn)' }}></span>
+                <div>
+                  <b>
+                    {fee.feeTypeName || fee.feeType}
+                    <span style={{ marginLeft: 6 }}>{formatMoney(fee.amount)}</span>
+                  </b>
+                  <span className="tiny">
+                    {formatDateTime(fee.createTime)}
+                    {fee.reason ? ` · ${fee.reason}` : ''}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {(rental.payments ?? []).length > 0 && (
+        <>
+          <div className="sec-label">支付与退款流水</div>
+          <ul className="act-list">
+            {(rental.payments ?? []).map((payment) => (
+              <li key={payment.id}>
+                <span className="act-dot" style={{ background: 'var(--info)' }}></span>
+                <div>
+                  <b>
+                    {payment.recordTypeName || payment.recordType}
+                    <span style={{ marginLeft: 6 }}>{formatMoney(payment.amount)}</span>
+                  </b>
+                  <span className="tiny">
+                    {formatDateTime(payment.createTime)}
+                    {payment.remark ? ` · ${payment.remark}` : ''}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <div className="sec-label">流转记录</div>
       <ul className="timeline">
         {timeline.map((item, index) => (
@@ -150,6 +197,8 @@ export default function RentalsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'' | RentalStatus>('')
+  const [keyword, setKeyword] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Rental | null>(null)
@@ -157,7 +206,12 @@ export default function RentalsPage() {
   const [payTarget, setPayTarget] = useState<Rental | null>(null)
   const [payMethod, setPayMethod] = useState('wechat')
 
-  const rentalParams = { page, size: PAGE_SIZE, status: status || undefined }
+  const rentalParams = {
+    page,
+    size: PAGE_SIZE,
+    keyword: appliedKeyword || undefined,
+    status: status || undefined,
+  }
   const rentalsQuery = useQuery({
     queryKey: queryKeys.rentals.list(rentalParams),
     queryFn: () => rentalsApi.list(rentalParams),
@@ -250,6 +304,31 @@ export default function RentalsPage() {
           </button>
         </div>
       </div>
+
+      <form
+        className="filterbar reveal"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setAppliedKeyword(keyword.trim())
+          setPage(1)
+        }}
+      >
+        <div className="f-search">
+          <Search className="ic" />
+          <input
+            className="input"
+            value={keyword}
+            onChange={(event) => {
+              setKeyword(event.target.value)
+              setAppliedKeyword(event.target.value.trim())
+              setPage(1)
+            }}
+            placeholder="搜索租赁单号 / 工具名称 / 编码…"
+          />
+        </div>
+        <span className="grow"></span>
+        <span className="tiny">{total} 条租赁单</span>
+      </form>
 
       <div className="tabs reveal" style={{ marginBottom: 18 }}>
         {STATUS_TABS.map((tab) => (

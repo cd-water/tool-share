@@ -144,7 +144,8 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         rentalMapper.updateById(toReturn);
         assertEquals("A200", post("/api/admin/rentals/" + rentalId + "/return", adminToken,
                 Map.of("actualReturnTime", LocalDateTime.now().withNano(0).format(FORMAT),
-                        "damageResult", "SEVERE", "remark", "带伤归还")).get("code").asString());
+                        "damageResult", "SEVERE", "returnWithDamage", true,
+                        "remark", "带伤归还")).get("code").asString());
         JsonNode returned = get("/api/user/rentals/" + rentalId, userToken).get("data");
         assertEquals("RETURNED", returned.get("status").asString());
         assertEquals("REFUNDED", returned.get("depositStatus").asString());

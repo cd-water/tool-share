@@ -39,7 +39,7 @@ public class DashboardService {
         vo.setAvailableToolCount(toolMapper.selectCount(
                 new LambdaQueryWrapper<Tool>()
                         .eq(Tool::getStatus, ToolStatus.AVAILABLE.code())
-                        .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code())));
+                        .eq(Tool::getAuditStatus, AuditStatus.APPROVED.value())));
         vo.setPendingPaymentCount(rentalMapper.selectCount(
                 new LambdaQueryWrapper<Rental>()
                         .eq(Rental::getUserId, userId)
@@ -62,7 +62,7 @@ public class DashboardService {
         vo.setAvailableToolCount(toolMapper.selectCount(
                 new LambdaQueryWrapper<Tool>()
                         .eq(Tool::getStatus, ToolStatus.AVAILABLE.code())
-                        .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code())));
+                        .eq(Tool::getAuditStatus, AuditStatus.APPROVED.value())));
         vo.setRentedToolCount(toolMapper.selectCount(
                 new LambdaQueryWrapper<Tool>().eq(Tool::getStatus, ToolStatus.RENTED.code())));
         vo.setMaintenanceToolCount(toolMapper.selectCount(
@@ -75,8 +75,12 @@ public class DashboardService {
                                 RentalStatus.RESERVED.code(),
                                 RentalStatus.PICKED_UP.code(),
                                 RentalStatus.OVERDUE.code()))));
-        vo.setOverdueRentalCount(rentalMapper.selectCount(
-                new LambdaQueryWrapper<Rental>().eq(Rental::getStatus, RentalStatus.OVERDUE.code())));
+        // 逾期按当前时间动态计算，不依赖定时物化，避免统计滞后
+        LocalDateTime now = LocalDateTime.now();
+        vo.setOverdueRentalCount(rentalMapper.selectCount(new LambdaQueryWrapper<Rental>()
+                .and(w -> w.eq(Rental::getStatus, RentalStatus.OVERDUE.code())
+                        .or(x -> x.eq(Rental::getStatus, RentalStatus.PICKED_UP.code())
+                                .lt(Rental::getEndTime, now)))));
         // 待处理报修 = 尚未完结的报修，与报修状态机的活动状态一致。
         vo.setPendingDamageCount(damageReportMapper.selectCount(
                 new LambdaQueryWrapper<DamageReport>()

@@ -1,6 +1,7 @@
 package com.cdwater.toolshare.module.tool;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.shared.ai.TextChunker;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
 import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.web.Dict;
@@ -18,12 +19,10 @@ import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -37,9 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ToolIndexService {
 
-    private static final int CHUNK_SIZE = 700;
-    private static final int CHUNK_OVERLAP = 80;
-    private static final int MAX_CHUNKS = 20;
+    private static final TextChunker CHUNKER = new TextChunker("tool", 700, 80, 20);
 
     private final ToolMapper toolMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
@@ -95,7 +92,7 @@ public class ToolIndexService {
             boolean indexable = tool != null
                     && !ToolStatus.SCRAPPED.code().equals(tool.getStatus())
                     && tool.getAuditStatus() != null
-                    && tool.getAuditStatus() == AuditStatus.APPROVED.code();
+                    && tool.getAuditStatus() == AuditStatus.APPROVED.value();
             if (indexable) {
                 upsert(tool);
             } else {
@@ -119,7 +116,7 @@ public class ToolIndexService {
         }
         List<Tool> tools = toolMapper.selectList(new LambdaQueryWrapper<Tool>()
                 .ne(Tool::getStatus, ToolStatus.SCRAPPED.code())
-                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code()));
+                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.value()));
         for (Tool tool : tools) {
             upsert(tool);
         }
@@ -143,10 +140,10 @@ public class ToolIndexService {
                 nullToEmpty(tool.getStorageArea()),
                 Dict.label(Dict.DAMAGE_LEVEL, tool.getDamageLevel()),
                 plainText(tool.getUsageGuide()));
-        List<String> chunks = chunkTexts(text);
+        List<String> chunks = CHUNKER.split(text);
         List<Document> docs = new ArrayList<>(chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
-            docs.add(new Document(documentId(tool.getId(), i), chunks.get(i), Map.of(
+            docs.add(new Document(CHUNKER.documentId(tool.getId(), i), chunks.get(i), Map.of(
                     "kind", "tool",
                     "toolId", tool.getId(),
                     "name", nullToEmpty(tool.getName()),
@@ -184,38 +181,8 @@ public class ToolIndexService {
         return value.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
     }
 
-    private List<String> chunkTexts(String content) {
-        if (!StringUtils.hasText(content)) {
-            return List.of();
-        }
-        String normalized = content.replace("\r\n", "\n").trim();
-        List<String> texts = new ArrayList<>();
-        int start = 0;
-        while (start < normalized.length() && texts.size() < MAX_CHUNKS) {
-            int end = Math.min(normalized.length(), start + CHUNK_SIZE);
-            String chunk = normalized.substring(start, end);
-            if (StringUtils.hasText(chunk)) {
-                texts.add(chunk);
-            }
-            if (end >= normalized.length()) {
-                break;
-            }
-            start = Math.max(end - CHUNK_OVERLAP, start + 1);
-        }
-        return texts;
-    }
-
     private List<String> chunkIds(Long toolId) {
-        List<String> ids = new ArrayList<>(MAX_CHUNKS);
-        for (int i = 0; i < MAX_CHUNKS; i++) {
-            ids.add(documentId(toolId, i));
-        }
-        return ids;
-    }
-
-    private String documentId(Long toolId, int chunk) {
-        return UUID.nameUUIDFromBytes(("tool-" + toolId + "-" + chunk).getBytes(StandardCharsets.UTF_8))
-                .toString();
+        return CHUNKER.chunkIds(toolId);
     }
 
     private String nullToEmpty(String value) {

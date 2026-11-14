@@ -45,5 +45,13 @@ run_in "用户端构建" frontend/web pnpm build
 run_in "管理端依赖安装" frontend/admin pnpm install --frozen-lockfile
 run_in "管理端构建" frontend/admin pnpm build
 
+# 5. 主流程 E2E（启动后端与两个前端 dev server，串行执行三条流程）
+if [[ "${SKIP_E2E:-0}" == "1" ]]; then
+  echo ""
+  echo "▶ 主流程 E2E（SKIP_E2E=1，已跳过）"
+else
+  run "主流程 E2E" bash ops/e2e.sh
+fi
+
 echo ""
 echo "✓ 验证通过"

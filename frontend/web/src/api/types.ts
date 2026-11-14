@@ -5,42 +5,27 @@ type Schemas = components['schemas']
 /** 契约中 VO 字段均为可选；后端实际会返回全部字段，这里恢复为必填。 */
 type Api<Name extends keyof Schemas> = Required<Schemas[Name]>
 
-/** 在契约类型上收窄前端已知的枚举字段，其余字段仍由契约维护。 */
+/** 在契约类型上收窄前端已知的可空字段，其余字段仍由契约维护。 */
 type With<Name extends keyof Schemas, Overrides> = Omit<Api<Name>, keyof Overrides> & Overrides
 
-// ---- 业务枚举：前端唯一来源（OpenAPI 中这些字段以 string 暴露） ----
+/** 从契约枚举字段派生业务枚举，避免三端漂移。 */
+type SchemaEnum<Name extends keyof Schemas, Key extends keyof Schemas[Name]> = NonNullable<
+  Schemas[Name][Key]
+>
 
-export type ToolCategory = 'WX' | 'YY' | 'QJ' | 'QT'
-export type ToolStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'SCRAPPED'
-export type DamageLevel = 'NEW' | 'LIGHT' | 'MEDIUM' | 'SEVERE'
-export type RentalStatus =
-  | 'PENDING_PAYMENT'
-  | 'RESERVED'
-  | 'PICKED_UP'
-  | 'RETURNED'
-  | 'CANCELLED'
-  | 'OVERDUE'
-export type DepositStatus = 'UNPAID' | 'PAID' | 'REFUNDED'
-export type DamageResult = 'INTACT' | 'MINOR' | 'SEVERE'
-export type DamageReportStatus =
-  | 'SUBMITTED'
-  | 'VERIFIED'
-  | 'REJECTED'
-  | 'REPAIRING'
-  | 'COMPLETED'
-  | 'SCRAPPED'
-export type ProgressStatus = 'WAITING_PARTS' | 'REPAIRING' | 'COMPLETED' | 'FAILED'
-export type AcceptResult = 'QUALIFIED' | 'UNQUALIFIED' | 'PARTIAL'
-export type MessageType =
-  | 'RESERVATION'
-  | 'PICKUP'
-  | 'RENT_DUE'
-  | 'OVERDUE'
-  | 'REPAIR'
-  | 'TOOL_AVAILABLE'
-  | 'SYSTEM'
-export type MessageChannel = 'SYSTEM' | 'SMS'
-export type DeliveryStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED'
+// ---- 业务枚举：统一从 OpenAPI 契约派生 ----
+
+export type ToolCategory = SchemaEnum<'ToolVO', 'category'>
+export type ToolStatus = SchemaEnum<'ToolVO', 'status'>
+export type DamageLevel = SchemaEnum<'ToolVO', 'damageLevel'>
+export type RentalStatus = SchemaEnum<'RentalVO', 'status'>
+export type DamageResult = SchemaEnum<'RentalVO', 'damageResult'>
+export type DamageReportStatus = SchemaEnum<'DamageReportVO', 'status'>
+export type ProgressStatus = SchemaEnum<'DamageReportVO', 'progressStatus'>
+export type AcceptResult = SchemaEnum<'DamageReportVO', 'acceptResult'>
+export type MessageType = SchemaEnum<'MessageVO', 'type'>
+export type MessageChannel = SchemaEnum<'MessageVO', 'channel'>
+export type DeliveryStatus = SchemaEnum<'MessageVO', 'deliveryStatus'>
 
 // ---- 分页：统一请求参数与响应结构 ----
 
@@ -58,18 +43,18 @@ export type PageResult<T> = Omit<PageSchema, 'records'> & { records: T[] }
 export type Tool = With<
   'ToolVO',
   {
-    category: ToolCategory
-    status: ToolStatus
-    damageLevel: DamageLevel
     lastRepairTime: string | null
   }
 >
 
+export type RentalFee = Api<'RentalFeeVO'>
+export type PaymentRecord = Api<'PaymentRecordVO'>
+
 export type Rental = With<
   'RentalVO',
   {
-    status: RentalStatus
-    depositStatus: DepositStatus
+    fees: RentalFee[]
+    payments: PaymentRecord[]
     actualReturnTime: string | null
     overdueFee: number | null
     damageFee: number | null
@@ -87,10 +72,9 @@ export type Rental = With<
 export type DamageReport = With<
   'DamageReportVO',
   {
-    status: DamageReportStatus
     verifier: string | null
     verifyTime: string | null
-    verifyResult: string | null
+    verifyResult: SchemaEnum<'DamageReportVO', 'verifyResult'> | null
     repairPerson: string | null
     repairEstimate: string | null
     repairStartTime: string | null
@@ -103,32 +87,16 @@ export type DamageReport = With<
     acceptTime: string | null
     acceptResult: AcceptResult | null
     acceptResultName: string | null
-    toolStatusAfter: string | null
+    toolStatusAfter: SchemaEnum<'DamageReportVO', 'toolStatusAfter'> | null
     remark: string | null
   }
 >
 
-export type Message = With<
-  'MessageVO',
-  {
-    type: MessageType
-    channel: MessageChannel
-    deliveryStatus: DeliveryStatus
-  }
->
+export type Message = Api<'MessageVO'>
 
-export type NotificationPref = With<
-  'NotificationPrefVO',
-  {
-    type: MessageType
-    channel: MessageChannel
-  }
->
+export type NotificationPref = Api<'NotificationPrefVO'>
 
-export type NotificationPrefUpdatePayload = {
-  enabled: boolean
-  channel: MessageChannel
-}
+export type NotificationPrefUpdatePayload = Schemas['NotificationPrefUpdateDTO']
 
 export type Review = Api<'ReviewVO'>
 export type ReviewCreatePayload = Schemas['ReviewCreateDTO']
@@ -142,21 +110,26 @@ export type LoginResult = Api<'LoginVO'>
 export type UploadResult = Api<'FileVO'>
 
 export type AiSource = Api<'SourceVO'>
-export type AiChatResult = With<'AiChatVO', { sources: AiSource[] }>
 
-export type ToolRecommendRequest = Schemas['ToolRecommendDTO'] & { category?: ToolCategory }
-/** 契约暂未包含评分字段；后端返回时展示，未返回则忽略。 */
-export type ToolRecommendItem = Api<'Item'> & {
-  ratingAvg?: number | null
-  reviewCount?: number | null
-}
+export type ToolRecommendRequest = Schemas['ToolRecommendDTO']
+export type ToolRecommendItem = Api<'Item'>
 export type ToolRecommendResult = With<
   'ToolRecommendVO',
   { recommendationId: number | null; items: ToolRecommendItem[] }
 >
 
-export type ToolWatchItem = With<'ToolWatchVO', { status: ToolStatus }>
 export type AvailabilityResult = Api<'AvailabilityVO'>
+
+export interface ToolRentalHistoryWindow {
+  startTime: string
+  endTime: string
+}
+
+export interface ToolRentalHistory {
+  toolId: number
+  completedCount: number
+  windows: ToolRentalHistoryWindow[]
+}
 
 export type RentalCreatePayload = Schemas['RentalCreateDTO']
 export type DamageReportCreatePayload = Schemas['DamageCreateDTO']

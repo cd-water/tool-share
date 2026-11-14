@@ -41,6 +41,12 @@ public class UserToolController {
         return Result.success(toolService.getUserVO(id));
     }
 
+    /** 历史租赁：只返回已完成租期窗口与次数，不暴露其他居民信息。 */
+    @GetMapping("/{id}/history")
+    public Result<ToolRentalHistoryVO> history(@PathVariable Long id) {
+        return Result.success(toolService.userRentalHistory(id));
+    }
+
     @GetMapping("/{id}/availability")
     public Result<AvailabilityVO> availability(
             @PathVariable Long id,

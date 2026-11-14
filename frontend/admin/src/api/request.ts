@@ -3,7 +3,6 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 
-const SUCCESS_CODE = 'A200'
 const UNAUTHORIZED_CODE = 'C401'
 
 interface Result<T> {
@@ -74,21 +73,12 @@ instance.interceptors.request.use((config) => {
 })
 
 instance.interceptors.response.use(
-  async (resp): Promise<any> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (resp): any => {
     if (resp.config.responseType === 'blob') {
-      // 正常下载返回 Blob；HTTP 200 但实际是 JSON 错误体时按业务错误处理
-      const body = await parseErrorBody(resp.data, String(resp.headers?.['content-type'] ?? ''))
-      if (body && body.code !== SUCCESS_CODE) {
-        return Promise.reject(handleBusinessError(body))
-      }
       return resp.data
     }
-    const body = resp.data as Result<unknown>
-    if (body.code === SUCCESS_CODE) {
-      return body.data
-    }
-    // 兼容旧行为：HTTP 200 + 业务错误 code
-    return Promise.reject(handleBusinessError(body))
+    return (resp.data as Result<unknown>).data
   },
   // 语义化状态码：从 error.response.data 解出 envelope，没有 envelope 才是网络异常
   async (error) => {

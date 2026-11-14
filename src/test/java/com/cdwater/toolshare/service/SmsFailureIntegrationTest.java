@@ -9,6 +9,7 @@ import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.message.SmsSender;
 import com.cdwater.toolshare.module.message.UserNotificationPref;
 import com.cdwater.toolshare.module.message.UserNotificationPrefMapper;
+import com.cdwater.toolshare.shared.enums.MessageType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class SmsFailureIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void sms_failure_marks_message_failed() {
-        messageService.notifyUserOnce(1L, "RENT_DUE", TITLE_PREFIX + "TITLE",
+        messageService.notifyUserOnce(1L, MessageType.RENT_DUE, TITLE_PREFIX + "TITLE",
                 "发送失败的内容", KEY);
 
         Message message = messageMapper.selectOne(new LambdaQueryWrapper<Message>()
