@@ -102,7 +102,7 @@ onMounted(loadList)
       </div>
     </div>
 
-    <div class="kb-stats reveal" style="grid-template-columns: repeat(3, 1fr)">
+    <div class="kb-stats reveal" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))">
       <div class="kb-stat" v-for="item in stats" :key="item.label">
         <span class="ks-ic" :class="item.tone">
           <User class="ic" />

@@ -357,10 +357,10 @@ export default function ProfilePage() {
             <p className="sub">维护昵称、头像、真实姓名与身份证信息。</p>
           </div>
         </div>
-        <div className="card" style={{ padding: 26, marginBottom: 18 }}>
+        <div className="card profile-loading">
           <div className="skel" style={{ width: 88, height: 88, borderRadius: '50%' }} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 18 }}>
+        <div className="profile-grid">
           <div className="panel">
             <div className="skel" style={{ height: 320 }} />
           </div>
@@ -428,7 +428,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="profile-grid">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="profile-side">
           <div className="panel reveal">
             <h3 className="panel-title">基本资料</h3>
             <form onSubmit={handleSubmit((values) => updateMutation.mutate(values))} noValidate>

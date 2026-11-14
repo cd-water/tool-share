@@ -444,39 +444,39 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.dash-welcome{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:20px}
-.dash-welcome h1{font-size:var(--t-3xl);font-weight:800;letter-spacing:-.02em;margin:0 0 5px}
+.dash-welcome{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap;margin-bottom:var(--sp-5)}
+.dash-welcome h1{font-size:var(--t-3xl);font-weight:800;letter-spacing:-.02em;margin:0 0 var(--sp-1)}
 .dash-welcome .sub{font-size:var(--t-sm);color:var(--ink-2);margin:0}
-.dash-quick{display:flex;gap:9px;flex-wrap:wrap}
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
-.kpi{padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.dash-quick{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-4);margin-bottom:var(--sp-4)}
+.kpi{padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow);position:relative;overflow:hidden}
 .kpi .k-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .kpi .k-label{font-size:var(--t-xs);color:var(--ink-2);font-weight:600}
 .kpi .k-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center}
 .kpi .k-val{display:block;font-size:var(--t-4xl);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-.kpi .k-foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:var(--t-2xs);color:var(--ink-3)}
-.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.kpi .k-foot{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-2);font-size:var(--t-2xs);color:var(--ink-3)}
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-4)}
 .b-trend{grid-column:span 2}
 .b-status{grid-column:span 1}
 .b-todo{grid-column:span 1}
 .b-cat{grid-column:span 2}
 .b-feed{grid-column:span 2}
-.todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-.todo li{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);transition:all var(--fast);cursor:pointer}
+.todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-2)}
+.todo li{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border-radius:10px;background:var(--surface-2);border:1px solid var(--line);transition:all var(--fast);cursor:pointer}
 .todo li:hover{border-color:var(--line-2);transform:translateX(3px)}
 .todo .t-ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none}
 .todo b{font-size:var(--t-sm);font-weight:600;display:block;line-height:1.3}
 .todo span{font-size:var(--t-2xs);color:var(--ink-3)}
 .todo .t-go{margin-left:auto;color:var(--ink-3)}
 .feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
-.feed li{display:flex;gap:13px;padding:11px 0;border-bottom:1px solid var(--line)}
+.feed li{display:flex;gap:var(--sp-3);padding:var(--sp-3) 0;border-bottom:1px solid var(--line)}
 .feed li:last-child{border-bottom:none}
 .feed .f-dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;box-shadow:0 0 0 3px var(--surface-2)}
 .feed b{font-size:var(--t-sm);font-weight:600;display:block}
 .feed span{font-size:var(--t-2xs);color:var(--ink-3)}
 .feed .f-time{margin-left:auto;font-size:var(--t-2xs);color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
-.mini-stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
-.mini{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);font-size:var(--t-sm)}
+.mini-stats{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin-top:var(--sp-4)}
+.mini{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4);background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);font-size:var(--t-sm)}
 .mini b{font-weight:800;font-variant-numeric:tabular-nums;font-size:var(--t-lg)}
 .mini span{color:var(--ink-2);font-size:var(--t-xs)}
 .mini .m-dot{width:8px;height:8px;border-radius:50%}
