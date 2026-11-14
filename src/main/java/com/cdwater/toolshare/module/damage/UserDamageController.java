@@ -24,9 +24,11 @@ public class UserDamageController {
 
     @GetMapping
     public Result<PageVO<DamageReportVO>> list(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size) {
-        return Result.success(damageService.userPage(page, size));
+        return Result.success(damageService.userPage(keyword, status, page, size));
     }
 
     @GetMapping("/{id}")

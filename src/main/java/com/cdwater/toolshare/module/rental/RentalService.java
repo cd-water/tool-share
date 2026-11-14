@@ -376,7 +376,19 @@ public class RentalService {
                                       String damageResult, long page, long size) {
         ensureOverdueFresh();
         Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
-                adminWrapper(keyword, status, overdue, damageResult)
+                adminWrapper(keyword, status, overdue, damageResult, null)
+                        .orderByDesc(Rental::getCreateTime));
+        return pageOf(result);
+    }
+
+    /** 管理端工具历史租赁：按工具分页，复用同一套批量映射。 */
+    public PageVO<RentalVO> toolRentalPage(Long toolId, long page, long size) {
+        if (toolMapper.selectById(toolId) == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "工具不存在");
+        }
+        ensureOverdueFresh();
+        Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
+                adminWrapper(null, null, null, null, toolId)
                         .orderByDesc(Rental::getCreateTime));
         return pageOf(result);
     }
@@ -390,8 +402,11 @@ public class RentalService {
      * </ul>
      */
     private LambdaQueryWrapper<Rental> adminWrapper(String keyword, String status, String overdue,
-                                                    String damageResult) {
+                                                    String damageResult, Long toolId) {
         LambdaQueryWrapper<Rental> wrapper = new LambdaQueryWrapper<>();
+        if (toolId != null) {
+            wrapper.eq(Rental::getToolId, toolId);
+        }
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w.like(Rental::getOrderNo, keyword)
                     .or().like(Rental::getToolCode, keyword)
@@ -452,7 +467,7 @@ public class RentalService {
     public List<RentalExportRow> exportRows(String keyword, String status, String overdue,
                                             String damageResult) {
         List<Rental> rentals = rentalMapper.selectList(
-                adminWrapper(keyword, status, overdue, damageResult)
+                adminWrapper(keyword, status, overdue, damageResult, null)
                         .orderByDesc(Rental::getCreateTime));
         return rentals.stream().map(this::toExportRow).toList();
     }

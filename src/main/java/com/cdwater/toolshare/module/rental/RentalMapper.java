@@ -13,6 +13,10 @@ import java.util.List;
 @Mapper
 public interface RentalMapper extends BaseMapper<Rental> {
 
+    /** 报修创建/核验前锁定租赁行，避免并发重复报修或与归还竞态。 */
+    @Select("SELECT * FROM t_rental WHERE id = #{id} FOR UPDATE")
+    Rental selectByIdForUpdate(@Param("id") Long id);
+
     /**
      * 冲突查询：已生效的租赁 + 未过期的待支付租赁都占用档期。
      * 已超时但尚未被调度任务取消的待支付单不占用。

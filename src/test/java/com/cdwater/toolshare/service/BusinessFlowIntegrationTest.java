@@ -150,6 +150,10 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         assertEquals("REFUNDED", returned.get("depositStatus").asString());
         assertEquals(70, returned.get("refundAmount").asInt());
 
+        // 必须记录「维修完成」进度后才能验收
+        assertEquals("A200", post("/api/admin/damage-reports/" + reportId + "/progress", adminToken,
+                Map.of("progressStatus", "COMPLETED", "progressNote", "维修完成",
+                        "repairCost", 30)).get("code").asString());
         // 维修验收通过后工具才恢复可用（归还已结束、报修已终结）
         assertEquals("A200", post("/api/admin/damage-reports/" + reportId + "/accept", adminToken,
                 Map.of("acceptResult", "QUALIFIED", "toolStatusAfter", "AVAILABLE",

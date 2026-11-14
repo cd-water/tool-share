@@ -8,6 +8,7 @@ import com.cdwater.toolshare.module.damage.DamageReportMapper;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
 import com.cdwater.toolshare.module.tool.Tool;
+import com.cdwater.toolshare.module.tool.ToolIndexService;
 import com.cdwater.toolshare.module.tool.ToolLog;
 import com.cdwater.toolshare.module.tool.ToolLogMapper;
 import com.cdwater.toolshare.module.tool.ToolMapper;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -34,7 +36,11 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 /**
  * 集成测试：工具审核门禁、状态机守卫与富文本净化。
@@ -60,6 +66,9 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     DamageReportMapper damageReportMapper;
+
+    @MockitoSpyBean
+    ToolIndexService toolIndexService;
 
     RestClient client;
     final ObjectMapper om = new ObjectMapper();
@@ -176,6 +185,82 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
                 "/api/admin/tools/" + repairTool + "/status", admin, Map.of("status", "AVAILABLE"));
         assertEquals(400, scrapped.status(), scrapped.body().toString());
         assertTrue(scrapped.body().get("message").asString().contains("已报废"));
+    }
+
+    @Test
+    void status_change_keeps_vector_index_in_sync() {
+        String admin = adminLogin();
+        long toolId = createApprovedTool(admin, "index");
+
+        clearInvocations(toolIndexService);
+        ok(call(HttpMethod.PATCH, "/api/admin/tools/" + toolId + "/status",
+                admin, Map.of("status", "MAINTENANCE")));
+        verify(toolIndexService).upsert(argThat(tool -> tool != null && tool.getId() == toolId));
+
+        clearInvocations(toolIndexService);
+        ok(call(HttpMethod.PATCH, "/api/admin/tools/" + toolId + "/status",
+                admin, Map.of("status", "SCRAPPED")));
+        verify(toolIndexService).remove(toolId);
+    }
+
+    @Test
+    void restore_is_explicit_requires_reason_and_reindexes() {
+        String admin = adminLogin();
+        String user = userLogin();
+        long toolId = createApprovedTool(admin, "restore");
+        ok(call(HttpMethod.PATCH, "/api/admin/tools/" + toolId + "/status",
+                admin, Map.of("status", "SCRAPPED")));
+
+        ApiResponse normal = call(HttpMethod.PATCH,
+                "/api/admin/tools/" + toolId + "/status", admin, Map.of("status", "AVAILABLE"));
+        assertEquals(400, normal.status(), normal.body().toString());
+        assertTrue(normal.body().get("message").asString().contains("已报废"),
+                normal.body().toString());
+
+        ApiResponse noReason = call(HttpMethod.POST,
+                "/api/admin/tools/" + toolId + "/restore", admin, Map.of());
+        assertEquals(422, noReason.status(), noReason.body().toString());
+
+        clearInvocations(toolIndexService);
+        JsonNode restored = ok(call(HttpMethod.POST,
+                "/api/admin/tools/" + toolId + "/restore", admin,
+                Map.of("reason", "误报废，经核验可继续使用"))).get("data");
+        assertEquals("AVAILABLE", restored.get("status").asString());
+        assertEquals("可借用", restored.get("statusName").asString());
+        verify(toolIndexService).upsert(argThat(tool -> tool != null && tool.getId() == toolId));
+
+        JsonNode restoreLog = findLog(get("/api/admin/tools/" + toolId + "/logs", admin).get("data"),
+                "RESTORE", "SCRAPPED", "AVAILABLE");
+        assertNotNull(restoreLog, "恢复动作应写结构化日志");
+        assertEquals("误报废，经核验可继续使用", restoreLog.get("remark").asString());
+        assertEquals("admin", restoreLog.get("operatorName").asString());
+
+        JsonNode recommend = ok(call(HttpMethod.POST, "/api/user/ai/tool-recommend", user,
+                Map.of("question", PREFIX + "restore", "limit", 5)));
+        boolean recommended = false;
+        for (JsonNode item : recommend.get("data").get("items")) {
+            if (item.get("toolId").asLong() == toolId) {
+                recommended = true;
+            }
+        }
+        assertTrue(recommended, "恢复可用后工具应重新进入推荐候选: " + recommend);
+    }
+
+    @Test
+    void restore_is_guarded_by_active_rental() {
+        String admin = adminLogin();
+        String user = userLogin();
+        long toolId = createApprovedTool(admin, "restore-guard");
+        ok(call(HttpMethod.POST, "/api/user/rentals", user, booking(toolId)));
+        ok(call(HttpMethod.PATCH, "/api/admin/tools/" + toolId + "/status",
+                admin, Map.of("status", "SCRAPPED")));
+
+        ApiResponse guarded = call(HttpMethod.POST,
+                "/api/admin/tools/" + toolId + "/restore", admin,
+                Map.of("reason", "尝试恢复"));
+        assertEquals(400, guarded.status(), guarded.body().toString());
+        assertTrue(guarded.body().get("message").asString().contains("活动租赁"),
+                guarded.body().toString());
     }
 
     @Test

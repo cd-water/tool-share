@@ -150,10 +150,7 @@ public class ToolService {
         tool.setCreatedBy(StpKit.ADMIN.getLoginIdAsLong());
         toolMapper.insert(tool);
         logStructured(tool.getId(), "CREATE", null, tool.getStatus(), "新增工具 " + tool.getCode());
-        // 未审核工具不进入推荐索引
-        if (isApproved(tool)) {
-            toolIndexService.upsert(tool);
-        }
+        syncIndex(tool);
         return toVO(tool);
     }
 
@@ -165,11 +162,11 @@ public class ToolService {
         toolMapper.updateById(tool);
         logStructured(tool.getId(), "UPDATE", tool.getStatus(), tool.getStatus(), "编辑工具 " + tool.getCode());
         if (StringUtils.hasText(dto.getStatus()) && !dto.getStatus().equals(tool.getStatus())) {
+            // 状态变更由 transition 统一同步索引
             changeStatus(id, dto.getStatus());
             tool = getTool(id);
-        }
-        if (isApproved(tool)) {
-            toolIndexService.upsert(tool);
+        } else {
+            syncIndex(tool);
         }
         return toVO(tool);
     }
@@ -196,11 +193,7 @@ public class ToolService {
         tool.setReviewedAt(LocalDateTime.now());
         toolMapper.updateById(tool);
         logStructured(id, "AUDIT", from.name(), target.name(), dto.getRemark());
-        if (target == AuditStatus.APPROVED) {
-            toolIndexService.upsert(tool);
-        } else {
-            toolIndexService.remove(id);
-        }
+        syncIndex(tool);
         return toVO(tool);
     }
 
@@ -238,8 +231,48 @@ public class ToolService {
         logStructured(tool.getId(), action, from.code(), target.code(), remark);
         if (target == ToolStatus.SCRAPPED) {
             toolIndexService.remove(tool.getId());
+        } else if (target == ToolStatus.AVAILABLE || target == ToolStatus.MAINTENANCE) {
+            syncIndex(tool);
         }
         notifyWatchersIfAvailable(tool);
+    }
+
+    /**
+     * 显式报废恢复：仅系统管理员（{@code tool:manage}）可调用，必须填写原因并写结构化日志。
+     * <p>普通状态更新仍受状态机约束，不能覆盖 SCRAPPED。
+     */
+    @Transactional
+    public ToolVO restore(Long id, ToolRestoreDTO dto) {
+        Tool tool = getTool(id);
+        if (!ToolStatus.SCRAPPED.code().equals(tool.getStatus())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "只有已报废的工具可以恢复");
+        }
+        if (!StringUtils.hasText(dto.getReason())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "恢复原因不能为空");
+        }
+        if (hasActiveRental(id)) {
+            throw new BizException(ResultCode.BAD_REQUEST, "存在活动租赁，不能恢复工具");
+        }
+        if (hasUnfinishedReport(id)) {
+            throw new BizException(ResultCode.BAD_REQUEST, "存在未完成报修，不能恢复工具");
+        }
+        tool.setStatus(ToolStatus.AVAILABLE.code());
+        tool.setLastRepairTime(LocalDateTime.now());
+        toolMapper.updateById(tool);
+        logStructured(id, "RESTORE", ToolStatus.SCRAPPED.code(), ToolStatus.AVAILABLE.code(),
+                dto.getReason().trim());
+        syncIndex(tool);
+        notifyWatchersIfAvailable(tool);
+        return toVO(tool);
+    }
+
+    /** 索引与数据库保持一致：通过审核且未报废才写入，其余一律删除。 */
+    private void syncIndex(Tool tool) {
+        if (isApproved(tool) && !ToolStatus.SCRAPPED.code().equals(tool.getStatus())) {
+            toolIndexService.upsert(tool);
+        } else {
+            toolIndexService.remove(tool.getId());
+        }
     }
 
     private boolean hasActiveRental(Long toolId) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, CircleCheck, Close, Document, Refresh, Search, Tools, Warning } from '@element-plus/icons-vue'
 import {
@@ -402,6 +402,16 @@ function canAccept(row: DamageReportVO): boolean {
   // 原型：仅维修中且维修进度已完成时开放验收
   return row.status === 'REPAIRING' && row.progressStatus === 'COMPLETED'
 }
+
+// 部分合格 / 不合格不能直接置为可用，后端会拒绝；这里同步收口选项
+watch(
+  () => acceptForm.acceptResult,
+  (result) => {
+    if (result !== 'QUALIFIED' && acceptForm.toolStatusAfter === 'AVAILABLE') {
+      acceptForm.toolStatusAfter = 'MAINTENANCE'
+    }
+  },
+)
 
 onMounted(loadList)
 </script>

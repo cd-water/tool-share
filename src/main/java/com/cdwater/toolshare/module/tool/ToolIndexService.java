@@ -1,6 +1,8 @@
 package com.cdwater.toolshare.module.tool;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cdwater.toolshare.shared.enums.AuditStatus;
+import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.web.Dict;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
@@ -19,12 +22,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 工具向量索引：把可用于推荐的工具文本写入 Qdrant。
  * <p>索引 ID 使用 {@code tool-{id}-{chunk}} 派生，与知识库的 {@code kb-} 前缀隔离；
- * 索引内容只包含静态属性，工具状态在查询时由数据库过滤，避免状态变化导致索引过期。
+ * 索引内容只包含静态属性，是否可租在查询时由数据库过滤；报废/恢复/审核等状态变更仍同步删除或重建索引。
+ * 外部向量库失败只记日志并进入重试队列，不影响工具主流程。
  */
 @Slf4j
 @Service
@@ -38,6 +44,9 @@ public class ToolIndexService {
     private final ToolMapper toolMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ObjectMapper objectMapper;
+
+    /** 索引失败的工具 id，定时任务按数据库当前状态重试 */
+    private final Set<Long> retryQueue = ConcurrentHashMap.newKeySet();
 
     @Value("${toolshare.ai.recommend.index-on-startup:true}")
     private boolean indexOnStartup = true;
@@ -54,8 +63,10 @@ public class ToolIndexService {
             if (!docs.isEmpty()) {
                 vectorStore.add(docs);
             }
+            retryQueue.remove(tool.getId());
         } catch (Exception e) {
-            log.warn("工具向量索引失败 toolId={}: {}", tool.getId(), e.getMessage());
+            retryQueue.add(tool.getId());
+            log.warn("工具向量索引失败，已加入重试队列 toolId={}: {}", tool.getId(), e.getMessage());
         }
     }
 
@@ -66,8 +77,30 @@ public class ToolIndexService {
         }
         try {
             vectorStore.delete(chunkIds(toolId));
+            retryQueue.remove(toolId);
         } catch (Exception e) {
-            log.warn("删除工具向量索引失败 toolId={}: {}", toolId, e.getMessage());
+            retryQueue.add(toolId);
+            log.warn("删除工具向量索引失败，已加入重试队列 toolId={}: {}", toolId, e.getMessage());
+        }
+    }
+
+    /** 重试失败条目：以数据库当前状态为准，报废/未审核的删除，其余重建。 */
+    @Scheduled(initialDelay = 60_000, fixedDelay = 60_000)
+    public void retryFailed() {
+        if (retryQueue.isEmpty() || vectorStoreProvider.getIfAvailable() == null) {
+            return;
+        }
+        for (Long toolId : List.copyOf(retryQueue)) {
+            Tool tool = toolMapper.selectById(toolId);
+            boolean indexable = tool != null
+                    && !ToolStatus.SCRAPPED.code().equals(tool.getStatus())
+                    && tool.getAuditStatus() != null
+                    && tool.getAuditStatus() == AuditStatus.APPROVED.code();
+            if (indexable) {
+                upsert(tool);
+            } else {
+                remove(toolId);
+            }
         }
     }
 
@@ -85,7 +118,8 @@ public class ToolIndexService {
             return;
         }
         List<Tool> tools = toolMapper.selectList(new LambdaQueryWrapper<Tool>()
-                .ne(Tool::getStatus, "SCRAPPED"));
+                .ne(Tool::getStatus, ToolStatus.SCRAPPED.code())
+                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code()));
         for (Tool tool : tools) {
             upsert(tool);
         }
