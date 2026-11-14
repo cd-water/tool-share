@@ -1,18 +1,9 @@
 import http from '@/api/request'
-
-export interface LoginVO {
-  tokenName: string
-  tokenValue: string
-}
-
-export interface AdminVO {
-  id: number
-  username: string
-}
+import type { AdminLoginDTO, AdminVO, LoginVO } from '@/api/types'
 
 export const authApi = {
   login: (username: string, password: string) =>
-    http.post<LoginVO>('/admin/login', { username, password }),
+    http.post<LoginVO>('/admin/login', { username, password } satisfies AdminLoginDTO),
   logout: () => http.post<void>('/admin/logout'),
   info: () => http.get<AdminVO>('/admin/info'),
 }

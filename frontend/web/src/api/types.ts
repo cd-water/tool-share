@@ -1,38 +1,18 @@
-export interface PageResult<T> {
-  records: T[]
-  total: number
-  page: number
-  size: number
-}
+import type { components } from './generated'
+
+type Schemas = components['schemas']
+
+/** 契约中 VO 字段均为可选；后端实际会返回全部字段，这里恢复为必填。 */
+type Api<Name extends keyof Schemas> = Required<Schemas[Name]>
+
+/** 在契约类型上收窄前端已知的枚举字段，其余字段仍由契约维护。 */
+type With<Name extends keyof Schemas, Overrides> = Omit<Api<Name>, keyof Overrides> & Overrides
+
+// ---- 业务枚举：前端唯一来源（OpenAPI 中这些字段以 string 暴露） ----
 
 export type ToolCategory = 'WX' | 'YY' | 'QJ' | 'QT'
 export type ToolStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'SCRAPPED'
 export type DamageLevel = 'NEW' | 'LIGHT' | 'MEDIUM' | 'SEVERE'
-
-export interface Tool {
-  id: number
-  code: string
-  name: string
-  model: string
-  category: ToolCategory
-  categoryName: string
-  damageLevel: DamageLevel
-  damageLevelName: string
-  status: ToolStatus
-  statusName: string
-  deposit: number
-  storageArea: string
-  usageGuide: string
-  imageUrl: string
-  imageUrls: string[]
-  purchaseDate: string
-  supplier: string
-  rentalCount: number
-  lastRepairTime: string | null
-  createTime: string
-  updateTime: string
-}
-
 export type RentalStatus =
   | 'PENDING_PAYMENT'
   | 'RESERVED'
@@ -40,46 +20,8 @@ export type RentalStatus =
   | 'RETURNED'
   | 'CANCELLED'
   | 'OVERDUE'
-
 export type DepositStatus = 'UNPAID' | 'PAID' | 'REFUNDED'
-export type DamageResult = 'INTACT' | 'MINOR' | 'SEVERE' | null
-
-export interface Rental {
-  id: number
-  orderNo: string
-  toolId: number
-  toolCode: string
-  toolName: string
-  toolImageUrl?: string
-  userId: number
-  renterName: string
-  renterPhone: string
-  renterIdCardMasked?: string
-  startTime: string
-  endTime: string
-  pickupPerson: string
-  createdByName?: string
-  updatedByName?: string
-  depositAmount: number
-  depositStatus: DepositStatus
-  depositStatusName: string
-  status: RentalStatus
-  statusName: string
-  actualReturnTime: string | null
-  overdueFee: number | null
-  damageFee: number | null
-  refundAmount: number | null
-  damageResult: DamageResult
-  damageResultName: string | null
-  returnRemark: string | null
-  cancelReason: string | null
-  cancelTime: string | null
-  remindBeforeMinutes: number | null
-  remindAt: string | null
-  createTime: string
-  updateTime: string
-}
-
+export type DamageResult = 'INTACT' | 'MINOR' | 'SEVERE'
 export type DamageReportStatus =
   | 'SUBMITTED'
   | 'VERIFIED'
@@ -87,144 +29,135 @@ export type DamageReportStatus =
   | 'REPAIRING'
   | 'COMPLETED'
   | 'SCRAPPED'
-
-export type ProgressStatus = 'WAITING_PARTS' | 'REPAIRING' | 'COMPLETED' | 'FAILED' | null
-export type AcceptResult = 'QUALIFIED' | 'UNQUALIFIED' | 'PARTIAL' | null
-
-export interface DamageReport {
-  id: number
-  reportNo: string
-  rentalId: number
-  toolId: number
-  toolCode: string
-  toolName: string
-  toolImageUrl?: string
-  userId: number
-  reporterName: string
-  reporterPhone: string
-  damagePart: string
-  description: string
-  images: string[]
-  status: DamageReportStatus
-  statusName: string
-  verifier: string | null
-  verifyTime: string | null
-  verifyResult: string | null
-  repairPerson: string | null
-  repairEstimate: string | null
-  repairStartTime: string | null
-  repairCost: number | null
-  progressStatus: ProgressStatus
-  progressStatusName: string | null
-  progressUpdateTime: string | null
-  progressNote: string | null
-  acceptor: string | null
-  acceptTime: string | null
-  acceptResult: AcceptResult
-  acceptResultName: string | null
-  toolStatusAfter: string | null
-  remark: string | null
-  createTime: string
-  updateTime: string
-}
-
+export type ProgressStatus = 'WAITING_PARTS' | 'REPAIRING' | 'COMPLETED' | 'FAILED'
+export type AcceptResult = 'QUALIFIED' | 'UNQUALIFIED' | 'PARTIAL'
 export type MessageType =
   | 'RESERVATION'
   | 'PICKUP'
   | 'RENT_DUE'
   | 'OVERDUE'
   | 'REPAIR'
+  | 'TOOL_AVAILABLE'
   | 'SYSTEM'
+export type MessageChannel = 'SYSTEM' | 'SMS'
+export type DeliveryStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED'
 
-export interface Message {
-  id: number
-  type: MessageType
-  typeName: string
-  title: string
-  content: string
-  channel: string
-  readStatus: boolean | number | string
-  createTime: string
+// ---- 分页：统一请求参数与响应结构 ----
+
+export interface PageParams {
+  page?: number
+  size?: number
 }
 
-export interface AiSource {
-  title: string
-  snippet: string
+type PageSchema = Required<Schemas['PageVOToolVO']>
+
+export type PageResult<T> = Omit<PageSchema, 'records'> & { records: T[] }
+
+// ---- 契约类型 ----
+
+export type Tool = With<
+  'ToolVO',
+  {
+    category: ToolCategory
+    status: ToolStatus
+    damageLevel: DamageLevel
+    lastRepairTime: string | null
+  }
+>
+
+export type Rental = With<
+  'RentalVO',
+  {
+    status: RentalStatus
+    depositStatus: DepositStatus
+    actualReturnTime: string | null
+    overdueFee: number | null
+    damageFee: number | null
+    refundAmount: number | null
+    damageResult: DamageResult | null
+    damageResultName: string | null
+    returnRemark: string | null
+    cancelReason: string | null
+    cancelTime: string | null
+    remindBeforeMinutes: number | null
+    remindAt: string | null
+  }
+>
+
+export type DamageReport = With<
+  'DamageReportVO',
+  {
+    status: DamageReportStatus
+    verifier: string | null
+    verifyTime: string | null
+    verifyResult: string | null
+    repairPerson: string | null
+    repairEstimate: string | null
+    repairStartTime: string | null
+    repairCost: number | null
+    progressStatus: ProgressStatus | null
+    progressStatusName: string | null
+    progressUpdateTime: string | null
+    progressNote: string | null
+    acceptor: string | null
+    acceptTime: string | null
+    acceptResult: AcceptResult | null
+    acceptResultName: string | null
+    toolStatusAfter: string | null
+    remark: string | null
+  }
+>
+
+export type Message = With<
+  'MessageVO',
+  {
+    type: MessageType
+    channel: MessageChannel
+    deliveryStatus: DeliveryStatus
+  }
+>
+
+export type NotificationPref = With<
+  'NotificationPrefVO',
+  {
+    type: MessageType
+    channel: MessageChannel
+  }
+>
+
+export type NotificationPrefUpdatePayload = {
+  enabled: boolean
+  channel: MessageChannel
 }
 
-export interface AiChatResult {
-  answer: string
-  sources: AiSource[]
-}
+export type Review = Api<'ReviewVO'>
+export type ReviewCreatePayload = Schemas['ReviewCreateDTO']
 
-export interface ToolRecommendRequest {
-  question: string
-  startTime?: string
-  endTime?: string
-  category?: ToolCategory
-  maxDeposit?: number
-  limit?: number
-}
+export type CreditEvent = Api<'CreditEventVO'>
+export type CreditOverview = With<'CreditVO', { events: PageResult<CreditEvent> }>
 
-export interface ToolRecommendItem {
-  toolId: number
-  name: string
-  categoryName: string
-  model: string
-  deposit: number
-  imageUrl: string
-  statusName: string
-  reason: string
-  storageArea: string
-}
+export type UserDashboard = Api<'UserDashboardVO'>
+export type UserProfile = Api<'UserVO'>
+export type LoginResult = Api<'LoginVO'>
+export type UploadResult = Api<'FileVO'>
 
-export interface ToolRecommendResult {
-  recommendationId: number | null
-  summary: string
-  items: ToolRecommendItem[]
-  degraded: boolean
-}
+export type AiSource = Api<'SourceVO'>
+export type AiChatResult = With<'AiChatVO', { sources: AiSource[] }>
 
-export interface UserDashboard {
-  availableToolCount: number
-  pendingPaymentCount: number
-  rentingCount: number
-  unreadCount: number
+export type ToolRecommendRequest = Schemas['ToolRecommendDTO'] & { category?: ToolCategory }
+/** 契约暂未包含评分字段；后端返回时展示，未返回则忽略。 */
+export type ToolRecommendItem = Api<'Item'> & {
+  ratingAvg?: number | null
+  reviewCount?: number | null
 }
+export type ToolRecommendResult = With<
+  'ToolRecommendVO',
+  { recommendationId: number | null; items: ToolRecommendItem[] }
+>
 
-export interface UserProfile {
-  id: number
-  phone: string
-  nickname: string
-  avatar: string
-  realName: string
-  idCard: string
-}
+export type ToolWatchItem = With<'ToolWatchVO', { status: ToolStatus }>
+export type AvailabilityResult = Api<'AvailabilityVO'>
 
-export interface UploadResult {
-  url: string
-  name: string
-}
-
-export interface RentalCreatePayload {
-  toolId: number
-  startTime: string
-  endTime: string
-  pickupPerson: string
-  /** 到期提醒提前分钟数，0 表示不提醒 */
-  remindBeforeMinutes?: number
-}
-
-export interface DamageReportCreatePayload {
-  rentalId: number
-  damagePart: string
-  description: string
-  images: string[]
-}
-
-export interface ProfileUpdatePayload {
-  nickname: string
-  avatar: string
-  realName: string
-  idCard?: string
-}
+export type RentalCreatePayload = Schemas['RentalCreateDTO']
+export type DamageReportCreatePayload = Schemas['DamageCreateDTO']
+export type ProfileUpdatePayload = Schemas['ProfileUpdateDTO']

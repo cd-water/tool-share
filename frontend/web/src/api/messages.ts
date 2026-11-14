@@ -1,10 +1,14 @@
 import http from '@/api/request'
-import type { Message, PageResult } from '@/api/types'
+import type {
+  Message,
+  MessageType,
+  NotificationPref,
+  NotificationPrefUpdatePayload,
+  PageParams,
+  PageResult,
+} from '@/api/types'
 
-export interface MessageQuery {
-  page?: number
-  size?: number
-}
+export type MessageQuery = PageParams
 
 export const messagesApi = {
   list: (params: MessageQuery) =>
@@ -12,4 +16,10 @@ export const messagesApi = {
   unreadCount: () => http.get<number>('/user/messages/unread-count'),
   read: (id: number) => http.post<void>(`/user/messages/${id}/read`),
   readAll: () => http.post<void>('/user/messages/read-all'),
+}
+
+export const notificationPrefsApi = {
+  list: () => http.get<NotificationPref[]>('/user/notification-prefs'),
+  update: (type: MessageType, payload: NotificationPrefUpdatePayload) =>
+    http.put<NotificationPref>(`/user/notification-prefs/${type}`, payload),
 }

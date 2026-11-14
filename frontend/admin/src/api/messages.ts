@@ -1,19 +1,8 @@
 import http from '@/api/request'
-import type { PageQuery, PageResult } from '@/api/types'
-
-export interface MessageVO {
-  id: number
-  type: string
-  typeName?: string
-  title: string
-  content: string
-  channel: string
-  readStatus: number | boolean | string
-  createTime?: string
-}
+import type { MessageQuery, MessageVO, PageResult } from '@/api/types'
 
 export const messageApi = {
-  list: (params: PageQuery) =>
+  list: (params: MessageQuery) =>
     http.get<PageResult<MessageVO>>('/admin/messages', { params }),
   unreadCount: () => http.get<number>('/admin/messages/unread-count'),
   read: (id: number) => http.post<void>(`/admin/messages/${id}/read`),

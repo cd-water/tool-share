@@ -1,28 +1,19 @@
 import http from '@/api/request'
-import type { PageResult, Tool } from '@/api/types'
+import type {
+  AvailabilityResult,
+  PageParams,
+  PageResult,
+  Tool,
+  ToolCategory,
+  ToolStatus,
+  ToolWatchItem,
+} from '@/api/types'
 
-export interface ToolQuery {
+export interface ToolQuery extends PageParams {
   keyword?: string
-  category?: string
-  status?: string
-  page?: number
-  size?: number
-}
-
-export interface AvailabilityResult {
-  available: boolean
-  message?: string
-  suggestions?: string[]
-}
-
-export interface ToolWatchItem {
-  toolId: number
-  code: string
-  name: string
-  status: string
-  statusName: string
-  deposit: number
-  imageUrl?: string
+  category?: ToolCategory
+  status?: ToolStatus
+  orderBy?: string
 }
 
 export const toolsApi = {

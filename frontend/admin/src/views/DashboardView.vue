@@ -2,30 +2,41 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { dashboardApi, type AdminDashboardVO } from '@/api/dashboard'
-import { toolApi, type ToolVO } from '@/api/tools'
+import { dashboardApi } from '@/api/dashboard'
+import { toolApi } from '@/api/tools'
+import type { AdminDashboardVO, ToolVO } from '@/api/types'
 
 const router = useRouter()
 const auth = useAuthStore()
+const isSuperAdmin = computed(() => auth.isSuperAdmin)
 
 const loading = ref(false)
 const stats = ref<AdminDashboardVO | null>(null)
 const tools = ref<ToolVO[]>([])
 
-/* ---------- 统计 API 与数据逻辑(原样保留) ---------- */
+/* ---------- 统计 API 与数据逻辑 ---------- */
 function statValue(key: keyof AdminDashboardVO): number {
   return stats.value?.[key] ?? 0
+}
+
+/** 分类统计需要完整台账：后端每页上限 100，按总数补齐所有页。 */
+async function loadAllTools(): Promise<ToolVO[]> {
+  const size = 100
+  const first = await toolApi.list({ page: 1, size })
+  const pageCount = Math.ceil((first.total || 0) / size)
+  if (pageCount <= 1) return first.records
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, i) => toolApi.list({ page: i + 2, size })),
+  )
+  return [first, ...rest].flatMap((page) => page.records)
 }
 
 async function loadDashboard() {
   loading.value = true
   try {
-    const [dashboard, page] = await Promise.all([
-      dashboardApi.get(),
-      toolApi.list({ page: 1, size: 200 }),
-    ])
+    const [dashboard, allTools] = await Promise.all([dashboardApi.get(), loadAllTools()])
     stats.value = dashboard
-    tools.value = page.records
+    tools.value = allTools
   } finally {
     loading.value = false
   }
@@ -89,7 +100,7 @@ const todoItems = computed(() => {
     { title: '处理报修', value: statValue('pendingDamageCount'), unit: '条报修待处理', fg: 'var(--warn)', bg: 'var(--warn-bg)', icon: 'warn', path: '/damage' },
     { title: '催还逾期', value: statValue('overdueRentalCount'), unit: '笔租赁已逾期', fg: 'var(--bad)', bg: 'var(--bad-bg)', icon: 'warn', path: '/rentals' },
     { title: '租赁跟进', value: statValue('activeRentalCount'), unit: '笔租赁进行中', fg: 'var(--info)', bg: 'var(--info-bg)', icon: 'list', path: '/rentals' },
-    { title: '维修验收', value: statValue('maintenanceToolCount'), unit: '件工具维修中', fg: 'var(--ok)', bg: 'var(--ok-bg)', icon: 'shield', path: '/tools' },
+    { title: '维修验收', value: statValue('maintenanceToolCount'), unit: '件工具维修中', fg: 'var(--ok)', bg: 'var(--ok-bg)', icon: 'shield', path: isSuperAdmin.value ? '/tools' : '/damage' },
   ]
   return list.filter((i) => i.value > 0)
 })
@@ -303,7 +314,7 @@ onUnmounted(() => {
         </p>
       </div>
       <div class="dash-quick">
-        <button class="btn btn-primary" @click="router.push('/tools')">
+        <button v-if="isSuperAdmin" class="btn btn-primary" @click="router.push('/tools')">
           <svg class="ic sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           新增工具
         </button>
@@ -353,7 +364,7 @@ onUnmounted(() => {
       <div class="bento">
         <div class="panel b-trend reveal">
           <h3 class="panel-title">近 7 日租赁趋势</h3>
-          <!-- TODO(#32): 后端暂无按日趋势接口，接入真实数据后再绘制 -->
+          <!-- 后端暂无按日趋势接口，接入真实数据后再绘制，不虚构趋势 -->
           <div class="empty">
             <h4>趋势数据待接入</h4>
             <p>当前只展示实时统计，不虚构趋势。</p>
@@ -362,9 +373,15 @@ onUnmounted(() => {
 
         <div class="panel b-status reveal">
           <h3 class="panel-title">工具状态分布</h3>
-          <div class="chart-box"><canvas ref="statusCanvas"></canvas></div>
-          <div class="legend">
-            <span v-for="s in statusLegend" :key="s.label"><i :style="{ background: s.c }"></i>{{ s.label }} {{ s.v }}</span>
+          <template v-if="statValue('toolTotal') > 0">
+            <div class="chart-box"><canvas ref="statusCanvas"></canvas></div>
+            <div class="legend">
+              <span v-for="s in statusLegend" :key="s.label"><i :style="{ background: s.c }"></i>{{ s.label }} {{ s.v }}</span>
+            </div>
+          </template>
+          <div v-else class="empty">
+            <h4>暂无工具数据</h4>
+            <p>录入手工台账后展示状态分布。</p>
           </div>
         </div>
 
@@ -388,12 +405,16 @@ onUnmounted(() => {
 
         <div class="panel b-cat reveal">
           <h3 class="panel-title">分类工具数量</h3>
-          <div class="chart-box"><canvas ref="catCanvas"></canvas></div>
+          <div v-if="tools.length" class="chart-box"><canvas ref="catCanvas"></canvas></div>
+          <div v-else class="empty">
+            <h4>暂无工具数据</h4>
+            <p>录入工具后展示分类数量。</p>
+          </div>
         </div>
 
         <div class="panel b-feed reveal">
           <h3 class="panel-title">最近动态<router-link class="link-btn" to="/messages">全部</router-link></h3>
-          <ul class="feed">
+          <ul v-if="feedItems.length" class="feed">
             <li v-for="(f, idx) in feedItems" :key="idx">
               <span class="f-dot" :style="{ background: f.color }"></span>
               <div>
@@ -403,6 +424,10 @@ onUnmounted(() => {
               <span class="f-time">{{ f.time }}</span>
             </li>
           </ul>
+          <div v-else class="empty">
+            <h4>暂无动态</h4>
+            <p>产生租赁、报修或用户注册后展示。</p>
+          </div>
         </div>
       </div>
 

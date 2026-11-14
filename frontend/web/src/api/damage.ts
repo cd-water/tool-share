@@ -2,12 +2,14 @@ import http from '@/api/request'
 import type {
   DamageReport,
   DamageReportCreatePayload,
+  DamageReportStatus,
+  PageParams,
   PageResult,
 } from '@/api/types'
 
-export interface DamageReportQuery {
-  page?: number
-  size?: number
+export interface DamageReportQuery extends PageParams {
+  keyword?: string
+  status?: DamageReportStatus
 }
 
 export const damageApi = {

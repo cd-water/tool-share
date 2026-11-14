@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { BookOpen, Clock, MessageSquare, Phone, Send, Sparkles, Trash2 } from 'lucide-react'
+import {
+  BookOpen,
+  CircleAlert,
+  Clock,
+  MessageSquare,
+  Phone,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { aiApi } from '@/api/ai'
 import type { AiSource } from '@/api/types'
 import { ToolRecommendPanel } from '@/components/ToolRecommendPanel'
@@ -11,6 +21,10 @@ type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   sources?: AiSource[]
+  /** 仅助手消息：用于失败后重试 */
+  question?: string
+  status?: 'streaming' | 'done' | 'error'
+  error?: string
 }
 
 const QUICK_QUESTIONS = [
@@ -21,6 +35,9 @@ const QUICK_QUESTIONS = [
 ]
 
 const KB_ITEMS = ['租赁流程与预约规则', '押金支付与退还标准', '逾期与损坏计费说明', '工具使用与安全须知']
+
+/** 服务端已有 20 秒生成超时；前端在完全无事件时再兜底，避免连接假死。 */
+const STREAM_IDLE_TIMEOUT = 40_000
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -46,6 +63,73 @@ export default function AiPage() {
     setMessages((prev) => prev.map((message) => (message.id === id ? { ...message, ...patch } : message)))
   }
 
+  function startStream(question: string, assistantId: string) {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setStreaming(true)
+    updateAssistant(assistantId, {
+      content: '',
+      sources: [],
+      status: 'streaming',
+      error: undefined,
+      question,
+    })
+
+    let timer = 0
+    const touch = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        updateAssistant(assistantId, { status: 'error', error: '回答超时，未收到完整内容。' })
+        controller.abort()
+      }, STREAM_IDLE_TIMEOUT)
+    }
+    touch()
+
+    aiApi
+      .chatStream(
+        question,
+        {
+          onSources: (sources) => {
+            touch()
+            updateAssistant(assistantId, { sources })
+          },
+          onMessage: (delta) => {
+            touch()
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId ? { ...message, content: message.content + delta } : message,
+              ),
+            )
+          },
+          onDone: () => {
+            window.clearTimeout(timer)
+            setMessages((prev) =>
+              prev.map((message) => {
+                if (message.id !== assistantId || message.status === 'error') return message
+                const content = message.content.trim()
+                return content
+                  ? { ...message, status: 'done' }
+                  : { ...message, status: 'error', error: '未收到回答，请重试。' }
+              }),
+            )
+          },
+          onError: (message) => {
+            window.clearTimeout(timer)
+            updateAssistant(assistantId, { status: 'error', error: message })
+          },
+        },
+        controller.signal,
+      )
+      .finally(() => {
+        window.clearTimeout(timer)
+        if (abortRef.current === controller) {
+          abortRef.current = null
+          setStreaming(false)
+        }
+      })
+  }
+
   function send(questionText?: string) {
     const question = (questionText ?? input).trim()
     if (!question || streaming) return
@@ -53,40 +137,53 @@ export default function AiPage() {
     setMessages((prev) => [
       ...prev,
       { id: createId(), role: 'user', content: question },
-      { id: assistantId, role: 'assistant', content: '', sources: [] },
+      { id: assistantId, role: 'assistant', content: '', sources: [], status: 'streaming' },
     ])
     setInput('')
-    setStreaming(true)
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+    startStream(question, assistantId)
+  }
 
-    aiApi
-      .chatStream(
-        question,
-        {
-          onSources: (sources) => updateAssistant(assistantId, { sources }),
-          onMessage: (delta) =>
-            setMessages((prev) =>
-              prev.map((message) =>
-                message.id === assistantId ? { ...message, content: message.content + delta } : message,
-              ),
-            ),
-          onError: (message) => {
-            toast(message, { type: 'bad' })
-            updateAssistant(assistantId, { content: '抱歉，AI 助手暂时无法回答，请稍后再试。' })
-          },
-        },
-        controller.signal,
-      )
-      .finally(() => {
-        if (abortRef.current === controller) abortRef.current = null
-        setStreaming(false)
-      })
+  function retry(message: ChatMessage) {
+    if (!message.question || streaming) return
+    startStream(message.question, message.id)
+  }
+
+  function focusSource(messageId: string, order: number) {
+    const el = document.getElementById(`source-${messageId}-${order}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.remove('flash')
+    void el.offsetWidth
+    el.classList.add('flash')
+    window.setTimeout(() => el.classList.remove('flash'), 1500)
+  }
+
+  function renderAnswer(message: ChatMessage) {
+    const sourceCount = message.sources?.length ?? 0
+    return message.content.split(/(\[\d+\])/g).map((part, index) => {
+      const match = /^\[(\d+)\]$/.exec(part)
+      const order = match ? Number(match[1]) : 0
+      if (order > 0 && order <= sourceCount) {
+        return (
+          <button
+            key={index}
+            type="button"
+            className="cite"
+            title={`查看来源 ${order}`}
+            aria-label={`查看来源 ${order}`}
+            onClick={() => focusSource(message.id, order)}
+          >
+            {order}
+          </button>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
   }
 
   function clearChat() {
     abortRef.current?.abort()
+    abortRef.current = null
     setMessages([])
     setStreaming(false)
     toast('对话已清空', { type: 'info' })
@@ -148,22 +245,58 @@ export default function AiPage() {
             <div key={message.id} className={'bubble-row ' + (message.role === 'user' ? 'user' : 'ai')}>
               <span className="b-ava">{message.role === 'user' ? '我' : <Sparkles className="ic sm" />}</span>
               <div className="bubble">
-                {message.role === 'assistant' && message.content === '' && streaming ? (
+                {message.role === 'assistant' && message.status === 'streaming' && !message.content ? (
                   <span className="typing"><i></i><i></i><i></i></span>
                 ) : (
-                  <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{message.content}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                    {message.role === 'assistant' ? renderAnswer(message) : message.content}
+                    {message.role === 'assistant' && message.status === 'streaming' && message.content && (
+                      <span className="cursor" />
+                    )}
+                  </p>
                 )}
                 {message.sources && message.sources.length > 0 && (
                   <div className="sources">
                     {message.sources.map((source, index) => (
-                      <span className="src" key={`${source.title}-${index}`} title={source.snippet}>
-                        <BookOpen className="ic" />
-                        {source.title}
-                      </span>
+                      <div
+                        className="src-item"
+                        id={`source-${message.id}-${index + 1}`}
+                        key={`${source.title}-${index}`}
+                      >
+                        <span className="src-no">{index + 1}</span>
+                        <div className="src-body">
+                          <b>{source.title}</b>
+                          {source.snippet && <p>{source.snippet}</p>}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
-                {message.role === 'assistant' && message.content && !streaming && (
+                {message.role === 'assistant' &&
+                  message.status === 'done' &&
+                  message.content.trim() &&
+                  !message.sources?.length && (
+                    <p className="source-note">
+                      <CircleAlert className="ic sm" />
+                      未检索到知识库来源，本条回答为兜底内容，仅供参考。
+                    </p>
+                  )}
+                {message.status === 'error' && (
+                  <div className="chat-error">
+                    <CircleAlert className="ic sm" />
+                    <span>{message.error || '回答中断，请重试。'}</span>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      type="button"
+                      disabled={streaming}
+                      onClick={() => retry(message)}
+                    >
+                      <RefreshCw className="ic sm" />
+                      重试
+                    </button>
+                  </div>
+                )}
+                {message.role === 'assistant' && message.status === 'done' && message.content && (
                   <div className="followups">
                     {QUICK_QUESTIONS.slice(0, 3).map((question) => (
                       <button key={question} type="button" onClick={() => send(question)}>

@@ -14,6 +14,7 @@ import { dashboardApi } from '@/api/dashboard'
 import { BrandMark } from '@/components/BrandMark'
 import { UserMenu } from '@/components/UserMenu'
 import { bindSoundToggle } from '@/lib/fx'
+import { queryKeys } from '@/lib/queryKeys'
 
 const NAV_ITEMS = [
   { to: '/tools', label: '工具广场', icon: Wrench },
@@ -35,7 +36,7 @@ export default function AppLayout() {
   }, [])
 
   const unreadQuery = useQuery({
-    queryKey: ['messages', 'unread-count'],
+    queryKey: queryKeys.messages.unreadCount,
     queryFn: messagesApi.unreadCount,
     staleTime: 10_000,
     refetchInterval: 30_000,
@@ -44,7 +45,7 @@ export default function AppLayout() {
   const unreadCount = unreadQuery.data ?? 0
 
   const dashboardQuery = useQuery({
-    queryKey: ['dashboard'],
+    queryKey: queryKeys.dashboard,
     queryFn: dashboardApi.get,
     staleTime: 10_000,
     refetchInterval: 30_000,

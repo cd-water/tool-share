@@ -1,9 +1,11 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
-import { userApi, type UserProfile } from '@/api/auth'
+import { userApi } from '@/api/auth'
+import type { UserProfile } from '@/api/types'
+import { queryKeys } from '@/lib/queryKeys'
 import { useAuthStore } from '@/stores/auth'
 
 export const userInfoOptions = queryOptions({
-  queryKey: ['user', 'info'] as const,
+  queryKey: queryKeys.user.info,
   queryFn: async (): Promise<UserProfile> => {
     const user = await userApi.info()
     useAuthStore.getState().setProfile(user)

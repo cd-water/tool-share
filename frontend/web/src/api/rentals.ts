@@ -1,14 +1,14 @@
 import http from '@/api/request'
 import type {
+  PageParams,
   PageResult,
   Rental,
   RentalCreatePayload,
+  RentalStatus,
 } from '@/api/types'
 
-export interface RentalQuery {
-  status?: string
-  page?: number
-  size?: number
+export interface RentalQuery extends PageParams {
+  status?: RentalStatus
 }
 
 export const rentalsApi = {

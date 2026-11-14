@@ -2,18 +2,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, CircleCheck, Close, Document, Refresh, Search, Tools, Warning } from '@element-plus/icons-vue'
-import {
-  damageApi,
-  type AcceptResult,
-  type DamageAcceptDTO,
-  type DamageProgressDTO,
-  type DamageQuery,
-  type DamageReportVO,
-  type DamageVerifyDTO,
-  type ProgressStatus,
-  type ToolStatusAfter,
-  type VerifyResult,
-} from '@/api/damage'
+import { damageApi } from '@/api/damage'
+import type {
+  AcceptResult,
+  DamageAcceptDTO,
+  DamageProgressDTO,
+  DamageQuery,
+  DamageReportVO,
+  DamageVerifyDTO,
+  ProgressStatus,
+  ToolStatusAfter,
+  VerifyResult,
+} from '@/api/types'
 import { cleanParams } from '@/utils/params'
 import { formatDateTime, formatMoney, resolveFileUrl } from '@/utils/format'
 import {
@@ -45,9 +45,6 @@ const statusOptions = optionList(REPORT_STATUS_LABELS)
 const verifyResultOptions = optionList(VERIFY_RESULT_LABELS)
 const progressStatusOptions = optionList(PROGRESS_STATUS_LABELS)
 const acceptResultOptions = optionList(ACCEPT_RESULT_LABELS)
-const toolStatusAfterOptions = optionList(TOOL_STATUS_LABELS).filter(
-  (item) => item.value !== 'RENTED',
-)
 
 async function loadList() {
   loading.value = true
@@ -176,7 +173,7 @@ interface TimelineStage {
   title: string
   done: boolean
   active: boolean
-  time?: string
+  time?: string | null
   desc: string
 }
 
@@ -189,6 +186,7 @@ const timelineStages = computed<TimelineStage[]>(() => {
     d.status === 'SCRAPPED' ||
     d.progressStatus === 'COMPLETED' ||
     d.progressStatus === 'FAILED'
+  const repairFailed = d.progressStatus === 'FAILED'
   const acceptDone = d.status === 'COMPLETED' || d.status === 'SCRAPPED' || !!d.acceptTime
 
   const stages: TimelineStage[] = [
@@ -223,7 +221,9 @@ const timelineStages = computed<TimelineStage[]>(() => {
         ? `${d.acceptor ? d.acceptor + ' · ' : ''}${
             d.acceptResult ? enumLabel(ACCEPT_RESULT_LABELS, d.acceptResult) : ''
           }`
-        : '维修完成后进行验收',
+        : repairFailed
+          ? '维修失败，需重新安排维修后再验收'
+          : '维修完成后进行验收',
     },
   ]
 
@@ -404,10 +404,25 @@ function canAccept(row: DamageReportVO): boolean {
 }
 
 // 部分合格 / 不合格不能直接置为可用，后端会拒绝；这里同步收口选项
+const toolStatusAfterOptions = computed(() =>
+  optionList(TOOL_STATUS_LABELS).filter(
+    (item) => item.value !== 'RENTED' && (acceptForm.acceptResult === 'QUALIFIED' || item.value !== 'AVAILABLE'),
+  ),
+)
+
 watch(
   () => acceptForm.acceptResult,
   (result) => {
     if (result !== 'QUALIFIED' && acceptForm.toolStatusAfter === 'AVAILABLE') {
+      acceptForm.toolStatusAfter = 'MAINTENANCE'
+    }
+  },
+)
+
+watch(
+  () => acceptForm.toolStatusAfter,
+  (status) => {
+    if (acceptForm.acceptResult !== 'QUALIFIED' && status === 'AVAILABLE') {
       acceptForm.toolStatusAfter = 'MAINTENANCE'
     }
   },
@@ -479,7 +494,7 @@ onMounted(loadList)
               <td colspan="9"><div class="skel" style="height: 16px"></div></td>
             </tr>
           </tbody>
-          <tbody v-else-if="!list.length">
+          <tbody v-else-if="!visibleList.length">
             <tr>
               <td colspan="9">
                 <div class="empty">
@@ -537,7 +552,10 @@ onMounted(loadList)
         </table>
       </div>
       <div class="table-foot">
-        <span class="tiny">共 {{ total }} 条 · 第 {{ query.page }}/{{ totalPages }} 页</span>
+        <span class="tiny">
+          共 {{ total }} 条<template v-if="progressFilter">（本页筛选 {{ visibleList.length }} 条）</template>
+          · 第 {{ query.page }}/{{ totalPages }} 页
+        </span>
         <div class="flex">
           <select class="select" style="width: 116px; height: 32px" v-model="query.size" @change="handleSizeChange">
             <option :value="10">10 条/页</option>
@@ -575,14 +593,16 @@ onMounted(loadList)
               </option>
             </select>
           </div>
-          <div class="field">
-            <label>维修负责人</label>
-            <input class="input" v-model="verifyForm.repairPerson" placeholder="选填，如 王师傅" />
-          </div>
-          <div class="field">
-            <label>预计时长</label>
-            <input class="input" v-model="verifyForm.repairEstimate" placeholder="如 3 天" />
-          </div>
+          <template v-if="verifyForm.verifyResult !== 'FALSE'">
+            <div class="field">
+              <label>维修负责人</label>
+              <input class="input" v-model="verifyForm.repairPerson" placeholder="选填，如 王师傅" />
+            </div>
+            <div class="field">
+              <label>预计时长</label>
+              <input class="input" v-model="verifyForm.repairEstimate" placeholder="如 3 天" />
+            </div>
+          </template>
           <div class="field">
             <label>备注</label>
             <textarea class="textarea" v-model="verifyForm.remark" rows="2" placeholder="选填"></textarea>

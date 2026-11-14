@@ -1,73 +1,15 @@
 import http from '@/api/request'
-import type { PageQuery, PageResult } from '@/api/types'
-
-export type RentalStatus =
-  | 'PENDING_PAYMENT'
-  | 'RESERVED'
-  | 'PICKED_UP'
-  | 'RETURNED'
-  | 'CANCELLED'
-  | 'OVERDUE'
-
-export type DepositStatus = 'UNPAID' | 'PAID' | 'REFUNDED'
-export type DamageResult = 'INTACT' | 'MINOR' | 'SEVERE'
-
-export interface RentalVO {
-  id: number
-  orderNo: string
-  toolId: number
-  toolCode: string
-  toolName: string
-  toolImageUrl?: string
-  userId: number
-  renterName: string
-  renterPhone: string
-  renterIdCardMasked?: string
-  startTime: string
-  endTime: string
-  pickupPerson?: string
-  createdByName?: string
-  updatedByName?: string
-  depositAmount: number
-  depositStatus: DepositStatus
-  depositStatusName?: string
-  status: RentalStatus
-  statusName?: string
-  actualReturnTime?: string
-  overdueFee?: number
-  damageFee?: number
-  refundAmount?: number
-  damageResult?: DamageResult
-  damageResultName?: string
-  returnRemark?: string
-  cancelReason?: string
-  cancelTime?: string
-  createTime?: string
-  updateTime?: string
-}
-
-export interface RentalQuery extends PageQuery {
-  keyword?: string
-  status?: string
-  overdue?: string
-  damageResult?: string
-}
-
-export interface RentalReturnDTO {
-  actualReturnTime: string
-  damageResult: DamageResult
-  waiveOverdue?: boolean
-  waiveDamage?: boolean
-  waiverReason?: string
-  remark?: string
-}
-
-export interface RentalCancelDTO {
-  reason: string
-}
+import type {
+  PageResult,
+  RentalCancelDTO,
+  RentalQuery,
+  RentalReturnDTO,
+  RentalVO,
+} from '@/api/types'
 
 export const rentalApi = {
-  list: (params: RentalQuery) => http.get<PageResult<RentalVO>>('/admin/rentals', { params }),
+  list: (params: RentalQuery) =>
+    http.get<PageResult<RentalVO>>('/admin/rentals', { params }),
   detail: (id: number) => http.get<RentalVO>(`/admin/rentals/${id}`),
   pickup: (id: number) => http.post<void>(`/admin/rentals/${id}/pickup`),
   return: (id: number, data: RentalReturnDTO) =>

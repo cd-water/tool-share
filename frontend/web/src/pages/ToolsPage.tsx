@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm, useWatch } from 'react-hook-form'
@@ -7,6 +7,8 @@ import { z } from 'zod'
 import {
   Bell,
   CalendarClock,
+  CheckCircle2,
+  CircleAlert,
   ClipboardList,
   Loader2,
   MapPin,
@@ -14,25 +16,27 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Star,
   Wrench,
 } from 'lucide-react'
 import { dashboardApi } from '@/api/dashboard'
 import { rentalsApi } from '@/api/rentals'
 import { toolsApi } from '@/api/tools'
-import type { Rental, Tool } from '@/api/types'
+import type { Rental, Tool, ToolCategory, ToolStatus } from '@/api/types'
 import { ToolRecommendPanel } from '@/components/ToolRecommendPanel'
 import { badgeClass } from '@/lib/badge'
-import { formatMoney } from '@/lib/format'
+import { formatDateTime, formatMoney } from '@/lib/format'
+import { queryKeys } from '@/lib/queryKeys'
 import { damageLevelTone, toolStatusTone } from '@/lib/status'
 
-const CATEGORY_OPTIONS = [
+const CATEGORY_OPTIONS: { value: ToolCategory; label: string }[] = [
   { value: 'WX', label: '维修工具' },
   { value: 'YY', label: '园艺工具' },
   { value: 'QJ', label: '清洁工具' },
   { value: 'QT', label: '其他' },
 ]
 
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: { value: ToolStatus; label: string }[] = [
   { value: 'AVAILABLE', label: '可用' },
   { value: 'RENTED', label: '已租出' },
   { value: 'MAINTENANCE', label: '维修中' },
@@ -59,12 +63,44 @@ const reservationSchema = z
     pickupPerson: z.string().trim().min(1, '请填写取件人').max(20, '取件人姓名过长'),
     remindBeforeMinutes: z.number().int().min(0, '提醒时间不能为负数').max(10080, '最多提前 7 天提醒'),
   })
-  .refine((values) => new Date(values.endTime) > new Date(values.startTime), {
-    path: ['endTime'],
-    message: '结束时间需晚于开始时间',
-  })
+  .refine(
+    (values) =>
+      !values.startTime ||
+      !values.endTime ||
+      new Date(values.endTime) > new Date(values.startTime),
+    {
+      path: ['endTime'],
+      message: '结束时间需晚于开始时间',
+    },
+  )
+  .refine(
+    (values) => !values.startTime || new Date(values.startTime) > new Date(),
+    {
+      path: ['startTime'],
+      message: '开始时间需晚于当前时间',
+    },
+  )
 
 type ReservationValues = z.infer<typeof reservationSchema>
+
+function formatWindow(startTime?: string, endTime?: string) {
+  return `${formatDateTime(startTime)} 至 ${formatDateTime(endTime)}`
+}
+
+/** 审核未通过或状态不可用时，说明为什么不能预约。 */
+function reservationBlockReason(tool: Tool): string | null {
+  if (tool.auditStatus != null && tool.auditStatus !== 1) {
+    return `工具${tool.auditStatusName || '尚未通过审核'}，暂不可预约。`
+  }
+  if (tool.status !== 'AVAILABLE') {
+    return `工具当前状态为「${tool.statusName}」，暂不可预约；恢复可用后可蹲守提醒。`
+  }
+  return null
+}
+
+function canReserve(tool: Tool) {
+  return reservationBlockReason(tool) === null
+}
 
 function ToolImage({ tool, className }: { tool: Tool; className?: string }) {
   const [failed, setFailed] = useState(false)
@@ -107,9 +143,9 @@ function ReservationForm({
   onSuccess: (rental: Rental) => void
 }) {
   const defaults = useMemo(defaultRange, [])
-  const { control, handleSubmit, formState } = useForm<ReservationValues>({
+  const { control, handleSubmit, formState, setValue } = useForm<ReservationValues>({
     resolver: zodResolver(reservationSchema),
-    defaultValues: { ...defaults, pickupPerson: '张三', remindBeforeMinutes: 60 },
+    defaultValues: { ...defaults, pickupPerson: '', remindBeforeMinutes: 60 },
   })
 
   const startTimeValue = useWatch({ control, name: 'startTime' })
@@ -121,6 +157,36 @@ function ReservationForm({
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return 3
     return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000))
   }, [startTimeValue, endTimeValue])
+
+  const rangeValid = useMemo(() => {
+    const start = new Date(startTimeValue)
+    const end = new Date(endTimeValue)
+    return (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      end > start
+    )
+  }, [startTimeValue, endTimeValue])
+
+  const availabilityQuery = useQuery({
+    queryKey: queryKeys.tools.availability(tool.id, startTimeValue, endTimeValue),
+    queryFn: () => toolsApi.availability(tool.id, startTimeValue, endTimeValue),
+    enabled: rangeValid,
+    retry: false,
+    staleTime: 15_000,
+  })
+  const availability = availabilityQuery.data
+  const conflict = availability?.available === false
+
+  function adoptWindow(window: { startTime?: string; endTime?: string }) {
+    if (!window.startTime || !window.endTime) return
+    setValue('startTime', toInputValue(new Date(window.startTime)), {
+      shouldValidate: true,
+    })
+    setValue('endTime', toInputValue(new Date(window.endTime)), {
+      shouldValidate: true,
+    })
+  }
 
   const remindHint = useMemo(() => {
     if (remindBefore === 0) return '不发送到期提醒，请自行留意归还时间。'
@@ -169,7 +235,7 @@ function ReservationForm({
       </div>
 
       <div className="form-grid">
-        <div className="field">
+        <div className={'field' + (formState.errors.startTime ? ' is-err' : '')}>
           <label htmlFor="startTime"><span className="req">*</span>开始时间</label>
           <Controller
             control={control}
@@ -186,7 +252,7 @@ function ReservationForm({
           />
           {formState.errors.startTime && <p className="err">{formState.errors.startTime.message}</p>}
         </div>
-        <div className="field">
+        <div className={'field' + (formState.errors.endTime ? ' is-err' : '')}>
           <label htmlFor="endTime"><span className="req">*</span>结束时间</label>
           <Controller
             control={control}
@@ -206,6 +272,86 @@ function ReservationForm({
       </div>
 
       <div className="field">
+        {rangeValid && availabilityQuery.isFetching && (
+          <p className="hint">正在检查该时段是否可预约…</p>
+        )}
+        {availability?.available && (
+          <div className="notice-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok)' }}>
+            <CheckCircle2 className="ic" />
+            <div>
+              <b>{availability.message}</b>
+              {availability.freeWindows.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {availability.freeWindows.map((window) => (
+                    <span
+                      key={`${window.startTime}-${window.endTime}`}
+                      className="badge ok"
+                    >
+                      <CalendarClock className="ic" style={{ width: 12, height: 12 }} />
+                      {formatWindow(window.startTime, window.endTime)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {availability && !availability.available && (
+          <div
+            className="notice-sm"
+            style={{ background: 'var(--warn-bg)', color: 'var(--warn)', display: 'block' }}
+          >
+            <div style={{ display: 'flex', gap: 9 }}>
+              <CircleAlert className="ic" />
+              <div>
+                <b>{availability.message}</b>
+                {availability.freeWindows.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    <span className="tiny" style={{ color: 'var(--ink-2)' }}>
+                      期望时段内仍空闲：
+                    </span>
+                    {availability.freeWindows.map((window) => (
+                      <span
+                        key={`${window.startTime}-${window.endTime}`}
+                        className="badge ok"
+                      >
+                        <CalendarClock className="ic" style={{ width: 12, height: 12 }} />
+                        {formatWindow(window.startTime, window.endTime)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {availability.suggestionWindows.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <p className="tiny" style={{ marginBottom: 6, color: 'var(--ink-2)' }}>
+                      最近可约时段（点击采用）：
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {availability.suggestionWindows.map((window) => (
+                        <button
+                          key={`${window.startTime}-${window.endTime}`}
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => adoptWindow(window)}
+                        >
+                          {formatWindow(window.startTime, window.endTime)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {availabilityQuery.error && (
+          <p className="err" style={{ display: 'block' }}>
+            {availabilityQuery.error.message}
+          </p>
+        )}
+      </div>
+
+      <div className={'field' + (formState.errors.pickupPerson ? ' is-err' : '')}>
         <label htmlFor="pickupPerson"><span className="req">*</span>取件人</label>
         <Controller
           control={control}
@@ -223,7 +369,7 @@ function ReservationForm({
         {formState.errors.pickupPerson && <p className="err">{formState.errors.pickupPerson.message}</p>}
       </div>
 
-      <div className="field">
+      <div className={'field' + (formState.errors.remindBeforeMinutes ? ' is-err' : '')}>
         <label htmlFor="remindBeforeMinutes">到期提醒</label>
         <Controller
           control={control}
@@ -244,15 +390,31 @@ function ReservationForm({
           )}
         />
         <p className="hint">{remindHint}</p>
+        {formState.errors.remindBeforeMinutes && (
+          <p className="err" style={{ display: 'block' }}>
+            {formState.errors.remindBeforeMinutes.message}
+          </p>
+        )}
       </div>
+
+      {mutation.error && (
+        <p className="err" style={{ display: 'block' }}>
+          {mutation.error.message}
+        </p>
+      )}
 
       <div className="dlg-foot">
         <button type="button" className="btn btn-outline" onClick={onCancel}>
           取消
         </button>
-        <button type="submit" className="btn btn-primary" disabled={mutation.isPending}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={mutation.isPending || conflict}
+          title={conflict ? '当前时段已被预约，请采用最近可约时段' : undefined}
+        >
           {mutation.isPending && <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />}
-          提交预约
+          {conflict ? '时段冲突' : '提交预约'}
         </button>
       </div>
     </form>
@@ -307,6 +469,7 @@ function UsageGuide({ guide }: { guide?: string | null }) {
 }
 
 function ToolDetail({ tool }: { tool: Tool }) {
+  const blockReason = reservationBlockReason(tool)
   return (
     <div>
       <div className="d-hero">
@@ -330,6 +493,12 @@ function ToolDetail({ tool }: { tool: Tool }) {
             <dd>{formatMoney(tool.deposit)}</dd>
             <dt>已租赁次数</dt>
             <dd>{tool.rentalCount} 次</dd>
+            <dt>用户评分</dt>
+            <dd>
+              {tool.reviewCount > 0
+                ? `${(tool.ratingAvg ?? 0).toFixed(1)} 分（${tool.reviewCount} 条评价）`
+                : '暂无评价'}
+            </dd>
             <dt>存放区域</dt>
             <dd>
               <MapPin className="ic sm" style={{ verticalAlign: -2, marginRight: 4 }} />
@@ -339,47 +508,17 @@ function ToolDetail({ tool }: { tool: Tool }) {
         </div>
       </div>
 
+      {blockReason && (
+        <div className="notice-sm" style={{ background: 'var(--warn-bg)', color: 'var(--warn)' }}>
+          <CircleAlert className="ic" />
+          <span>{blockReason}</span>
+        </div>
+      )}
+
       <div className="sec-label">使用说明</div>
       <UsageGuide guide={tool.usageGuide} />
     </div>
   )
-}
-
-/** 本周共享趋势迷你折线（原型 pulseSpark 的等价实现） */
-function PulseSpark() {
-  const ref = useRef<HTMLCanvasElement>(null)
-  useEffect(() => {
-    const canvas = ref.current
-    if (!canvas) return
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
-    const w = canvas.clientWidth || 220
-    const h = 44
-    canvas.width = w * dpr
-    canvas.height = h * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.scale(dpr, dpr)
-    const data = [3, 5, 4, 6, 4, 7, 5, 8, 6, 9, 7, 10]
-    const max = Math.max(...data)
-    const min = Math.min(...data)
-    const pts = data.map((v, i) => [4 + ((w - 8) * i) / (data.length - 1), h - 4 - ((h - 8) * (v - min)) / (max - min || 1)])
-    const area = ctx.createLinearGradient(0, 0, 0, h)
-    area.addColorStop(0, 'rgba(224,137,0,.22)')
-    area.addColorStop(1, 'rgba(224,137,0,0)')
-    ctx.beginPath()
-    ctx.moveTo(pts[0][0], h)
-    pts.forEach(([x, y]) => ctx.lineTo(x, y))
-    ctx.lineTo(pts[pts.length - 1][0], h)
-    ctx.closePath()
-    ctx.fillStyle = area
-    ctx.fill()
-    ctx.beginPath()
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
-    ctx.strokeStyle = '#E08900'
-    ctx.lineWidth = 1.8
-    ctx.stroke()
-  }, [])
-  return <canvas ref={ref} style={{ width: '100%', height: 44, display: 'block' }} />
 }
 
 export default function ToolsPage() {
@@ -388,30 +527,32 @@ export default function ToolsPage() {
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
-  const [category, setCategory] = useState('')
-  const [status, setStatus] = useState('')
-  const [sort, setSort] = useState('default')
+  const [category, setCategory] = useState<ToolCategory | ''>('')
+  const [status, setStatus] = useState<ToolStatus | ''>('')
+  const [sort, setSort] = useState<'default' | 'rating'>('default')
   const [page, setPage] = useState(1)
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
   const [mode, setMode] = useState<'detail' | 'reserve'>('detail')
   const [recommendOpen, setRecommendOpen] = useState(false)
 
-  const dashboardQuery = useQuery({ queryKey: ['dashboard'], queryFn: dashboardApi.get })
+  const dashboardQuery = useQuery({ queryKey: queryKeys.dashboard, queryFn: dashboardApi.get })
+
+  const toolParams = {
+    keyword: appliedKeyword || undefined,
+    category: category || undefined,
+    status: status || undefined,
+    orderBy: sort === 'rating' ? 'rating' : undefined,
+    page,
+    size: PAGE_SIZE,
+  } as const
 
   const toolsQuery = useQuery({
-    queryKey: ['tools', { appliedKeyword, category, status, page }],
-    queryFn: () =>
-      toolsApi.list({
-        keyword: appliedKeyword || undefined,
-        category: category || undefined,
-        status: status || undefined,
-        page,
-        size: PAGE_SIZE,
-      }),
+    queryKey: queryKeys.tools.list(toolParams),
+    queryFn: () => toolsApi.list(toolParams),
   })
 
   const detailQuery = useQuery({
-    queryKey: ['tool', selectedToolId],
+    queryKey: queryKeys.tools.detail(selectedToolId),
     queryFn: () => toolsApi.detail(selectedToolId as number),
     enabled: selectedToolId !== null,
   })
@@ -420,7 +561,7 @@ export default function ToolsPage() {
   const activeTool = detailQuery.data ?? listTool
 
   const watchQuery = useQuery({
-    queryKey: ['tools', activeTool?.id, 'watch'],
+    queryKey: queryKeys.tools.watch(activeTool?.id ?? null),
     queryFn: () => toolsApi.watched(activeTool!.id),
     enabled: !!activeTool && activeTool.status !== 'AVAILABLE',
     staleTime: 5_000,
@@ -428,16 +569,9 @@ export default function ToolsPage() {
   const watched = watchQuery.data?.watched ?? false
   const watchMutation = useMutation({
     mutationFn: () => (watched ? toolsApi.unwatch(activeTool!.id) : toolsApi.watch(activeTool!.id)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tools', activeTool?.id, 'watch'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.watch(activeTool?.id ?? null) }),
   })
-
-  const records = useMemo(() => {
-    const list = [...(toolsQuery.data?.records ?? [])]
-    if (sort === 'hot') list.sort((a, b) => b.rentalCount - a.rentalCount)
-    if (sort === 'depositAsc') list.sort((a, b) => a.deposit - b.deposit)
-    if (sort === 'depositDesc') list.sort((a, b) => b.deposit - a.deposit)
-    return list
-  }, [toolsQuery.data, sort])
 
   function openTool(id: number) {
     setSelectedToolId(id)
@@ -464,6 +598,7 @@ export default function ToolsPage() {
     setAppliedKeyword('')
     setCategory('')
     setStatus('')
+    setSort('default')
     setPage(1)
   }
 
@@ -482,7 +617,7 @@ export default function ToolsPage() {
         <div>
           <p className="eyebrow">TOOL PLAZA</p>
           <h1>工具广场</h1>
-          <p className="sub">社区工具房现有 8 类共享工具，按需预约、押金可退。点击卡片查看使用指南。</p>
+          <p className="sub">社区工具房共享工具，按需预约、押金可退。点击卡片查看使用指南。</p>
         </div>
         <div className="actions">
           <button type="button" className="btn btn-outline" onClick={() => setRecommendOpen(true)}>
@@ -492,8 +627,8 @@ export default function ToolsPage() {
             type="button"
             className="btn btn-outline"
             onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['tools'] })
-              queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+              queryClient.invalidateQueries({ queryKey: queryKeys.tools.all })
+              queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
             }}
           >
             <RefreshCw className="ic sm" />刷新
@@ -521,21 +656,6 @@ export default function ToolsPage() {
         })}
       </div>
 
-      <div className="pulse reveal">
-        <div className="pulse-txt">
-          <span className="pulse-ic">
-            <ClipboardList className="ic" />
-          </span>
-          <div>
-            <b>本周社区已共享 23 次工具</b>
-            <span>邻里互助，减少重复购置约 ¥4,600，让每件工具物尽其用。</span>
-          </div>
-        </div>
-        <div className="pulse-chart">
-          <PulseSpark />
-        </div>
-      </div>
-
       <form
         className="filterbar reveal"
         onSubmit={(event) => {
@@ -554,26 +674,32 @@ export default function ToolsPage() {
               setAppliedKeyword(event.target.value.trim())
               setPage(1)
             }}
-            placeholder="搜索工具名称 / 编码 / 品牌…"
+            placeholder="搜索工具名称 / 型号 / 编码…"
           />
         </div>
-        <select className="select f-item" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }} aria-label="工具分类">
+        <select className="select f-item" value={category} onChange={(event) => { setCategory(event.target.value as ToolCategory | ''); setPage(1) }} aria-label="工具分类">
           <option value="">全部分类</option>
           {CATEGORY_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
-        <select className="select f-item" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} aria-label="工具状态">
+        <select className="select f-item" value={status} onChange={(event) => { setStatus(event.target.value as ToolStatus | ''); setPage(1) }} aria-label="工具状态">
           <option value="">全部状态</option>
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
-        <select className="select f-item" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="排序">
+        <select
+          className="select f-item"
+          value={sort}
+          onChange={(event) => {
+            setSort(event.target.value as 'default' | 'rating')
+            setPage(1)
+          }}
+          aria-label="排序"
+        >
           <option value="default">综合排序</option>
-          <option value="hot">租借最多</option>
-          <option value="depositAsc">押金从低到高</option>
-          <option value="depositDesc">押金从高到低</option>
+          <option value="rating">评分最高</option>
         </select>
         <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>重置</button>
         <span className="grow"></span>
@@ -595,7 +721,7 @@ export default function ToolsPage() {
       ) : toolsQuery.data && toolsQuery.data.records.length > 0 ? (
         <>
           <div className="tool-grid">
-            {records.map((tool) => (
+            {toolsQuery.data.records.map((tool) => (
               <div className="tool-card tilt reveal" key={tool.id} onClick={() => openTool(tool.id)} role="button" tabIndex={0}>
                 <div className="tc-img">
                   <ToolImage tool={tool} className="size-full object-cover" />
@@ -612,6 +738,12 @@ export default function ToolsPage() {
                   <div className="tc-meta">
                     <span className="badge neutral">{tool.categoryName}</span>
                     <span className={badgeClass(damageLevelTone(tool.damageLevel))}>{tool.damageLevelName}</span>
+                    {tool.reviewCount > 0 && (
+                      <span className="badge brand">
+                        <Star className="ic" style={{ width: 12, height: 12 }} />
+                        {(tool.ratingAvg ?? 0).toFixed(1)}（{tool.reviewCount}）
+                      </span>
+                    )}
                   </div>
                   <div className="tc-info">
                     <MapPin className="ic" />
@@ -628,14 +760,15 @@ export default function ToolsPage() {
                   </div>
                   <button
                     type="button"
-                    className={'btn rent-btn ' + (tool.status === 'AVAILABLE' ? 'btn-primary' : 'btn-outline')}
+                    className={'btn rent-btn ' + (canReserve(tool) ? 'btn-primary' : 'btn-outline')}
+                    title={reservationBlockReason(tool) ?? undefined}
                     onClick={(event) => {
                       event.stopPropagation()
                       openTool(tool.id)
-                      if (tool.status === 'AVAILABLE') setMode('reserve')
+                      if (canReserve(tool)) setMode('reserve')
                     }}
                   >
-                    {tool.status === 'AVAILABLE' ? '预约' : '蹲守提醒'}
+                    {canReserve(tool) ? '预约' : '蹲守提醒'}
                   </button>
                 </div>
               </div>
@@ -690,9 +823,10 @@ export default function ToolsPage() {
                     tool={activeTool}
                     onCancel={() => setMode('detail')}
                     onSuccess={() => {
-                      queryClient.invalidateQueries({ queryKey: ['rentals'] })
-                      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-                      queryClient.invalidateQueries({ queryKey: ['messages'] })
+                      queryClient.invalidateQueries({ queryKey: queryKeys.rentals.all })
+                      queryClient.invalidateQueries({ queryKey: queryKeys.tools.all })
+                      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
+                      queryClient.invalidateQueries({ queryKey: queryKeys.messages.all })
                       closeDialog()
                       navigate('/rentals')
                     }}
@@ -707,7 +841,7 @@ export default function ToolsPage() {
             {mode === 'detail' && activeTool && (
               <div className="dlg-foot">
                 <button type="button" className="btn btn-outline" onClick={closeDialog}>关闭</button>
-                {activeTool.status === 'AVAILABLE' ? (
+                {canReserve(activeTool) ? (
                   <button type="button" className="btn btn-primary" onClick={() => setMode('reserve')}>
                     <CalendarClock className="ic sm" />立即预约
                   </button>

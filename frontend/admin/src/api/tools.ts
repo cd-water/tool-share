@@ -1,88 +1,15 @@
 import http from '@/api/request'
-import type { PageQuery, PageResult } from '@/api/types'
-
-export type ToolCategory = 'WX' | 'YY' | 'QJ' | 'QT'
-export type DamageLevel = 'NEW' | 'LIGHT' | 'MEDIUM' | 'SEVERE'
-export type ToolStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'SCRAPPED'
-export type AuditStatus = 'PENDING' | 'APPROVED' | 'NEEDS_CHANGE'
-
-export interface ToolVO {
-  id: number
-  code: string
-  name: string
-  model?: string
-  category: ToolCategory
-  categoryName?: string
-  damageLevel: DamageLevel
-  damageLevelName?: string
-  status: ToolStatus
-  statusName?: string
-  deposit: number
-  storageArea?: string
-  usageGuide?: string
-  imageUrl?: string
-  imageUrls?: string[]
-  purchaseDate?: string
-  supplier?: string
-  auditStatus?: number
-  auditStatusName?: string
-  auditRemark?: string
-  createdBy?: number
-  createdByName?: string
-  rentalCount?: number
-  lastRepairTime?: string
-  createTime?: string
-  updateTime?: string
-}
-
-export type ToolOrderBy = 'default' | 'rentalCount' | 'lastRepairTime'
-
-export interface ToolQuery extends PageQuery {
-  keyword?: string
-  category?: string
-  status?: string
-  storageArea?: string
-  /** 排序：默认（创建时间）/ 租赁次数 / 最近维修时间 */
-  orderBy?: ToolOrderBy
-  /** 最低租赁次数 */
-  minRentalCount?: number
-  /** 最近 N 天内维修过 */
-  repairedWithinDays?: number
-  /** 从未维修 */
-  neverRepaired?: boolean
-}
-
-export interface ToolSaveDTO {
-  name: string
-  model?: string
-  category: ToolCategory
-  damageLevel: DamageLevel
-  deposit: number
-  storageArea?: string
-  usageGuide?: string
-  imageUrls: string[]
-  purchaseDate?: string | null
-  supplier?: string
-  status?: ToolStatus
-}
-
-export interface ToolAuditDTO {
-  auditStatus: Exclude<AuditStatus, 'PENDING'>
-  remark?: string
-}
-
-export interface ToolLogVO {
-  id: number
-  toolId: number
-  action: string
-  fromStatus?: string | null
-  toStatus?: string | null
-  detail?: string
-  operatorId?: number
-  operatorName?: string
-  remark?: string
-  createTime?: string
-}
+import type {
+  PageResult,
+  RentalVO,
+  ToolAuditDTO,
+  ToolLogVO,
+  ToolQuery,
+  ToolRestoreDTO,
+  ToolSaveDTO,
+  ToolStatusDTO,
+  ToolVO,
+} from '@/api/types'
 
 export const toolApi = {
   list: (params: ToolQuery) => http.get<PageResult<ToolVO>>('/admin/tools', { params }),
@@ -90,7 +17,11 @@ export const toolApi = {
   update: (id: number, data: ToolSaveDTO) => http.put<ToolVO>(`/admin/tools/${id}`, data),
   audit: (id: number, data: ToolAuditDTO) =>
     http.patch<ToolVO>(`/admin/tools/${id}/audit`, data),
-  updateStatus: (id: number, status: ToolStatus) =>
-    http.patch<void>(`/admin/tools/${id}/status`, { status }),
+  updateStatus: (id: number, status: ToolStatusDTO['status']) =>
+    http.patch<void>(`/admin/tools/${id}/status`, { status } satisfies ToolStatusDTO),
+  restore: (id: number, data: ToolRestoreDTO) =>
+    http.post<ToolVO>(`/admin/tools/${id}/restore`, data),
+  rentals: (id: number, params: { page: number; size: number }) =>
+    http.get<PageResult<RentalVO>>(`/admin/tools/${id}/rentals`, { params }),
   logs: (id: number) => http.get<ToolLogVO[]>(`/admin/tools/${id}/logs`),
 }

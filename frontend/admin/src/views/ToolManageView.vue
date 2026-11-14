@@ -14,63 +14,74 @@ import {
   Search,
   Upload,
 } from '@element-plus/icons-vue'
-import {
-  toolApi,
-  type ToolLogVO,
-  type ToolQuery,
-  type ToolSaveDTO,
-  type ToolStatus,
-  type ToolVO,
-} from '@/api/tools'
+import { toolApi } from '@/api/tools'
 import { uploadApi } from '@/api/upload'
-import { toast } from '@/lib/fx'
+import type { RentalVO, ToolLogVO, ToolQuery, ToolSaveDTO, ToolStatus, ToolVO } from '@/api/types'
+import { useAuthStore } from '@/stores/auth'
+import { badgeClass } from '@/utils/badge'
 import { cleanParams } from '@/utils/params'
 import { formatDateTime, formatMoney, resolveFileUrl } from '@/utils/format'
 import {
+  AUDIT_STATUS_NAME_LABELS,
   DAMAGE_LEVEL_LABELS,
+  RENTAL_STATUS_LABELS,
   TOOL_CATEGORY_LABELS,
   TOOL_LOG_ACTION_LABELS,
   TOOL_STATUS_LABELS,
+  auditStatusLabel,
+  auditStatusTag,
   enumLabel,
   optionList,
+  rentalStatusTag,
 } from '@/utils/enums'
+
+const auth = useAuthStore()
+const isSuperAdmin = computed(() => auth.isSuperAdmin)
 
 const loading = ref(false)
 const list = ref<ToolVO[]>([])
 const total = ref(0)
-const hiddenIds = ref<number[]>([])
-
-const visibleList = computed(() => list.value.filter((row) => !hiddenIds.value.includes(row.id)))
 
 function rowImage(row: ToolVO): string {
   const raw = row.imageUrl || row.imageUrls?.[0] || ''
   return raw ? resolveFileUrl(raw) : ''
 }
 
-function removeRow(row: ToolVO) {
-  hiddenIds.value.push(row.id)
-  toast('已删除工具（演示）', {
-    type: 'info',
-    msg: row.code,
-    undo: () => {
-      hiddenIds.value = hiddenIds.value.filter((id) => id !== row.id)
-    },
-  })
+// —— 审核 ——
+const auditVisible = ref(false)
+const auditSaving = ref(false)
+const auditTarget = ref<ToolVO | null>(null)
+const auditForm = reactive<{ auditStatus: 'APPROVED' | 'NEEDS_CHANGE'; remark: string }>({
+  auditStatus: 'APPROVED',
+  remark: '',
+})
+
+function openAudit(row: ToolVO, auditStatus: 'APPROVED' | 'NEEDS_CHANGE') {
+  auditTarget.value = row
+  auditForm.auditStatus = auditStatus
+  auditForm.remark = row.auditRemark ?? ''
+  auditVisible.value = true
 }
 
-async function auditRow(row: ToolVO, auditStatus: 'APPROVED' | 'NEEDS_CHANGE') {
-  let remark = ''
-  if (auditStatus === 'NEEDS_CHANGE') {
-    const result = await ElMessageBox.prompt('请填写退回原因', '审核退回', {
-      inputPlaceholder: '需修改的内容',
-      inputValidator: (v) => (v && v.trim() ? true : '审核意见不能为空'),
-    }).catch(() => null)
-    if (!result) return
-    remark = result.value.trim()
+async function submitAudit() {
+  const target = auditTarget.value
+  if (!target) return
+  if (auditForm.auditStatus === 'NEEDS_CHANGE' && !auditForm.remark.trim()) {
+    ElMessage.warning('退回时审核意见不能为空')
+    return
   }
-  await toolApi.audit(row.id, { auditStatus, remark })
-  ElMessage.success(auditStatus === 'APPROVED' ? '工具已通过审核' : '已退回修改')
-  await loadList()
+  auditSaving.value = true
+  try {
+    await toolApi.audit(target.id, {
+      auditStatus: auditForm.auditStatus,
+      remark: auditForm.remark.trim() || undefined,
+    })
+    ElMessage.success(auditForm.auditStatus === 'APPROVED' ? '工具已通过审核' : '已退回修改')
+    auditVisible.value = false
+    await loadList()
+  } finally {
+    auditSaving.value = false
+  }
 }
 const query = reactive<ToolQuery & { page: number; size: number }>({
   page: 1,
@@ -233,7 +244,7 @@ function stripHtml(html: string): string {
     .trim()
 }
 
-function parseGuide(raw?: string): { steps: GuideStep[]; legacy: boolean } {
+function parseGuide(raw?: string | null): { steps: GuideStep[]; legacy: boolean } {
   const value = (raw ?? '').trim()
   if (!value) return { steps: [emptyStep()], legacy: false }
   if (value.startsWith('[')) {
@@ -453,27 +464,38 @@ function openPreview(url: string) {
   previewUrl.value = url
 }
 
-// —— 状态更新 ——
+// —— 状态更新：只提供状态机允许的目标状态 ——
+const STATUS_TRANSITIONS: Record<ToolStatus, ToolStatus[]> = {
+  AVAILABLE: ['RENTED', 'MAINTENANCE', 'SCRAPPED'],
+  RENTED: ['AVAILABLE', 'MAINTENANCE', 'SCRAPPED'],
+  MAINTENANCE: ['AVAILABLE', 'SCRAPPED'],
+  SCRAPPED: [],
+}
+
 const statusDialogVisible = ref(false)
 const statusSaving = ref(false)
 const statusTarget = ref<ToolVO | null>(null)
 const statusValue = ref<ToolStatus>('AVAILABLE')
-const statusReason = ref('')
+
+const statusChoices = computed(() => {
+  const current = statusTarget.value?.status
+  return (current ? STATUS_TRANSITIONS[current] ?? [] : []).map((status) => ({
+    value: status,
+    label: enumLabel(TOOL_STATUS_LABELS, status),
+  }))
+})
 
 function openStatusDialog(row: ToolVO) {
+  const choices = STATUS_TRANSITIONS[row.status] ?? []
+  if (!choices.length) return
   statusTarget.value = row
-  statusValue.value = row.status
-  statusReason.value = ''
+  statusValue.value = choices[0]
   statusDialogVisible.value = true
 }
 
 async function submitStatus() {
   const target = statusTarget.value
   if (!target) return
-  if (statusValue.value === target.status) {
-    ElMessage.info('工具状态未变化')
-    return
-  }
   try {
     await ElMessageBox.confirm(
       `确认将「${target.name}」状态更新为「${enumLabel(TOOL_STATUS_LABELS, statusValue.value)}」？`,
@@ -494,11 +516,50 @@ async function submitStatus() {
   }
 }
 
+// —— 报废恢复（仅系统管理员） ——
+const restoreVisible = ref(false)
+const restoreSaving = ref(false)
+const restoreTarget = ref<ToolVO | null>(null)
+const restoreReason = ref('')
+
+function openRestore(row: ToolVO) {
+  restoreTarget.value = row
+  restoreReason.value = ''
+  restoreVisible.value = true
+}
+
+async function submitRestore() {
+  const target = restoreTarget.value
+  if (!target) return
+  if (!restoreReason.value.trim()) {
+    ElMessage.warning('请填写恢复原因')
+    return
+  }
+  restoreSaving.value = true
+  try {
+    await toolApi.restore(target.id, { reason: restoreReason.value.trim() })
+    ElMessage.success('工具已恢复为可借用')
+    restoreVisible.value = false
+    await loadList()
+  } finally {
+    restoreSaving.value = false
+  }
+}
+
 // —— 操作日志 ——
 const logDrawerVisible = ref(false)
 const logLoading = ref(false)
 const logs = ref<ToolLogVO[]>([])
 const logToolName = ref('')
+
+function logStatusLabel(value?: string | null): string {
+  if (!value) return '—'
+  return (
+    TOOL_STATUS_LABELS[value as ToolStatus] ??
+    AUDIT_STATUS_NAME_LABELS[value] ??
+    value
+  )
+}
 
 async function openLogs(row: ToolVO) {
   logToolName.value = row.name
@@ -512,7 +573,48 @@ async function openLogs(row: ToolVO) {
   }
 }
 
-onMounted(loadList)
+// —— 工具历史租赁 ——
+const rentalDrawerVisible = ref(false)
+const rentalLoading = ref(false)
+const rentalList = ref<RentalVO[]>([])
+const rentalTotal = ref(0)
+const rentalPage = ref(1)
+const rentalSize = ref(5)
+const rentalTool = ref<ToolVO | null>(null)
+
+const rentalPages = computed(() => Math.max(1, Math.ceil(rentalTotal.value / rentalSize.value)))
+
+async function loadRentals() {
+  const tool = rentalTool.value
+  if (!tool) return
+  rentalLoading.value = true
+  try {
+    const data = await toolApi.rentals(tool.id, { page: rentalPage.value, size: rentalSize.value })
+    rentalList.value = data.records
+    rentalTotal.value = data.total
+  } finally {
+    rentalLoading.value = false
+  }
+}
+
+function openRentals(row: ToolVO) {
+  rentalTool.value = row
+  rentalPage.value = 1
+  rentalList.value = []
+  rentalTotal.value = 0
+  rentalDrawerVisible.value = true
+  loadRentals()
+}
+
+function gotoRentalPage(page: number) {
+  if (page < 1 || page > rentalPages.value || page === rentalPage.value) return
+  rentalPage.value = page
+  loadRentals()
+}
+
+onMounted(() => {
+  if (isSuperAdmin.value) loadList()
+})
 </script>
 
 <template>
@@ -524,7 +626,7 @@ onMounted(loadList)
         <p class="sub">维护工具档案、使用指南与状态，支持按分类、状态、存放区与维修范围筛选。</p>
       </div>
       <div class="actions">
-        <button class="btn btn-primary" @click="openCreate">
+        <button v-if="isSuperAdmin" class="btn btn-primary" @click="openCreate">
           <Plus class="ic sm" />新增工具
         </button>
       </div>
@@ -600,7 +702,7 @@ onMounted(loadList)
               <th class="c">租借</th>
               <th>最近维修</th>
               <th>创建时间</th>
-              <th style="width: 168px">操作</th>
+              <th style="width: 240px">操作</th>
             </tr>
           </thead>
           <tbody v-if="loading">
@@ -620,7 +722,7 @@ onMounted(loadList)
             </tr>
           </tbody>
           <tbody v-else>
-            <tr v-for="row in visibleList" :key="row.id">
+            <tr v-for="row in list" :key="row.id">
               <td>
                 <div class="cell-tool">
                   <img
@@ -649,8 +751,13 @@ onMounted(loadList)
                 <span class="badge" :class="toolStatusBadge(row.status)">
                   <span class="dot"></span>{{ row.statusName || enumLabel(TOOL_STATUS_LABELS, row.status) }}
                 </span>
-                <div class="cell-sub">审核：{{ row.auditStatusName || '—' }}</div>
-                <div v-if="row.auditRemark" class="cell-sub">{{ row.auditRemark }}</div>
+                <div class="cell-sub">
+                  审核：
+                  <span class="badge" :class="badgeClass(auditStatusTag(row.auditStatus))">
+                    {{ row.auditStatusName || auditStatusLabel(row.auditStatus) }}
+                  </span>
+                </div>
+                <div v-if="row.auditRemark" class="cell-sub">意见：{{ row.auditRemark }}</div>
               </td>
               <td class="r"><span class="money">{{ formatMoney(row.deposit) }}</span></td>
               <td>{{ row.storageArea || '—' }}</td>
@@ -661,17 +768,20 @@ onMounted(loadList)
               </td>
               <td>{{ formatDateTime(row.createTime) }}</td>
               <td>
-                <div class="row-actions">
-                  <button v-if="row.auditStatus !== 1" class="link-btn" @click="auditRow(row, 'APPROVED')">
+                <div v-if="isSuperAdmin" class="row-actions">
+                  <button v-if="row.auditStatus !== 1" class="link-btn ok" @click="openAudit(row, 'APPROVED')">
                     通过
                   </button>
-                  <button v-if="row.auditStatus === 0" class="link-btn" @click="auditRow(row, 'NEEDS_CHANGE')">
+                  <button v-if="row.auditStatus !== 2" class="link-btn" @click="openAudit(row, 'NEEDS_CHANGE')">
                     退回
                   </button>
                   <button class="link-btn" @click="openEdit(row)">编辑</button>
-                  <button class="link-btn" @click="openStatusDialog(row)">状态</button>
+                  <button v-if="row.status !== 'SCRAPPED'" class="link-btn" @click="openStatusDialog(row)">
+                    状态
+                  </button>
+                  <button v-else class="link-btn ok" @click="openRestore(row)">恢复</button>
+                  <button class="link-btn" @click="openRentals(row)">历史租赁</button>
                   <button class="link-btn" @click="openLogs(row)">日志</button>
-                  <button class="link-btn danger" @click="removeRow(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -901,15 +1011,12 @@ onMounted(loadList)
           <div class="field">
             <label>新状态</label>
             <select class="select" v-model="statusValue">
-              <option v-for="item in statusOptions" :key="item.value" :value="item.value">
+              <option v-for="item in statusChoices" :key="item.value" :value="item.value">
                 {{ item.label }}
               </option>
             </select>
           </div>
-          <div class="field">
-            <label>变更原因</label>
-            <textarea v-model="statusReason" class="textarea" placeholder="请填写变更原因（选填）" />
-          </div>
+          <p class="hint">仅展示状态机允许的流转；已报废工具请使用「恢复」。</p>
         </div>
         <div class="dlg-foot">
           <button class="btn btn-outline" @click="statusDialogVisible = false">取消</button>
@@ -943,15 +1050,154 @@ onMounted(loadList)
             <li v-for="(log, index) in logs" :key="log.id" :class="{ done: index < logs.length - 1 }">
               <div class="tl-t">
                 {{ enumLabel(TOOL_LOG_ACTION_LABELS, log.action) }}
-                <span v-if="log.operatorId" class="badge neutral">操作员 {{ log.operatorId }}</span>
+                <span v-if="log.operatorName" class="badge neutral">操作人 {{ log.operatorName }}</span>
               </div>
               <div class="tl-time">{{ formatDateTime(log.createTime) }}</div>
-              <div class="tl-d">{{ log.detail || '—' }}</div>
+              <div v-if="log.fromStatus || log.toStatus" class="tl-d">
+                {{ logStatusLabel(log.fromStatus) }} → {{ logStatusLabel(log.toStatus) }}
+              </div>
+              <div v-if="log.remark" class="tl-d">备注：{{ log.remark }}</div>
+              <div v-else-if="!log.fromStatus && !log.toStatus" class="tl-d">{{ log.detail || '—' }}</div>
             </li>
           </ul>
           <div v-else class="empty">
             <Document class="e-ic" />
             <h4>暂无状态日志</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 审核 -->
+    <div class="mask show" v-if="auditVisible" @click.self="auditVisible = false">
+      <div class="dlg narrow">
+        <div class="dlg-head">
+          <div>
+            <h3>工具审核</h3>
+            <p class="d-sub">
+              {{ auditTarget?.name || '—' }} · 当前审核状态
+              {{ auditTarget ? (auditTarget.auditStatusName || auditStatusLabel(auditTarget.auditStatus)) : '—' }}
+            </p>
+          </div>
+          <button class="dlg-x" @click="auditVisible = false"><Close class="ic sm" /></button>
+        </div>
+        <div class="dlg-body">
+          <div class="field">
+            <label><span class="req">*</span>审核结果</label>
+            <select class="select" v-model="auditForm.auditStatus">
+              <option value="APPROVED">通过</option>
+              <option value="NEEDS_CHANGE">退回修改</option>
+            </select>
+          </div>
+          <div class="field">
+            <label><span v-if="auditForm.auditStatus === 'NEEDS_CHANGE'" class="req">*</span>审核意见</label>
+            <textarea
+              v-model="auditForm.remark"
+              class="textarea"
+              rows="3"
+              maxlength="500"
+              :placeholder="auditForm.auditStatus === 'NEEDS_CHANGE' ? '请填写需修改的内容' : '选填'"
+            ></textarea>
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-outline" @click="auditVisible = false">取消</button>
+          <button class="btn btn-primary" :class="{ loading: auditSaving }" :disabled="auditSaving" @click="submitAudit">
+            提交审核
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 报废恢复 -->
+    <div class="mask show" v-if="restoreVisible" @click.self="restoreVisible = false">
+      <div class="dlg narrow">
+        <div class="dlg-head">
+          <div>
+            <h3>恢复已报废工具</h3>
+            <p class="d-sub">{{ restoreTarget?.name }} · {{ restoreTarget?.code }}</p>
+          </div>
+          <button class="dlg-x" @click="restoreVisible = false"><Close class="ic sm" /></button>
+        </div>
+        <div class="dlg-body">
+          <div class="notice-sm">
+            <InfoFilled class="ic" />
+            <span>恢复前请确认工具无活动租赁与未完成报修，恢复后将变为「可借用」。</span>
+          </div>
+          <div class="field">
+            <label><span class="req">*</span>恢复原因</label>
+            <textarea
+              v-model="restoreReason"
+              class="textarea"
+              rows="3"
+              maxlength="500"
+              placeholder="请填写恢复原因"
+            ></textarea>
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-outline" @click="restoreVisible = false">取消</button>
+          <button class="btn btn-primary" :class="{ loading: restoreSaving }" :disabled="restoreSaving" @click="submitRestore">
+            确认恢复
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 历史租赁 -->
+    <div class="drawer-mask show" v-if="rentalDrawerVisible" @click.self="rentalDrawerVisible = false">
+      <div class="drawer" style="width: 680px">
+        <div class="dlg-head">
+          <div>
+            <h3>历史租赁</h3>
+            <p class="d-sub">{{ rentalTool?.name }} · {{ rentalTool?.code }}</p>
+          </div>
+          <button class="dlg-x" @click="rentalDrawerVisible = false"><Close class="ic sm" /></button>
+        </div>
+        <div class="dlg-body">
+          <template v-if="rentalLoading">
+            <div v-for="i in 4" :key="i" class="skel" style="height: 18px; margin-bottom: 14px"></div>
+          </template>
+          <template v-else-if="rentalList.length">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>租赁单号</th>
+                  <th>租用人</th>
+                  <th>租期</th>
+                  <th class="r">押金</th>
+                  <th class="c">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in rentalList" :key="item.id">
+                  <td class="code">{{ item.orderNo }}</td>
+                  <td>{{ item.renterName }}</td>
+                  <td>
+                    <div>{{ formatDateTime(item.startTime) }}</div>
+                    <div class="cell-sub">至 {{ formatDateTime(item.endTime) }}</div>
+                  </td>
+                  <td class="r money">{{ formatMoney(item.depositAmount) }}</td>
+                  <td class="c">
+                    <span :class="badgeClass(rentalStatusTag(item.status))">
+                      {{ item.statusName || enumLabel(RENTAL_STATUS_LABELS, item.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+          <div v-else class="empty">
+            <Document class="e-ic" />
+            <h4>暂无租赁记录</h4>
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <span class="tiny">共 {{ rentalTotal }} 条 · 第 {{ rentalPage }}/{{ rentalPages }} 页</span>
+          <span class="grow"></span>
+          <div class="pager">
+            <button :disabled="rentalPage <= 1" @click="gotoRentalPage(rentalPage - 1)">‹</button>
+            <button :disabled="rentalPage >= rentalPages" @click="gotoRentalPage(rentalPage + 1)">›</button>
           </div>
         </div>
       </div>

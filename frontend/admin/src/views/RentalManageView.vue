@@ -2,12 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
-import {
-  rentalApi,
-  type DamageResult,
-  type RentalReturnDTO,
-  type RentalVO,
-} from '@/api/rentals'
+import { rentalApi } from '@/api/rentals'
+import type { DamageResult, RentalReturnDTO, RentalVO } from '@/api/types'
 import { cleanParams } from '@/utils/params'
 import { exportTimestamp, formatDateTime, formatMoney, resolveFileUrl } from '@/utils/format'
 import { badgeClass } from '@/utils/badge'
@@ -101,12 +97,9 @@ async function refreshCurrentDetail(id: number) {
 const pickupVisible = ref(false)
 const pickupSaving = ref(false)
 const pickupTarget = ref<RentalVO | null>(null)
-const pickupForm = reactive({ person: '', remark: '' })
 
 function openPickup(row: RentalVO) {
   pickupTarget.value = row
-  pickupForm.person = row.pickupPerson || ''
-  pickupForm.remark = ''
   pickupVisible.value = true
 }
 
@@ -128,14 +121,15 @@ async function submitPickup() {
 const detailTimeline = computed(() => {
   const row = detail.value
   if (!row) return []
+  // 后端未单独保存支付/取件时刻，这里只展示确切的提交、归还与取消时间
   const list: Array<{ title: string; time: string; desc: string }> = [
     { title: '提交预约', time: formatDateTime(row.createTime), desc: `取件人 ${row.pickupPerson || '—'}` },
   ]
   if (row.depositStatus !== 'UNPAID') {
-    list.push({ title: '支付押金', time: formatDateTime(row.createTime), desc: `押金 ${formatMoney(row.depositAmount)} 已支付` })
+    list.push({ title: '支付押金', time: '—', desc: `押金 ${formatMoney(row.depositAmount)} 已支付` })
   }
   if (['PICKED_UP', 'RETURNED', 'OVERDUE'].includes(row.status)) {
-    list.push({ title: '取件', time: formatDateTime(row.startTime), desc: `取件人 ${row.pickupPerson || '—'} 已取件` })
+    list.push({ title: '取件', time: '—', desc: `取件人 ${row.pickupPerson || '—'} 已取件` })
   }
   if (row.actualReturnTime) {
     list.push({
@@ -189,6 +183,10 @@ function openReturn(row: RentalVO) {
 async function submitReturn() {
   const target = returnTarget.value
   if (!target) return
+  if (!returnForm.returnTime) {
+    ElMessage.warning('请填写实际归还时间')
+    return
+  }
   const waiving = returnForm.waiveOverdue || returnForm.waiveDamage
   if (waiving && !returnForm.waiverReason.trim()) {
     ElMessage.warning('减免必须填写原因')
@@ -234,7 +232,8 @@ async function handleCancel(row: RentalVO) {
 }
 
 function canCancel(row: RentalVO): boolean {
-  return ['PENDING_PAYMENT', 'RESERVED', 'PICKED_UP', 'OVERDUE'].includes(row.status)
+  // 与后端状态机一致：已逾期只能归还，不能取消
+  return ['PENDING_PAYMENT', 'RESERVED', 'PICKED_UP'].includes(row.status)
 }
 function canReturn(row: RentalVO): boolean {
   return row.status === 'PICKED_UP' || row.status === 'OVERDUE'
@@ -412,6 +411,8 @@ onMounted(loadList)
             <dd>{{ formatDateTime(detail.endTime) }}</dd>
             <dt>实际归还</dt>
             <dd>{{ formatDateTime(detail.actualReturnTime) }}</dd>
+            <dt>验收结果</dt>
+            <dd>{{ detail.damageResultName || enumLabel(DAMAGE_RESULT_LABELS, detail.damageResult) }}</dd>
             <dt>创建时间</dt>
             <dd>{{ formatDateTime(detail.createTime) }}</dd>
           </dl>
@@ -466,11 +467,11 @@ onMounted(loadList)
         </div>
         <div class="field">
           <label>取件人</label>
-          <input v-model="pickupForm.person" class="input" placeholder="取件人姓名" />
+          <span>{{ pickupTarget?.pickupPerson || '—' }}</span>
         </div>
         <div class="field">
-          <label>取件备注</label>
-          <textarea v-model="pickupForm.remark" class="textarea" rows="2" placeholder="选填" />
+          <label>租期</label>
+          <span>{{ formatDateTime(pickupTarget?.startTime) }} 至 {{ formatDateTime(pickupTarget?.endTime) }}</span>
         </div>
       </div>
       <div class="dlg-foot">

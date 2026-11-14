@@ -4,16 +4,40 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Camera, CheckCircle2, Loader2, LogOut, Phone, Save, ShieldAlert } from 'lucide-react'
+import {
+  Camera,
+  CheckCircle2,
+  Loader2,
+  LogOut,
+  Phone,
+  Save,
+  ShieldAlert,
+  Star,
+  X,
+} from 'lucide-react'
+import { creditApi } from '@/api/credit'
+import { dashboardApi } from '@/api/dashboard'
+import { notificationPrefsApi } from '@/api/messages'
 import { profileApi } from '@/api/profile'
 import { rentalsApi } from '@/api/rentals'
+import { reviewApi } from '@/api/review'
 import { uploadApi } from '@/api/upload'
-import type { ProfileUpdatePayload } from '@/api/types'
+import type {
+  NotificationPref,
+  ProfileUpdatePayload,
+  Rental,
+  Review,
+  ReviewCreatePayload,
+} from '@/api/types'
 import { badgeClass } from '@/lib/badge'
 import { SoundFX } from '@/lib/fx'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, resolveFileUrl } from '@/lib/format'
+import { queryKeys } from '@/lib/queryKeys'
 import { toast } from '@/components/ui/toast'
 import { useAuthStore } from '@/stores/auth'
+
+const RETURNED_PAGE_SIZE = 5
+const CREDIT_PAGE_SIZE = 5
 
 const profileSchema = z.object({
   nickname: z
@@ -34,41 +58,125 @@ const profileSchema = z.object({
 
 type ProfileValues = z.infer<typeof profileSchema>
 
-function useTogglePref(key: string, defaultOn: boolean) {
-  const [on, setOn] = useState<boolean>(() => {
-    const saved = localStorage.getItem(key)
-    return saved === null ? defaultOn : saved !== 'off'
-  })
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <span className="flex" style={{ gap: 2 }} aria-label={`${rating} 星`}>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <Star
+          key={index}
+          className="ic sm"
+          style={{
+            color: index < rating ? 'var(--brand-2)' : 'var(--line-2)',
+            fill: index < rating ? 'var(--brand-2)' : 'none',
+          }}
+        />
+      ))}
+    </span>
+  )
+}
 
-  const toggle = () =>
-    setOn((prev) => {
-      const next = !prev
-      localStorage.setItem(key, next ? 'on' : 'off')
-      return next
-    })
-
-  return { on, toggle }
+function ReviewSummary({ review }: { review: Review }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className="flex" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+        <StarRating rating={review.rating} />
+        <span className="tiny">{formatDateTime(review.createTime)}</span>
+      </div>
+      {review.content && (
+        <p className="tiny" style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+          {review.content}
+        </p>
+      )}
+      {review.images.length > 0 && (
+        <div className="dmg-imgs" style={{ marginTop: 8 }}>
+          {review.images.map((url) => (
+            <a key={url} href={resolveFileUrl(url)} target="_blank" rel="noreferrer">
+              <img src={resolveFileUrl(url)} alt="评价图片" style={{ width: 64, height: 64 }} />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ProfilePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const reviewFileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [returnedPage, setReturnedPage] = useState(1)
+  const [creditPage, setCreditPage] = useState(1)
+  const [reviewTarget, setReviewTarget] = useState<Rental | null>(null)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewContent, setReviewContent] = useState('')
+  const [reviewImages, setReviewImages] = useState<string[]>([])
+  const [reviewUploading, setReviewUploading] = useState(false)
 
   const profileQuery = useQuery({
-    queryKey: ['profile'],
+    queryKey: queryKeys.profile,
     queryFn: profileApi.get,
   })
-  const rentalsQuery = useQuery({
-    queryKey: ['rentals', 'profile'],
-    // 与后端 PageQuery.MAX_SIZE 对齐，避免请求被静默截断
-    queryFn: () => rentalsApi.list({ page: 1, size: 100 }),
+  const recentRentalsQuery = useQuery({
+    queryKey: queryKeys.rentals.list({ page: 1, size: 4 }),
+    queryFn: () => rentalsApi.list({ page: 1, size: 4 }),
   })
-  const rentals = rentalsQuery.data?.records ?? []
-  const rentalTotal = rentalsQuery.data?.total ?? rentals.length
-  const returnedCount = rentals.filter((item) => item.status === 'RETURNED').length
-  const onTimeRate = rentalTotal >= 3 ? Math.round((returnedCount / rentalTotal) * 100) : 96
+  const dashboardQuery = useQuery({
+    queryKey: queryKeys.dashboard,
+    queryFn: dashboardApi.get,
+  })
+  const returnedQuery = useQuery({
+    queryKey: queryKeys.rentals.list({
+      page: returnedPage,
+      size: RETURNED_PAGE_SIZE,
+      status: 'RETURNED',
+    }),
+    queryFn: () =>
+      rentalsApi.list({ page: returnedPage, size: RETURNED_PAGE_SIZE, status: 'RETURNED' }),
+  })
+  const creditQuery = useQuery({
+    queryKey: queryKeys.credit.overview({ page: creditPage, size: CREDIT_PAGE_SIZE }),
+    queryFn: () => creditApi.overview({ page: creditPage, size: CREDIT_PAGE_SIZE }),
+  })
+  const reviewsQuery = useQuery({
+    // ponytail: 一次取 100 条（后端上限）用于标记哪些租赁已评价；评价量超过时改为后端返回 reviewed 标记
+    queryKey: queryKeys.reviews.list({ page: 1, size: 100 }),
+    queryFn: () => reviewApi.list({ page: 1, size: 100 }),
+  })
+  const prefsQuery = useQuery({
+    queryKey: queryKeys.notificationPrefs,
+    queryFn: notificationPrefsApi.list,
+  })
+
+  const recentRentals = recentRentalsQuery.data?.records ?? []
+  const rentalTotal = recentRentalsQuery.data?.total ?? 0
+  const returned = returnedQuery.data?.records ?? []
+  const returnedTotal = returnedQuery.data?.total ?? 0
+  const returnedPages = Math.max(
+    1,
+    Math.ceil(returnedTotal / (returnedQuery.data?.size || RETURNED_PAGE_SIZE)),
+  )
+  const reviewsByRental = new Map(
+    (reviewsQuery.data?.records ?? []).map((review) => [review.rentalId, review]),
+  )
+  const creditEvents = creditQuery.data?.events.records ?? []
+  const creditTotal = creditQuery.data?.events.total ?? 0
+  const creditPages = Math.max(
+    1,
+    Math.ceil(creditTotal / (creditQuery.data?.events.size || CREDIT_PAGE_SIZE)),
+  )
+  const creditScore = creditQuery.data?.score
+  const creditLabel =
+    creditScore === undefined
+      ? ''
+      : creditScore >= 90
+        ? '信用优秀'
+        : creditScore >= 70
+          ? '信用良好'
+          : creditScore >= 50
+            ? '信用一般'
+            : '信用较低'
 
   const {
     control,
@@ -110,9 +218,9 @@ export default function ProfilePage() {
       return profileApi.update(payload)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['profile'], updated)
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      queryClient.invalidateQueries({ queryKey: ['user', 'info'] })
+      queryClient.setQueryData(queryKeys.profile, updated)
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile })
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.info })
       useAuthStore.getState().setProfile({
         nickname: updated.nickname,
         avatar: updated.avatar,
@@ -124,6 +232,30 @@ export default function ProfilePage() {
         idCard: '',
       })
       toast.add({ title: '个人资料已保存', type: 'success' })
+    },
+  })
+
+  const prefMutation = useMutation({
+    mutationFn: (pref: NotificationPref) =>
+      notificationPrefsApi.update(pref.type, {
+        enabled: !pref.enabled,
+        channel: pref.channel,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notificationPrefs })
+      toast.add({ title: '提醒偏好已保存', type: 'success' })
+    },
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: (payload: ReviewCreatePayload) => reviewApi.create(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.reviews.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.rentals.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.credit.all })
+      closeReview()
+      toast.add({ title: '评价已提交，感谢反馈', type: 'success' })
     },
   })
 
@@ -147,6 +279,54 @@ export default function ProfilePage() {
     }
   }
 
+  function openReview(rental: Rental) {
+    setReviewTarget(rental)
+    setReviewRating(5)
+    setReviewContent('')
+    setReviewImages([])
+  }
+
+  function closeReview() {
+    setReviewTarget(null)
+    setReviewRating(5)
+    setReviewContent('')
+    setReviewImages([])
+  }
+
+  async function handleReviewFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return
+    const remaining = 3 - reviewImages.length
+    if (remaining <= 0) {
+      toast.add({ title: '最多上传 3 张图片', type: 'warning' })
+      return
+    }
+    const selected = Array.from(fileList).slice(0, remaining)
+    if (selected.some((file) => !file.type.startsWith('image/'))) {
+      toast.add({ title: '请选择图片文件', type: 'error' })
+      return
+    }
+    setReviewUploading(true)
+    try {
+      const results = await Promise.all(selected.map((file) => uploadApi.upload(file)))
+      setReviewImages((prev) => [...prev, ...results.map((item) => item.url)])
+    } catch {
+      // 上传失败提示由请求拦截器统一处理
+    } finally {
+      setReviewUploading(false)
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = ''
+    }
+  }
+
+  function submitReview() {
+    if (!reviewTarget) return
+    reviewMutation.mutate({
+      rentalId: reviewTarget.id,
+      rating: reviewRating,
+      content: reviewContent.trim() || undefined,
+      images: reviewImages,
+    })
+  }
+
   const hasProfile = Boolean(profile?.realName && profile?.idCard)
 
   const completeness = (() => {
@@ -161,22 +341,12 @@ export default function ProfilePage() {
   })()
 
   const [soundOn, setSoundOn] = useState<boolean>(() => SoundFX.isOn())
-  const remindPref = useTogglePref('ts_remind', true)
-  const watchPref = useTogglePref('ts_watch', true)
-  const noticePref = useTogglePref('ts_notice', false)
 
   function toggleSound() {
     const next = SoundFX.toggle()
     setSoundOn(next)
     if (next) SoundFX.pop()
   }
-
-  const prefs: { label: string; hint: string; on: boolean; toggle: () => void }[] = [
-    { label: '操作音效', hint: '按钮与提示的轻量反馈音', on: soundOn, toggle: toggleSound },
-    { label: '到期提醒', hint: '租期结束前推送消息', on: remindPref.on, toggle: remindPref.toggle },
-    { label: '蹲守通知', hint: '关注的工具可借时通知', on: watchPref.on, toggle: watchPref.toggle },
-    { label: '社区公告', hint: '工具房开放与活动公告', on: noticePref.on, toggle: noticePref.toggle },
-  ]
 
   if (profileQuery.isLoading) {
     return (
@@ -238,11 +408,11 @@ export default function ProfilePage() {
               {hasProfile ? <CheckCircle2 className="ic sm" /> : <ShieldAlert className="ic sm" />}
               {hasProfile ? '已实名' : '未实名'}
             </span>
-            <span className="badge brand">信用优秀</span>
+            {creditLabel && <span className="badge brand">{creditLabel}</span>}
           </div>
           <p className="ph-phone">
             <Phone className="ic sm" />
-            {profile?.phone || '—'} · 阳光社区 3 栋
+            {profile?.phone || '—'}
           </p>
           <div className="ph-complete">
             <div className="phc-bar"><i style={{ width: `${completeness}%` }} /></div>
@@ -251,99 +421,208 @@ export default function ProfilePage() {
         </div>
         <div className="ph-stats">
           <div><b className="num" data-count={rentalTotal}>0</b><span>累计租借</span></div>
-          <div><b className="num" data-count={onTimeRate} data-suffix="%">0</b><span>按时归还率</span></div>
-          <div><b className="num" data-count={980}>0</b><span>信用分</span></div>
-          <div><b className="num" data-count={1240} data-fmt="money">0</b><span>节省开支</span></div>
+          <div><b className="num" data-count={dashboardQuery.data?.rentingCount ?? 0}>0</b><span>租借中</span></div>
+          <div><b className="num" data-count={dashboardQuery.data?.pendingPaymentCount ?? 0}>0</b><span>待支付</span></div>
+          <div><b className="num" data-count={creditScore ?? 0}>0</b><span>信用分</span></div>
         </div>
       </div>
 
       <div className="profile-grid">
-        <div className="panel reveal">
-          <h3 className="panel-title">基本资料</h3>
-          <form onSubmit={handleSubmit((values) => updateMutation.mutate(values))} noValidate>
-            <div className={'field' + (errors.nickname ? ' is-err' : '')}>
-              <label htmlFor="nickname"><span className="req">*</span>昵称</label>
-              <Controller
-                control={control}
-                name="nickname"
-                render={({ field, fieldState }) => (
-                  <input id="nickname" className="input" placeholder="请输入昵称" maxLength={20} aria-invalid={fieldState.invalid} {...field} />
-                )}
-              />
-              <p className="err">{errors.nickname?.message}</p>
-            </div>
-
-            <div className="form-grid">
-              <div className={'field' + (errors.realName ? ' is-err' : '')}>
-                <label htmlFor="realName"><span className="req">*</span>真实姓名</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="panel reveal">
+            <h3 className="panel-title">基本资料</h3>
+            <form onSubmit={handleSubmit((values) => updateMutation.mutate(values))} noValidate>
+              <div className={'field' + (errors.nickname ? ' is-err' : '')}>
+                <label htmlFor="nickname"><span className="req">*</span>昵称</label>
                 <Controller
                   control={control}
-                  name="realName"
+                  name="nickname"
                   render={({ field, fieldState }) => (
-                    <input id="realName" className="input" placeholder="请输入真实姓名" aria-invalid={fieldState.invalid} {...field} />
+                    <input id="nickname" className="input" placeholder="请输入昵称" maxLength={20} aria-invalid={fieldState.invalid} {...field} />
                   )}
                 />
-                <p className="err">{errors.realName?.message}</p>
+                <p className="err">{errors.nickname?.message}</p>
               </div>
 
-              <div className={'field' + (errors.idCard ? ' is-err' : '')}>
-                <label htmlFor="idCard"><span className="req">*</span>身份证号</label>
-                <Controller
-                  control={control}
-                  name="idCard"
-                  render={({ field, fieldState }) => (
-                    <input id="idCard" className="input" placeholder="留空则不修改" maxLength={18} style={{ fontFamily: 'var(--font-mono)' }} aria-invalid={fieldState.invalid} {...field} />
+              <div className="form-grid">
+                <div className={'field' + (errors.realName ? ' is-err' : '')}>
+                  <label htmlFor="realName"><span className="req">*</span>真实姓名</label>
+                  <Controller
+                    control={control}
+                    name="realName"
+                    render={({ field, fieldState }) => (
+                      <input id="realName" className="input" placeholder="请输入真实姓名" aria-invalid={fieldState.invalid} {...field} />
+                    )}
+                  />
+                  <p className="err">{errors.realName?.message}</p>
+                </div>
+
+                <div className={'field' + (errors.idCard ? ' is-err' : '')}>
+                  <label htmlFor="idCard"><span className="req">*</span>身份证号</label>
+                  <Controller
+                    control={control}
+                    name="idCard"
+                    render={({ field, fieldState }) => (
+                      <input id="idCard" className="input" placeholder="留空则不修改" maxLength={18} style={{ fontFamily: 'var(--font-mono)' }} aria-invalid={fieldState.invalid} {...field} />
+                    )}
+                  />
+                  <p className="err">{errors.idCard?.message}</p>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="phone">联系电话</label>
+                <input id="phone" className="input" value={profile?.phone ?? ''} readOnly disabled />
+                <p className="hint">手机号用于登录与取件验证，如需变更请联系工作人员。</p>
+              </div>
+
+              <div className="flex" style={{ justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn btn-primary" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? (
+                    <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />
+                  ) : (
+                    <Save className="ic" />
                   )}
-                />
-                <p className="err">{errors.idCard?.message}</p>
+                  保存资料
+                </button>
               </div>
-            </div>
+            </form>
+          </div>
 
-            <div className="field">
-              <label htmlFor="phone">联系电话</label>
-              <input id="phone" className="input" value={profile?.phone ?? ''} readOnly disabled />
-              <p className="hint">手机号用于登录与取件验证，如需变更请联系工作人员。</p>
-            </div>
-
-            <div className="flex" style={{ justifyContent: 'flex-end' }}>
-              <button type="submit" className="btn btn-primary" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? (
-                  <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />
-                ) : (
-                  <Save className="ic" />
+          <div className="panel reveal">
+            <h3 className="panel-title">租赁评价</h3>
+            {returnedQuery.isLoading ? (
+              <div className="skel" style={{ height: 120 }} />
+            ) : returned.length === 0 ? (
+              <p className="muted">暂无已归还的租赁，归还后可在此评价工具。</p>
+            ) : (
+              <>
+                {returned.map((rental) => {
+                  const review = reviewsByRental.get(rental.id)
+                  return (
+                    <div className="pref" key={rental.id} style={{ alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <b>{rental.toolName}</b>
+                        <span className="tiny">
+                          {rental.orderNo} · 归还于 {formatDateTime(rental.actualReturnTime || rental.endTime)}
+                        </span>
+                        {review ? <ReviewSummary review={review} /> : null}
+                      </div>
+                      {!review && (
+                        <button type="button" className="btn btn-sm btn-outline" onClick={() => openReview(rental)}>
+                          <Star className="ic sm" />
+                          评价
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                {returnedTotal > RETURNED_PAGE_SIZE && (
+                  <div className="between" style={{ marginTop: 12 }}>
+                    <span className="tiny">共 {returnedTotal} 条</span>
+                    <div className="pager">
+                      <button type="button" disabled={returnedPage <= 1} onClick={() => setReturnedPage(returnedPage - 1)}>上一页</button>
+                      <button type="button" disabled={returnedPage >= returnedPages} onClick={() => setReturnedPage(returnedPage + 1)}>下一页</button>
+                    </div>
+                  </div>
                 )}
-                保存资料
-              </button>
-            </div>
-          </form>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="profile-side">
           <div className="panel reveal">
             <h3 className="panel-title">偏好设置</h3>
-            {prefs.map((item) => (
-              <div className="pref" key={item.label}>
-                <div>
-                  <b>{item.label}</b>
-                  <span>{item.hint}</span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={item.on}
-                  aria-label={item.label}
-                  className={'switch' + (item.on ? ' on' : '')}
-                  onClick={item.toggle}
-                >
-                  <i></i>
-                </button>
+            <div className="pref">
+              <div>
+                <b>操作音效</b>
+                <span>按钮与提示的轻量反馈音</span>
               </div>
-            ))}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={soundOn}
+                aria-label="操作音效"
+                className={'switch' + (soundOn ? ' on' : '')}
+                onClick={toggleSound}
+              >
+                <i></i>
+              </button>
+            </div>
+            {prefsQuery.isLoading ? (
+              <p className="hint">正在加载提醒偏好…</p>
+            ) : prefsQuery.data && prefsQuery.data.length > 0 ? (
+              prefsQuery.data.map((pref) => (
+                <div className="pref" key={pref.type}>
+                  <div>
+                    <b>{pref.typeName}</b>
+                    <span>
+                      {pref.channel === 'SMS' ? 'Mock 短信' : '站内消息'} · 关闭后不再接收该类提醒
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={pref.enabled}
+                    aria-label={pref.typeName}
+                    className={'switch' + (pref.enabled ? ' on' : '')}
+                    disabled={prefMutation.isPending}
+                    onClick={() => prefMutation.mutate(pref)}
+                  >
+                    <i></i>
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="hint">暂无可配置的提醒类型。</p>
+            )}
           </div>
+
+          <div className="panel reveal">
+            <h3 className="panel-title">信用分与流水</h3>
+            <div className="flex" style={{ alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+              <b style={{ fontSize: 'var(--t-3xl)', color: 'var(--brand-2)' }}>{creditScore ?? '—'}</b>
+              <span className="tiny">初始 100 · 按时归还 +2 · 逾期 −3/次 · 严重损坏 −10</span>
+            </div>
+            {creditEvents.length > 0 ? (
+              <ul className="act-list">
+                {creditEvents.map((event) => (
+                  <li key={event.id}>
+                    <span className="act-dot" style={{ background: event.delta >= 0 ? 'var(--ok)' : 'var(--bad)' }}></span>
+                    <div>
+                      <b>
+                        {event.eventLabel || event.eventType}
+                        <span style={{ marginLeft: 6, color: event.delta >= 0 ? 'var(--ok)' : 'var(--bad)' }}>
+                          {event.delta > 0 ? '+' : ''}{event.delta}
+                        </span>
+                      </b>
+                      <span className="tiny">
+                        {formatDateTime(event.createTime)}
+                        {event.reason ? ` · ${event.reason}` : ''}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">暂无信用分变动记录。</p>
+            )}
+            {creditTotal > CREDIT_PAGE_SIZE && (
+              <div className="between" style={{ marginTop: 12 }}>
+                <span className="tiny">共 {creditTotal} 条</span>
+                <div className="pager">
+                  <button type="button" disabled={creditPage <= 1} onClick={() => setCreditPage(creditPage - 1)}>上一页</button>
+                  <button type="button" disabled={creditPage >= creditPages} onClick={() => setCreditPage(creditPage + 1)}>下一页</button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="panel reveal">
             <h3 className="panel-title">最近动态</h3>
             <ul className="act-list">
-              {rentals.slice(0, 4).map((rental) => (
+              {recentRentals.map((rental) => (
                 <li key={rental.id}>
                   <span className="act-dot" style={{ background: `var(--${rental.status === 'RETURNED' ? 'ok' : rental.status === 'OVERDUE' ? 'bad' : rental.status === 'PENDING_PAYMENT' ? 'warn' : 'brand'})` }}></span>
                   <div>
@@ -352,7 +631,7 @@ export default function ProfilePage() {
                   </div>
                 </li>
               ))}
-              {rentals.length === 0 && (
+              {recentRentals.length === 0 && (
                 <li>
                   <span className="act-dot" style={{ background: 'var(--info)' }}></span>
                   <div>
@@ -377,6 +656,112 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      {reviewTarget && (
+        <div className="mask show" onClick={closeReview}>
+          <div className="dlg narrow" onClick={(event) => event.stopPropagation()}>
+            <div className="dlg-head">
+              <div>
+                <h3>评价工具</h3>
+                <p className="d-sub">{reviewTarget.toolName} · {reviewTarget.orderNo}</p>
+              </div>
+              <button className="dlg-x" onClick={closeReview} aria-label="关闭">
+                <X className="ic" />
+              </button>
+            </div>
+            <div className="dlg-body">
+              <div className="field">
+                <label>工具评分</label>
+                <div className="flex" style={{ gap: 6 }}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-label={`${value} 星`}
+                      onClick={() => setReviewRating(value)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    >
+                      <Star
+                        className="ic"
+                        style={{
+                          color: value <= reviewRating ? 'var(--brand-2)' : 'var(--line-2)',
+                          fill: value <= reviewRating ? 'var(--brand-2)' : 'none',
+                        }}
+                      />
+                    </button>
+                  ))}
+                  <span className="tiny">{reviewRating} 星</span>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="reviewContent">评价内容（选填）</label>
+                <textarea
+                  id="reviewContent"
+                  className="textarea"
+                  maxLength={500}
+                  value={reviewContent}
+                  onChange={(event) => setReviewContent(event.target.value)}
+                  placeholder="分享工具的使用体验、完好程度与服务感受…"
+                />
+              </div>
+
+              <div className="field">
+                <label>图片（选填，最多 3 张）</label>
+                <div className="up-grid">
+                  {reviewImages.map((url) => (
+                    <div className="up-item" key={url}>
+                      <img src={resolveFileUrl(url)} alt="评价图片" />
+                      <button
+                        type="button"
+                        onClick={() => setReviewImages((prev) => prev.filter((item) => item !== url))}
+                        aria-label="移除图片"
+                      >
+                        <X className="ic sm" />
+                      </button>
+                    </div>
+                  ))}
+                  {reviewImages.length < 3 && (
+                    <button
+                      type="button"
+                      className="up-add"
+                      disabled={reviewUploading}
+                      onClick={() => reviewFileInputRef.current?.click()}
+                    >
+                      {reviewUploading ? (
+                        <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />
+                      ) : (
+                        <Camera className="ic" />
+                      )}
+                      {reviewUploading ? '上传中' : '上传图片'}
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={reviewFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(event) => handleReviewFiles(event.target.files)}
+                />
+              </div>
+            </div>
+            <div className="dlg-foot">
+              <button type="button" className="btn btn-outline" onClick={closeReview}>取消</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={reviewMutation.isPending || reviewUploading}
+                onClick={submitReview}
+              >
+                {reviewMutation.isPending && <Loader2 className="ic" style={{ animation: 'spin .7s linear infinite' }} />}
+                提交评价
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

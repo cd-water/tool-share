@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, UploadFilled } from '@element-plus/icons-vue'
-import { knowledgeApi, type KnowledgeDocVO } from '@/api/knowledge'
+import { knowledgeApi } from '@/api/knowledge'
+import type { KnowledgeDocVO } from '@/api/types'
 import { formatDateTime } from '@/utils/format'
 
 const loading = ref(false)
@@ -40,20 +41,16 @@ function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
   return Math.max(1, Math.round(bytes / 1024)) + ' KB'
 }
-function docSize(doc: KnowledgeDocVO): string {
-  return formatSize((doc.contentPreview?.length || 0) * 2)
-}
-
 /* ---------- 统计 / 筛选 ---------- */
 const weekAgo = Date.now() - 7 * 86_400_000
 const stats = computed(() => {
+  const indexed = docs.value.filter((doc) => doc.indexed).length
   const weekNew = docs.value.filter((doc) => doc.createTime && new Date(doc.createTime).getTime() >= weekAgo).length
-  const entries = docs.value.reduce((sum, doc) => sum + Math.max(1, Math.ceil((doc.contentPreview?.length || 0) / 80)), 0)
   return [
     { label: '文档总数', value: docs.value.length, tone: 'brand' },
-    { label: '本周新增', value: weekNew, tone: 'ok' },
-    { label: '知识条目', value: entries, tone: 'info' },
-    { label: '关联问答', value: docs.value.length * 4, tone: 'warn' },
+    { label: '已索引', value: indexed, tone: 'ok' },
+    { label: '索引失败', value: docs.value.length - indexed, tone: 'warn' },
+    { label: '本周新增', value: weekNew, tone: 'info' },
   ]
 })
 
@@ -66,12 +63,12 @@ const filtered = computed(() => {
   })
 })
 
-/* ---------- 上传（多文件 + 模拟进度） ---------- */
+/* ---------- 上传（多文件，展示真实索引结果） ---------- */
 interface UploadItem {
   file: File
   name: string
-  progress: number
   status: 'ready' | 'uploading' | 'done' | 'error'
+  indexed?: boolean
 }
 
 const uploadVisible = ref(false)
@@ -93,7 +90,7 @@ function addFiles(files: FileList | File[] | null) {
       ElMessage.warning(`不支持的格式：${file.name}`)
       return
     }
-    uploadItems.value.push({ file, name: file.name, progress: 0, status: 'ready' })
+    uploadItems.value.push({ file, name: file.name, status: 'ready' })
   })
   if (fileInput.value) fileInput.value.value = ''
 }
@@ -116,18 +113,20 @@ async function submitUpload() {
     for (const item of uploadItems.value) {
       if (item.status === 'done') continue
       item.status = 'uploading'
-      item.progress = 30
       try {
-        await knowledgeApi.upload(item.file, item.name.replace(/\.[^.]+$/, ''))
-        item.progress = 100
+        const doc = await knowledgeApi.upload(item.file, item.name.replace(/\.[^.]+$/, ''))
+        item.indexed = doc.indexed === true
         item.status = 'done'
       } catch {
         item.status = 'error'
-        item.progress = 0
       }
     }
     if (uploadItems.value.every((item) => item.status === 'done')) {
-      ElMessage.success('文档已上传并完成索引')
+      if (uploadItems.value.every((item) => item.indexed)) {
+        ElMessage.success('文档已上传并完成索引')
+      } else {
+        ElMessage.warning('文档已上传，部分文档索引失败，系统将自动重试')
+      }
       uploadVisible.value = false
       await loadList()
     }
@@ -204,7 +203,7 @@ onMounted(loadList)
             <th>文档标题</th>
             <th>文件名</th>
             <th>类型</th>
-            <th class="r">大小</th>
+            <th>索引状态</th>
             <th>内容预览</th>
             <th>上传时间</th>
             <th style="width: 130px">操作</th>
@@ -215,7 +214,12 @@ onMounted(loadList)
             <td class="cell-main">{{ row.title }}</td>
             <td>{{ row.fileName || '—' }}</td>
             <td><span :class="typeClass(row.fileName)">{{ docType(row.fileName) }}</span></td>
-            <td class="r code">{{ docSize(row) }}</td>
+            <td>
+              <span class="badge" :class="row.indexed ? 'ok' : 'bad'">
+                <span class="dot"></span>{{ row.indexed ? '已索引' : '索引失败' }}
+              </span>
+              <div v-if="!row.indexed" class="cell-sub">系统将自动重试</div>
+            </td>
             <td><span class="ellipsis" style="max-width: 240px; display: inline-block; vertical-align: middle">{{ row.contentPreview || '—' }}</span></td>
             <td>{{ formatDateTime(row.createTime) }}</td>
             <td>
@@ -264,8 +268,13 @@ onMounted(loadList)
             <span class="uf-ic"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg></span>
             <div>
               <b>{{ item.name }}</b>
-              <span>{{ formatSize(item.file.size) }} · {{ item.status === 'done' ? '已完成' : item.status === 'error' ? '上传失败' : item.status === 'uploading' ? '上传中…' : '等待上传' }}</span>
-              <div class="uf-bar"><i :style="{ width: item.progress + '%' }"></i></div>
+              <span>
+                {{ formatSize(item.file.size) }} ·
+                <template v-if="item.status === 'done'">
+                  {{ item.indexed ? '已上传 · 已索引' : '已上传 · 索引失败，将自动重试' }}
+                </template>
+                <template v-else>{{ item.status === 'error' ? '上传失败' : item.status === 'uploading' ? '上传中…' : '等待上传' }}</template>
+              </span>
             </div>
             <button class="uf-x" type="button" aria-label="移除" @click="removeUpload(index)">×</button>
           </div>
@@ -286,7 +295,7 @@ onMounted(loadList)
       <div class="dlg-head">
         <div>
           <h3>{{ previewDoc.title }}</h3>
-          <p class="d-sub">{{ previewDoc.fileName }} · {{ docType(previewDoc.fileName) }} · {{ docSize(previewDoc) }} · {{ formatDateTime(previewDoc.createTime) }}</p>
+          <p class="d-sub">{{ previewDoc.fileName }} · {{ docType(previewDoc.fileName) }} · {{ previewDoc.indexed ? '已索引' : '索引失败' }} · {{ formatDateTime(previewDoc.createTime) }}</p>
         </div>
         <button class="dlg-x" @click="previewDoc = null" aria-label="关闭">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -301,3 +310,18 @@ onMounted(loadList)
     </div>
   </div>
 </template>
+
+<style scoped>
+.kb-stat .ks-ic.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.kb-stat .ks-ic.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.kb-stat .ks-ic.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+</style>

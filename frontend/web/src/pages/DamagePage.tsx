@@ -1,18 +1,21 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Camera, Info, Loader2, ShieldAlert, Wrench, X } from 'lucide-react'
+import { Camera, Info, Loader2, Search, ShieldAlert, Wrench, X } from 'lucide-react'
 import { damageApi } from '@/api/damage'
 import { rentalsApi } from '@/api/rentals'
 import { uploadApi } from '@/api/upload'
 import type { DamageReport } from '@/api/types'
 import { badgeClass } from '@/lib/badge'
 import { formatDateTime, formatMoney, resolveFileUrl } from '@/lib/format'
+import { queryKeys } from '@/lib/queryKeys'
 import { damageStatusTone } from '@/lib/status'
 import { toast } from '@/components/ui/toast'
+
+const PAGE_SIZE = 10
 
 const REPORT_TABS: { value: '' | DamageReport['status']; label: string }[] = [
   { value: '', label: '全部' },
@@ -41,7 +44,10 @@ const damageSchema = z.object({
     .trim()
     .min(1, '请描述损坏情况')
     .max(500, '描述不超过 500 字'),
-  images: z.array(z.string()).max(3, '最多上传 3 张图片'),
+  images: z
+    .array(z.string())
+    .min(1, '请上传至少 1 张损坏照片')
+    .max(3, '最多上传 3 张图片'),
 })
 
 type DamageValues = z.infer<typeof damageSchema>
@@ -58,14 +64,21 @@ function ReportForm({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
-  const rentalsQuery = useQuery({
-    queryKey: ['rentals', 'damage-options'],
-    queryFn: () => rentalsApi.list({ page: 1, size: 100 }),
+  // 进行中租赁分两次按状态查询，避免拉全量后在本地过滤；下拉选项量级有限。
+  const pickedUpQuery = useQuery({
+    queryKey: queryKeys.rentals.list({ page: 1, size: 100, status: 'PICKED_UP' }),
+    queryFn: () => rentalsApi.list({ page: 1, size: 100, status: 'PICKED_UP' }),
+  })
+  const overdueQuery = useQuery({
+    queryKey: queryKeys.rentals.list({ page: 1, size: 100, status: 'OVERDUE' }),
+    queryFn: () => rentalsApi.list({ page: 1, size: 100, status: 'OVERDUE' }),
   })
 
-  const inProgressRentals = (rentalsQuery.data?.records ?? []).filter(
-    (rental) => rental.status === 'PICKED_UP' || rental.status === 'OVERDUE',
-  )
+  const inProgressRentals = [
+    ...(pickedUpQuery.data?.records ?? []),
+    ...(overdueQuery.data?.records ?? []),
+  ]
+  const rentalsLoading = pickedUpQuery.isLoading || overdueQuery.isLoading
 
   const {
     control,
@@ -163,7 +176,7 @@ function ReportForm({
           )}
         />
         {errors.rentalId && <p className="err">{errors.rentalId.message}</p>}
-        {rentalsQuery.isLoading ? (
+        {rentalsLoading ? (
           <p className="hint">正在加载租赁记录…</p>
         ) : inProgressRentals.length === 0 ? (
           <p className="hint">当前没有已取件或逾期的租赁，取件后即可发起报修。</p>
@@ -211,7 +224,7 @@ function ReportForm({
       </div>
 
       <div className="field">
-        <label>证明材料（可选，最多 3 张）</label>
+        <label><span className="req">*</span>证明材料（1–3 张）</label>
         <div className="up-grid">
           {images.map((url) => (
             <div className="up-item" key={url}>
@@ -423,6 +436,9 @@ export default function DamagePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const rentalIdParam = Number(searchParams.get('rentalId')) || undefined
   const [status, setStatus] = useState<'' | DamageReport['status']>('')
+  const [keywordInput, setKeywordInput] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
   const [formOpen, setFormOpen] = useState(Boolean(rentalIdParam))
   const [detailId, setDetailId] = useState<number | null>(null)
 
@@ -430,32 +446,30 @@ export default function DamagePage() {
     if (rentalIdParam) setFormOpen(true)
   }, [rentalIdParam])
 
+  const reportParams = {
+    page,
+    size: PAGE_SIZE,
+    status: status || undefined,
+    keyword: keyword || undefined,
+  } as const
   const reportsQuery = useQuery({
-    queryKey: ['damage-reports', 'all'],
-    // 与后端 PageQuery.MAX_SIZE 对齐，避免请求被静默截断
-    queryFn: () => damageApi.list({ page: 1, size: 100 }),
+    queryKey: queryKeys.damageReports.list(reportParams),
+    queryFn: () => damageApi.list(reportParams),
   })
 
-  const allReports = reportsQuery.data?.records ?? []
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {}
-    allReports.forEach((item) => (map[item.status] = (map[item.status] ?? 0) + 1))
-    return map
-  }, [allReports])
-  const reports = useMemo(
-    () => allReports.filter((item) => !status || item.status === status),
-    [allReports, status],
-  )
+  const reports = reportsQuery.data?.records ?? []
+  const total = reportsQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / (reportsQuery.data?.size || PAGE_SIZE)))
 
   const detailQuery = useQuery({
-    queryKey: ['damage-report', detailId],
+    queryKey: queryKeys.damageReports.detail(detailId),
     queryFn: () => damageApi.detail(detailId as number),
     enabled: detailId !== null,
   })
 
   const detailReport =
     detailQuery.data ??
-    reportsQuery.data?.records.find((item) => item.id === detailId)
+    reports.find((item) => item.id === detailId)
 
   function closeForm() {
     setFormOpen(false)
@@ -492,18 +506,43 @@ export default function DamagePage() {
         </div>
       </div>
 
-      <div className="tabs reveal" style={{ marginBottom: 18 }}>
-        {REPORT_TABS.map((tab) => (
-          <button
-            key={tab.value || 'all'}
-            type="button"
-            className={status === tab.value ? 'active' : ''}
-            onClick={() => setStatus(tab.value)}
-          >
-            {tab.label}
-            <span className="cnt">{tab.value ? counts[tab.value] ?? 0 : allReports.length}</span>
-          </button>
-        ))}
+      <div className="between reveal" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
+        <div className="tabs">
+          {REPORT_TABS.map((tab) => (
+            <button
+              key={tab.value || 'all'}
+              type="button"
+              className={status === tab.value ? 'active' : ''}
+              onClick={() => {
+                setStatus(tab.value)
+                setPage(1)
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <form
+          className="f-search"
+          style={{ width: 260 }}
+          onSubmit={(event) => {
+            event.preventDefault()
+            setKeyword(keywordInput.trim())
+            setPage(1)
+          }}
+        >
+          <Search className="ic" />
+          <input
+            className="input"
+            value={keywordInput}
+            onChange={(event) => {
+              setKeywordInput(event.target.value)
+              setKeyword(event.target.value.trim())
+              setPage(1)
+            }}
+            placeholder="搜索报修单号 / 工具编号…"
+          />
+        </form>
       </div>
 
       {reportsQuery.isLoading ? (
@@ -563,8 +602,28 @@ export default function DamagePage() {
       ) : (
         <div className="empty">
           <ShieldAlert className="ic e-ic" />
-          <h4>暂无报修记录</h4>
+          <h4>{keyword || status ? '暂无符合条件的报修' : '暂无报修记录'}</h4>
           <p>工具完好是最好的消息。如有损坏，点击右上角发起报修。</p>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="between" style={{ marginTop: 18 }}>
+          <span className="tiny">共 {total} 条</span>
+          <div className="pager">
+            <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button>
+            {Array.from({ length: pageCount }).map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                className={page === index + 1 ? 'active' : ''}
+                onClick={() => setPage(index + 1)}
+              >
+                {index + 1}
+              </button>
+            ))}
+            <button type="button" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>下一页</button>
+          </div>
         </div>
       )}
 
@@ -585,7 +644,7 @@ export default function DamagePage() {
                 defaultRentalId={rentalIdParam}
                 onCancel={closeForm}
                 onSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['damage-reports'] })
+                  queryClient.invalidateQueries({ queryKey: queryKeys.damageReports.all })
                   toast.add({ title: '报修已提交，请等待工作人员处理', type: 'success' })
                   closeForm()
                 }}

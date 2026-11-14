@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,11 +14,39 @@ import {
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { messagesApi } from '@/api/messages'
-import type { Message, MessageType } from '@/api/types'
+import type {
+  DeliveryStatus,
+  Message,
+  MessageChannel,
+  MessageType,
+} from '@/api/types'
 import { badgeClass } from '@/lib/badge'
+import type { BadgeTone } from '@/components/ui/badge'
 import { formatDateTime, isReadStatus } from '@/lib/format'
+import { queryKeys } from '@/lib/queryKeys'
 import { messageTypeTone } from '@/lib/status'
 import { toast } from '@/components/ui/toast'
+
+const PAGE_SIZE = 10
+
+const CHANNEL_LABEL: Record<MessageChannel, string> = {
+  SYSTEM: '站内消息',
+  SMS: 'Mock 短信',
+}
+
+const DELIVERY_LABEL: Record<DeliveryStatus, string> = {
+  PENDING: '待发送',
+  SENT: '已发送',
+  DELIVERED: '已送达',
+  FAILED: '发送失败',
+}
+
+function deliveryTone(status: DeliveryStatus): BadgeTone {
+  if (status === 'DELIVERED') return 'success'
+  if (status === 'FAILED') return 'danger'
+  if (status === 'SENT') return 'info'
+  return 'neutral'
+}
 
 const TYPE_FILTERS: { value: '' | MessageType; label: string }[] = [
   { value: '', label: '全部' },
@@ -39,6 +67,7 @@ const MESSAGE_META: Record<
   RENT_DUE: { icon: Clock, fg: 'var(--warn)', bg: 'var(--warn-bg)' },
   OVERDUE: { icon: TriangleAlert, fg: 'var(--bad)', bg: 'var(--bad-bg)' },
   REPAIR: { icon: Wrench, fg: 'var(--brand-2)', bg: 'var(--brand-bg)' },
+  TOOL_AVAILABLE: { icon: Package, fg: 'var(--ok)', bg: 'var(--ok-bg)' },
   SYSTEM: { icon: Bell, fg: 'var(--ink-2)', bg: 'var(--surface-2)' },
 }
 
@@ -48,6 +77,7 @@ const GO_MAP: Record<string, string> = {
   RENT_DUE: '/rentals',
   OVERDUE: '/rentals',
   REPAIR: '/damage',
+  TOOL_AVAILABLE: '/tools',
   SYSTEM: '/tools',
 }
 
@@ -55,48 +85,45 @@ export default function MessagesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [typeFilter, setTypeFilter] = useState<'' | MessageType>('')
+  const [page, setPage] = useState(1)
   const [active, setActive] = useState<Message | null>(null)
 
   const messagesQuery = useQuery({
-    queryKey: ['messages', 'all'],
-    queryFn: () => messagesApi.list({ page: 1, size: 200 }),
+    queryKey: queryKeys.messages.list({ page, size: PAGE_SIZE }),
+    queryFn: () => messagesApi.list({ page, size: PAGE_SIZE }),
   })
 
   const unreadQuery = useQuery({
-    queryKey: ['messages', 'unread-count'],
+    queryKey: queryKeys.messages.unreadCount,
     queryFn: messagesApi.unreadCount,
   })
 
   const readMutation = useMutation({
     mutationFn: (id: number) => messagesApi.read(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
     },
   })
 
   const readAllMutation = useMutation({
     mutationFn: messagesApi.readAll,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
       toast.add({ title: '全部消息已标记为已读', type: 'success' })
     },
   })
 
   const all = messagesQuery.data?.records ?? []
-  const unreadCount = unreadQuery.data ?? all.filter((m) => !isReadStatus(m.readStatus)).length
+  // 后端消息接口暂不支持类型筛选，类型标签只过滤当前页；分页与未读数均为服务端数据。
+  const unreadCount = unreadQuery.data ?? 0
+  const total = messagesQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / (messagesQuery.data?.size || PAGE_SIZE)))
 
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {}
-    all.forEach((message) => (map[message.type] = (map[message.type] ?? 0) + 1))
-    return map
-  }, [all])
-
-  const list = useMemo(
-    () => all.filter((message) => !typeFilter || message.type === typeFilter),
-    [all, typeFilter],
-  )
+  const counts: Record<string, number> = {}
+  all.forEach((message) => (counts[message.type] = (counts[message.type] ?? 0) + 1))
+  const list = all.filter((message) => !typeFilter || message.type === typeFilter)
 
   function openMessage(message: Message) {
     setActive(message)
@@ -156,10 +183,13 @@ export default function MessagesPage() {
             )
           })}
         </div>
-        <span className="badge bad" style={{ display: unreadCount ? 'inline-flex' : 'none' }}>
-          <span className="dot"></span>
-          未读 {unreadCount} 条
-        </span>
+        <div className="flex" style={{ alignItems: 'center', gap: 10 }}>
+          <span className="tiny">类型筛选仅作用于当前页</span>
+          <span className="badge bad" style={{ display: unreadCount ? 'inline-flex' : 'none' }}>
+            <span className="dot"></span>
+            未读 {unreadCount} 条
+          </span>
+        </div>
       </div>
 
       {messagesQuery.isLoading ? (
@@ -198,6 +228,10 @@ export default function MessagesPage() {
                   <div className="m-top">
                     <h3>{message.title}</h3>
                     <span className={badgeClass(messageTypeTone(message.type))}>{message.typeName}</span>
+                    <span className="badge neutral">{CHANNEL_LABEL[message.channel]}</span>
+                    <span className={badgeClass(deliveryTone(message.deliveryStatus))}>
+                      {DELIVERY_LABEL[message.deliveryStatus]}
+                    </span>
                   </div>
                   <p className="m-preview">{message.content}</p>
                 </div>
@@ -211,7 +245,27 @@ export default function MessagesPage() {
         <div className="empty reveal">
           <Bell className="ic e-ic" />
           <h4>暂无相关消息</h4>
-          <p>当期分类下没有消息，切换到其他分类看看。</p>
+          <p>当前分类下没有消息，切换到其他分类看看。</p>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="between" style={{ marginTop: 18 }}>
+          <span className="tiny">共 {total} 条</span>
+          <div className="pager">
+            <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button>
+            {Array.from({ length: pageCount }).map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                className={page === index + 1 ? 'active' : ''}
+                onClick={() => setPage(index + 1)}
+              >
+                {index + 1}
+              </button>
+            ))}
+            <button type="button" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>下一页</button>
+          </div>
         </div>
       )}
 
@@ -228,10 +282,14 @@ export default function MessagesPage() {
               </button>
             </div>
             <div className="dlg-body">
-              <div className="flex" style={{ marginBottom: 12 }}>
+              <div className="flex" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <span className={badgeClass(messageTypeTone(active.type))}>
                   <span className="dot"></span>
                   {active.typeName}
+                </span>
+                <span className="badge neutral">{CHANNEL_LABEL[active.channel]}</span>
+                <span className={badgeClass(deliveryTone(active.deliveryStatus))}>
+                  {DELIVERY_LABEL[active.deliveryStatus]}
                 </span>
               </div>
               <p style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.8 }}>{active.content}</p>

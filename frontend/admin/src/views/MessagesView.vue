@@ -14,11 +14,15 @@ import {
   Tools,
   Warning,
 } from '@element-plus/icons-vue'
-import { messageApi, type MessageVO } from '@/api/messages'
+import { messageApi } from '@/api/messages'
+import type { MessageVO } from '@/api/types'
+import { badgeClass } from '@/utils/badge'
 import { formatDateTime } from '@/utils/format'
 import {
+  DELIVERY_STATUS_LABELS,
   MESSAGE_CHANNEL_LABELS,
   MESSAGE_TYPE_LABELS,
+  deliveryStatusTag,
   enumLabel,
   isReadStatus,
 } from '@/utils/enums'
@@ -119,6 +123,7 @@ const TYPE_META: Record<string, TypeMeta> = {
   RENT_DUE: { badge: 'warn', fg: 'var(--warn)', bg: 'var(--warn-bg)', icon: Clock },
   OVERDUE: { badge: 'bad', fg: 'var(--bad)', bg: 'var(--bad-bg)', icon: Warning },
   REPAIR: { badge: 'info', fg: 'var(--info)', bg: 'var(--info-bg)', icon: Tools },
+  TOOL_AVAILABLE: { badge: 'ok', fg: 'var(--ok)', bg: 'var(--ok-bg)', icon: Box },
   SYSTEM: { badge: 'neutral', fg: 'var(--ink-2)', bg: 'var(--surface-2)', icon: Bell },
 }
 
@@ -145,7 +150,8 @@ function handleGo() {
       RESERVATION: '/rentals',
       PICKUP: '/rentals',
       RENT_DUE: '/rentals',
-      SYSTEM: '/tools',
+      TOOL_AVAILABLE: '/dashboard',
+      SYSTEM: '/dashboard',
     }[detail.value.type] || '/dashboard'
   dialogVisible.value = false
   router.push(path)
@@ -245,6 +251,12 @@ onMounted(refresh)
               <span class="badge" :class="metaOf(m.type).badge">
                 {{ m.typeName || enumLabel(MESSAGE_TYPE_LABELS, m.type) }}
               </span>
+              <span class="badge" :class="m.channel === 'SMS' ? 'brand' : 'neutral'">
+                {{ enumLabel(MESSAGE_CHANNEL_LABELS, m.channel) }}
+              </span>
+              <span class="badge" :class="badgeClass(deliveryStatusTag(m.deliveryStatus))">
+                {{ enumLabel(DELIVERY_STATUS_LABELS, m.deliveryStatus) }}
+              </span>
             </div>
             <p class="m-preview">{{ m.content }}</p>
           </div>
@@ -302,7 +314,10 @@ onMounted(refresh)
             <h3>{{ detail?.title }}</h3>
             <p class="d-sub">
               {{ formatDateTime(detail?.createTime) }}
-              <template v-if="detail"> · {{ enumLabel(MESSAGE_CHANNEL_LABELS, detail.channel) }}</template>
+              <template v-if="detail">
+                · {{ enumLabel(MESSAGE_CHANNEL_LABELS, detail.channel) }}
+                · 送达：{{ enumLabel(DELIVERY_STATUS_LABELS, detail.deliveryStatus) }}
+              </template>
             </p>
           </div>
           <button class="dlg-x" aria-label="关闭" @click="dialogVisible = false">

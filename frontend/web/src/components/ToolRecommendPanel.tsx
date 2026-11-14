@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import {
   ArrowRight,
+  CircleAlert,
   Loader2,
   MapPin,
+  RefreshCw,
   Sparkles,
+  Star,
   ThumbsDown,
   ThumbsUp,
   Wrench,
 } from 'lucide-react'
 import { aiApi } from '@/api/ai'
-import type { ToolRecommendItem, ToolRecommendResult } from '@/api/types'
+import type { ToolCategory, ToolRecommendItem, ToolRecommendResult } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -20,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { formatMoney } from '@/lib/format'
 
-const CATEGORY_OPTIONS = [
+const CATEGORY_OPTIONS: { value: ToolCategory; label: string }[] = [
   { value: 'WX', label: '维修工具' },
   { value: 'YY', label: '园艺工具' },
   { value: 'QJ', label: '清洁工具' },
@@ -62,6 +65,7 @@ export function ToolRecommendPanel({
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<ToolRecommendResult | null>(null)
   const [feedback, setFeedback] = useState<1 | 2 | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit() {
     const text = question.trim()
@@ -84,19 +88,21 @@ export function ToolRecommendPanel({
     }
 
     setPending(true)
+    setError(null)
     try {
       const data = await aiApi.recommend({
         question: text,
         startTime: startTime || undefined,
         endTime: endTime || undefined,
-        category: category ? (category as 'WX' | 'YY' | 'QJ' | 'QT') : undefined,
+        category: category ? (category as ToolCategory) : undefined,
         maxDeposit: deposit,
         limit: 5,
       })
       setResult(data)
       setFeedback(null)
-    } catch {
-      // http 拦截器已提示错误
+    } catch (reason) {
+      // http 拦截器已提示错误，这里补一个可重试的行内提示
+      setError(reason instanceof Error ? reason.message : '推荐失败，请稍后重试。')
     } finally {
       setPending(false)
     }
@@ -223,6 +229,17 @@ export function ToolRecommendPanel({
         </div>
       </div>
 
+      {error && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <CircleAlert className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">{error}</span>
+          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => void submit()}>
+            <RefreshCw className="size-3.5" />
+            重试
+          </Button>
+        </div>
+      )}
+
       {result && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/20 px-4 py-3">
@@ -252,7 +269,17 @@ export function ToolRecommendPanel({
               {result.items.map((item) => (
                 <div
                   key={item.toolId}
-                  className="overflow-hidden rounded-xl border border-border bg-card"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`查看 ${item.name} 详情`}
+                  onClick={() => handleSelect(item)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      handleSelect(item)
+                    }
+                  }}
+                  className="cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                   <div className="flex gap-3 p-4">
                     <div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted/40">
@@ -275,6 +302,13 @@ export function ToolRecommendPanel({
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <Badge tone="neutral">{item.categoryName}</Badge>
                         <Badge tone="success">{item.statusName}</Badge>
+                        {item.ratingAvg != null && item.ratingAvg > 0 && (
+                          <Badge tone="neutral">
+                            <Star className="size-3 fill-current" />
+                            {item.ratingAvg.toFixed(1)}
+                            {item.reviewCount ? ` · ${item.reviewCount} 条评价` : ''}
+                          </Badge>
+                        )}
                       </div>
                       <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="size-3.5 shrink-0" />
@@ -292,7 +326,10 @@ export function ToolRecommendPanel({
                       variant="outline"
                       size="sm"
                       className="mt-2 w-full"
-                      onClick={() => handleSelect(item)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleSelect(item)
+                      }}
                     >
                       查看详情
                       <ArrowRight className="size-3.5" />
@@ -305,27 +342,24 @@ export function ToolRecommendPanel({
 
           {result.items.length > 0 && (
             <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs text-muted-foreground">
-              <span>这些推荐有帮助吗？</span>
-              <Button
-                type="button"
-                variant={feedback === 1 ? 'secondary' : 'ghost'}
-                size="sm"
-                disabled={feedback !== null}
-                onClick={() => void sendFeedback(1)}
-              >
-                <ThumbsUp className="size-3.5" />
-                有帮助
-              </Button>
-              <Button
-                type="button"
-                variant={feedback === 2 ? 'secondary' : 'ghost'}
-                size="sm"
-                disabled={feedback !== null}
-                onClick={() => void sendFeedback(2)}
-              >
-                <ThumbsDown className="size-3.5" />
-                没帮助
-              </Button>
+              {feedback ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                  {feedback === 1 ? <ThumbsUp className="size-3.5" /> : <ThumbsDown className="size-3.5" />}
+                  已记录本次反馈：{feedback === 1 ? '有帮助' : '没帮助'}
+                </span>
+              ) : (
+                <>
+                  <span>这些推荐有帮助吗？</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void sendFeedback(1)}>
+                    <ThumbsUp className="size-3.5" />
+                    有帮助
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void sendFeedback(2)}>
+                    <ThumbsDown className="size-3.5" />
+                    没帮助
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

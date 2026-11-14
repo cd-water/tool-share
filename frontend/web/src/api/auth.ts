@@ -1,16 +1,5 @@
 import http from '@/api/request'
-
-export interface LoginResult {
-  tokenName: string
-  tokenValue: string
-}
-
-export interface UserProfile {
-  id: number
-  phone: string
-  nickname: string
-  avatar: string
-}
+import type { LoginResult, UserProfile } from '@/api/types'
 
 export const userApi = {
   sendCode: (phone: string) => http.post<string>('/user/send-code', { phone }),

@@ -20,7 +20,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/tools/{id}": {
+    "/api/user/notification-prefs/{type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -29,6 +29,22 @@ export interface paths {
         };
         get?: never;
         put: operations["update_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tools/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["update_2"];
         post?: never;
         delete?: never;
         options?: never;
@@ -84,7 +100,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/user/rentals": {
+    "/api/user/reviews": {
         parameters: {
             query?: never;
             header?: never;
@@ -94,6 +110,22 @@ export interface paths {
         get: operations["list"];
         put?: never;
         post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/rentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_1"];
+        put?: never;
+        post: operations["create_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,9 +251,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_1"];
+        get: operations["list_2"];
         put?: never;
-        post: operations["create_1"];
+        post: operations["create_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,9 +363,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tools/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -459,7 +507,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
         post: operations["upload"];
         delete?: never;
@@ -548,6 +596,38 @@ export interface paths {
         patch: operations["updateStatus"];
         trace?: never;
     };
+    "/api/admin/tools/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["audit"];
+        trace?: never;
+    };
+    "/api/admin/admins/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateRole"];
+        trace?: never;
+    };
     "/api/user/tools": {
         parameters: {
             query?: never;
@@ -555,7 +635,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_5"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/tools/{toolId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["toolReviews"];
         put?: never;
         post?: never;
         delete?: never;
@@ -628,6 +724,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/notification-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user/messages": {
         parameters: {
             query?: never;
@@ -635,7 +747,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -708,6 +820,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["credit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/**": {
         parameters: {
             query?: never;
@@ -716,6 +844,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["read_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tools/{id}/rentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["rentals"];
         put?: never;
         post?: never;
         delete?: never;
@@ -740,6 +884,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_8"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/rentals": {
         parameters: {
             query?: never;
@@ -747,7 +907,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -795,7 +955,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -859,7 +1019,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_11"];
         put?: never;
         post?: never;
         delete?: never;
@@ -876,6 +1036,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["detail_4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/admins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_12"];
         put?: never;
         post?: never;
         delete?: never;
@@ -924,6 +1100,21 @@ export interface components {
             realName?: string;
             idCard?: string;
         };
+        NotificationPrefUpdateDTO: {
+            enabled: boolean;
+            channel: string;
+        };
+        NotificationPrefVO: {
+            type?: string;
+            typeName?: string;
+            channel?: string;
+            enabled?: boolean;
+        };
+        ResultNotificationPrefVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["NotificationPrefVO"];
+        };
         ToolSaveDTO: {
             name: string;
             model?: string;
@@ -964,7 +1155,17 @@ export interface components {
             purchaseDate?: string;
             supplier?: string;
             /** Format: int32 */
+            auditStatus?: number;
+            auditStatusName?: string;
+            auditRemark?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+            /** Format: int32 */
             rentalCount?: number;
+            ratingAvg?: number;
+            /** Format: int64 */
+            reviewCount?: number;
             /** Format: date-time */
             lastRepairTime?: string;
             /** Format: date-time */
@@ -994,6 +1195,37 @@ export interface components {
             message?: string;
             data?: string;
         };
+        ReviewCreateDTO: {
+            /** Format: int64 */
+            rentalId: number;
+            /** Format: int32 */
+            rating: number;
+            content?: string;
+            images?: string[];
+        };
+        ResultReviewVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["ReviewVO"];
+        };
+        ReviewVO: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            rentalId?: number;
+            /** Format: int64 */
+            toolId?: number;
+            toolName?: string;
+            /** Format: int64 */
+            userId?: number;
+            userNickname?: string;
+            /** Format: int32 */
+            rating?: number;
+            content?: string;
+            images?: string[];
+            /** Format: date-time */
+            createTime?: string;
+        };
         RentalCreateDTO: {
             /** Format: int64 */
             toolId: number;
@@ -1018,11 +1250,14 @@ export interface components {
             userId?: number;
             renterName?: string;
             renterPhone?: string;
+            renterIdCardMasked?: string;
             /** Format: date-time */
             startTime?: string;
             /** Format: date-time */
             endTime?: string;
             pickupPerson?: string;
+            createdByName?: string;
+            updatedByName?: string;
             depositAmount?: number;
             depositStatus?: string;
             depositStatusName?: string;
@@ -1191,6 +1426,9 @@ export interface components {
             snippet?: string;
         };
         ServerSentEventString: unknown;
+        ToolRestoreDTO: {
+            reason: string;
+        };
         RentalReturnDTO: {
             /** Format: date-time */
             actualReturnTime: string;
@@ -1210,6 +1448,7 @@ export interface components {
             title?: string;
             fileName?: string;
             contentPreview?: string;
+            indexed?: boolean;
             /** Format: date-time */
             createTime?: string;
         };
@@ -1240,6 +1479,13 @@ export interface components {
         ToolStatusDTO: {
             status: string;
         };
+        ToolAuditDTO: {
+            auditStatus: string;
+            remark?: string;
+        };
+        AdminRoleUpdateDTO: {
+            role: string;
+        };
         PageVOToolVO: {
             records?: components["schemas"]["ToolVO"][];
             /** Format: int64 */
@@ -1254,6 +1500,20 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageVOToolVO"];
         };
+        PageVOReviewVO: {
+            records?: components["schemas"]["ReviewVO"][];
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            page?: number;
+            /** Format: int64 */
+            size?: number;
+        };
+        ResultPageVOReviewVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["PageVOReviewVO"];
+        };
         ResultMapStringBoolean: {
             code?: string;
             message?: string;
@@ -1265,11 +1525,19 @@ export interface components {
             available?: boolean;
             message?: string;
             suggestions?: string[];
+            freeWindows?: components["schemas"]["TimeWindow"][];
+            suggestionWindows?: components["schemas"]["TimeWindow"][];
         };
         ResultAvailabilityVO: {
             code?: string;
             message?: string;
             data?: components["schemas"]["AvailabilityVO"];
+        };
+        TimeWindow: {
+            /** Format: date-time */
+            startTime?: string;
+            /** Format: date-time */
+            endTime?: string;
         };
         ResultListToolWatchVO: {
             code?: string;
@@ -1300,6 +1568,11 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageVORentalVO"];
         };
+        ResultListNotificationPrefVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["NotificationPrefVO"][];
+        };
         MessageVO: {
             /** Format: int64 */
             id?: number;
@@ -1308,6 +1581,9 @@ export interface components {
             title?: string;
             content?: string;
             channel?: string;
+            deliveryStatus?: string;
+            /** Format: date-time */
+            sentTime?: string;
             readStatus?: boolean;
             /** Format: date-time */
             createTime?: string;
@@ -1361,6 +1637,40 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageVODamageReportVO"];
         };
+        CreditEventVO: {
+            /** Format: int64 */
+            id?: number;
+            eventType?: string;
+            eventLabel?: string;
+            /** Format: int32 */
+            delta?: number;
+            /** Format: int64 */
+            rentalId?: number;
+            /** Format: int64 */
+            reviewId?: number;
+            reason?: string;
+            /** Format: date-time */
+            createTime?: string;
+        };
+        CreditVO: {
+            /** Format: int32 */
+            score?: number;
+            events?: components["schemas"]["PageVOCreditEventVO"];
+        };
+        PageVOCreditEventVO: {
+            records?: components["schemas"]["CreditEventVO"][];
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            page?: number;
+            /** Format: int64 */
+            size?: number;
+        };
+        ResultCreditVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["CreditVO"];
+        };
         ToolAdminQuery: {
             keyword?: string;
             category?: string;
@@ -1388,9 +1698,13 @@ export interface components {
             /** Format: int64 */
             toolId?: number;
             action?: string;
+            fromStatus?: string;
+            toStatus?: string;
             detail?: string;
             /** Format: int64 */
             operatorId?: number;
+            operatorName?: string;
+            remark?: string;
             /** Format: date-time */
             createTime?: string;
         };
@@ -1403,6 +1717,7 @@ export interface components {
             /** Format: int64 */
             id?: number;
             username?: string;
+            role?: string;
         };
         ResultAdminVO: {
             code?: string;
@@ -1433,6 +1748,11 @@ export interface components {
             code?: string;
             message?: string;
             data?: components["schemas"]["AdminDashboardVO"];
+        };
+        ResultListAdminVO: {
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["AdminVO"][];
         };
     };
     responses: never;
@@ -1488,6 +1808,32 @@ export interface operations {
         };
     };
     update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationPrefUpdateDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultNotificationPrefVO"];
+                };
+            };
+        };
+    };
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1633,6 +1979,53 @@ export interface operations {
     list: {
         parameters: {
             query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultPageVOReviewVO"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCreateDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultReviewVO"];
+                };
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: {
                 status?: string;
                 page?: number;
                 size?: number;
@@ -1654,7 +2047,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    create_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1836,9 +2229,11 @@ export interface operations {
             };
         };
     };
-    list_1: {
+    list_2: {
         parameters: {
             query?: {
+                keyword?: string;
+                status?: string;
                 page?: number;
                 size?: number;
             };
@@ -1859,7 +2254,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    create_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -2034,7 +2429,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query: {
                 query: components["schemas"]["ToolAdminQuery"];
@@ -2056,7 +2451,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -2066,6 +2461,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ToolSaveDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultToolVO"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolRestoreDTO"];
             };
         };
         responses: {
@@ -2240,7 +2661,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -2417,12 +2838,65 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolAuditDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultToolVO"];
+                };
+            };
+        };
+    };
+    updateRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleUpdateDTO"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultVoid"];
+                };
+            };
+        };
+    };
+    list_5: {
         parameters: {
             query?: {
                 keyword?: string;
                 category?: string;
                 status?: string;
+                orderBy?: string;
                 page?: number;
                 size?: number;
             };
@@ -2439,6 +2913,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ResultPageVOToolVO"];
+                };
+            };
+        };
+    };
+    toolReviews: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                toolId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultPageVOReviewVO"];
                 };
             };
         };
@@ -2532,7 +3031,27 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultListNotificationPrefVO"];
+                };
+            };
+        };
+    };
+    list_7: {
         parameters: {
             query?: {
                 page?: number;
@@ -2637,6 +3156,29 @@ export interface operations {
             };
         };
     };
+    credit: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultCreditVO"];
+                };
+            };
+        };
+    };
     read_2: {
         parameters: {
             query?: never;
@@ -2653,6 +3195,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    rentals: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultPageVORentalVO"];
                 };
             };
         };
@@ -2679,12 +3246,37 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_8: {
+        parameters: {
+            query?: {
+                toolId?: number;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultPageVOReviewVO"];
+                };
+            };
+        };
+    };
+    list_9: {
         parameters: {
             query?: {
                 keyword?: string;
                 status?: string;
                 overdue?: string;
+                damageResult?: string;
                 page?: number;
                 size?: number;
             };
@@ -2733,6 +3325,7 @@ export interface operations {
                 keyword?: string;
                 status?: string;
                 overdue?: string;
+                damageResult?: string;
             };
             header?: never;
             path?: never;
@@ -2749,7 +3342,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_10: {
         parameters: {
             query?: {
                 page?: number;
@@ -2832,7 +3425,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_11: {
         parameters: {
             query?: {
                 keyword?: string;
@@ -2875,6 +3468,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ResultDamageReportVO"];
+                };
+            };
+        };
+    };
+    list_12: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ResultListAdminVO"];
                 };
             };
         };

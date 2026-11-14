@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -9,7 +9,6 @@ import {
   Loader2,
   Plus,
   RotateCcw,
-  Search,
   UserRound,
   Wrench,
   XCircle,
@@ -19,6 +18,7 @@ import type { Rental, RentalStatus } from '@/api/types'
 import { badgeClass } from '@/lib/badge'
 import { toast } from '@/lib/fx'
 import { formatDateTime, formatMoney, resolveFileUrl } from '@/lib/format'
+import { queryKeys } from '@/lib/queryKeys'
 import { rentalStatusTone } from '@/lib/status'
 
 const STATUS_TABS: { value: '' | RentalStatus; label: string }[] = [
@@ -110,6 +110,12 @@ function RentalDetail({ rental }: { rental: Rental }) {
         <dd>{describeRemind(rental)}</dd>
         <dt>押金</dt>
         <dd className="money accent">{formatMoney(rental.depositAmount)}</dd>
+        {rental.status === 'RETURNED' && (
+          <>
+            <dt>验收结果</dt>
+            <dd>{rental.damageResultName || '—'}</dd>
+          </>
+        )}
       </dl>
 
       {rental.status === 'RETURNED' && (
@@ -145,36 +151,31 @@ export default function RentalsPage() {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<'' | RentalStatus>('')
   const [page, setPage] = useState(1)
-  const [keyword, setKeyword] = useState('')
   const [detailId, setDetailId] = useState<number | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Rental | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [payTarget, setPayTarget] = useState<Rental | null>(null)
   const [payMethod, setPayMethod] = useState('wechat')
-  const [removed, setRemoved] = useState<number[]>([])
 
+  const rentalParams = { page, size: PAGE_SIZE, status: status || undefined }
   const rentalsQuery = useQuery({
-    queryKey: ['rentals', 'user', page, status],
-    queryFn: () => rentalsApi.list({ page, size: PAGE_SIZE, status: status || undefined }),
+    queryKey: queryKeys.rentals.list(rentalParams),
+    queryFn: () => rentalsApi.list(rentalParams),
   })
-  const all = useMemo(
-    () => (rentalsQuery.data?.records ?? []).filter((item) => !removed.includes(item.id)),
-    [rentalsQuery.data, removed],
-  )
+  const list = rentalsQuery.data?.records ?? []
 
   const detailQuery = useQuery({
-    queryKey: ['rental', detailId],
+    queryKey: queryKeys.rentals.detail(detailId),
     queryFn: () => rentalsApi.detail(detailId as number),
     enabled: detailId !== null,
   })
-  const detailRental = detailQuery.data ?? all.find((item) => item.id === detailId)
+  const detailRental = detailQuery.data ?? list.find((item) => item.id === detailId)
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ['rentals'] })
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    queryClient.invalidateQueries({ queryKey: ['tool'] })
-    queryClient.invalidateQueries({ queryKey: ['tools'] })
-    queryClient.invalidateQueries({ queryKey: ['messages'] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.rentals.all })
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.all })
+    queryClient.invalidateQueries({ queryKey: queryKeys.messages.all })
   }
 
   const payMutation = useMutation({
@@ -199,26 +200,9 @@ export default function RentalsPage() {
   const total = rentalsQuery.data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / (rentalsQuery.data?.size || PAGE_SIZE)))
 
-  const list = useMemo(() => {
-    const kw = keyword.trim().toLowerCase()
-    return all.filter((item) => {
-      if (kw && !(`${item.toolName}${item.orderNo}`.toLowerCase().includes(kw))) return false
-      return true
-    })
-  }, [all, keyword])
-
   function selectStatus(next: '' | RentalStatus) {
     setStatus(next)
     setPage(1)
-  }
-
-  function removeRecord(rental: Rental) {
-    setRemoved((prev) => [...prev, rental.id])
-    toast('已删除租赁记录', {
-      type: 'info',
-      msg: rental.orderNo,
-      undo: () => setRemoved((prev) => prev.filter((id) => id !== rental.id)),
-    })
   }
 
   function actions(rental: Rental) {
@@ -249,9 +233,6 @@ export default function RentalsPage() {
     if (rental.status === 'RETURNED') {
       return <button type="button" className="btn btn-sm btn-outline" onClick={() => setDetailId(rental.id)}>归还信息</button>
     }
-    if (rental.status === 'CANCELLED') {
-      return <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeRecord(rental)}>删除记录</button>
-    }
     return null
   }
 
@@ -261,7 +242,7 @@ export default function RentalsPage() {
         <div>
           <p className="eyebrow">MY RENTALS</p>
           <h1>我的租赁</h1>
-          <p className="sub">管理您的预约、支付押金、跟踪租期与归还退款。逾期将按 ¥10/天 计费。</p>
+          <p className="sub">管理您的预约、支付押金、跟踪租期与归还退款。逾期按 ¥5/小时 计费，封顶押金。</p>
         </div>
         <div className="actions">
           <button type="button" className="btn btn-primary" onClick={() => navigate('/tools')}>
@@ -270,29 +251,17 @@ export default function RentalsPage() {
         </div>
       </div>
 
-      <div className="between reveal" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
-        <div className="tabs">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value || 'all'}
-              type="button"
-              className={status === tab.value ? 'active' : ''}
-              onClick={() => selectStatus(tab.value)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className="f-search" style={{ position: 'relative', width: 240 }}>
-          <Search className="ic" />
-          <input
-            className="input"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索工具 / 单号…"
-            style={{ paddingLeft: 36 }}
-          />
-        </div>
+      <div className="tabs reveal" style={{ marginBottom: 18 }}>
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.value || 'all'}
+            type="button"
+            className={status === tab.value ? 'active' : ''}
+            onClick={() => selectStatus(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {rentalsQuery.isLoading ? (

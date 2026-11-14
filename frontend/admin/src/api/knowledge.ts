@@ -1,12 +1,5 @@
 import http from '@/api/request'
-
-export interface KnowledgeDocVO {
-  id: number
-  title: string
-  fileName: string
-  contentPreview?: string
-  createTime?: string
-}
+import type { KnowledgeDocVO } from '@/api/types'
 
 export const knowledgeApi = {
   list: () => http.get<KnowledgeDocVO[]>('/admin/knowledge'),
