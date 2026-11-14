@@ -343,28 +343,6 @@ body[data-app="admin"].dark .skel::after{background:linear-gradient(90deg,transp
   .drawer{width:100%;max-width:100vw}
   .web-top .wrap{height:auto;flex-wrap:wrap;padding:10px 0}
 }
-/* —— 全局齿轮光标 ——
-   固定工坊铜金 + 白/墨双层描边，深浅背景与任何主题下都清晰，不再随 --brand 漂移。
-   关键可用性约束：只有当自定义光标确实挂载并完成首帧渲染（body.cursor-swapped）后，
-   才隐藏系统指针。任何初始化异常都会自动保留系统光标，杜绝「鼠标直接消失」。 */
-body.gear-cursor-on .gear-cursor{position:fixed;top:0;left:0;z-index:9999;width:28px;height:28px;margin:-14px 0 0 -14px;pointer-events:none;opacity:0;transition:opacity .2s var(--ease);will-change:transform}
-body.gear-cursor-on .gear-cursor.ready{opacity:1}
-body.gear-cursor-on .gear-cursor.text-mode{opacity:.42}
-body.gear-cursor-on .gear-cursor svg{position:absolute;overflow:visible}
-body.gear-cursor-on .gear-cursor .gc-main{inset:0;width:100%;height:100%;filter:drop-shadow(0 2px 6px rgba(24,16,6,.45))}
-body.gear-cursor-on .gear-cursor .gc-ghost{width:14px;height:14px;right:-6px;top:-6px;opacity:0;transition:opacity .18s}
-body.gear-cursor-on .gear-cursor.hot .gc-ghost{opacity:.85}
-.gc-spark{position:fixed;z-index:9998;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;pointer-events:none;background:#E29B3C;box-shadow:0 0 0 1px rgba(255,253,247,.6);animation:gcSpark .55s var(--ease) forwards}
-@keyframes gcSpark{from{transform:translate(0,0) scale(1);opacity:.95}to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
-@media(pointer:fine){
-  body.cursor-swapped,body.cursor-swapped *{cursor:none}
-  body.cursor-swapped input,body.cursor-swapped textarea,body.cursor-swapped select,body.cursor-swapped [contenteditable]{cursor:text}
-}
-@media(pointer:coarse){body.gear-cursor-on .gear-cursor{display:none}}
-@media(prefers-reduced-motion:reduce){body.gear-cursor-on .gear-cursor{display:none}}
-
-
-
 
 /* ===== 页面级样式补全：从原型包 08-管理登录.html,09-仪表盘.html,10-工具管理.html,11-租赁管理.html,12-报修管理.html,13-知识库.html,14-消息中心.html 提取（本轮校验补齐） ===== */
 .cl{position:relative;min-height:100vh;display:grid;grid-template-columns:56fr 44fr;background:#101214;color:#EDEAE2;overflow:hidden}

@@ -1,12 +1,5 @@
 # ToolShare · 社区共享工具租赁系统
 
-面向社区场景的工具共享租赁平台：居民按需预约、支付押金、取件使用、归还结算；工作人员处理取件、验收、报修与提醒。系统同时提供基于 RAG 的 AI 问答与工具推荐。
-
-- **三类角色**：居民（USER）、工作人员（STAFF）、系统管理员（SUPER_ADMIN）
-- **十个后端模块**：认证、工具、租赁与结算、损坏报修、消息、知识库、AI、统计、评价、信用分
-- **两个独立前端**：居民端（React 19）、管理端（Vue 3 + Element Plus）
-- **三项亮点**：评价 + 信用分；AI 引用溯源 + 评测集 + 反馈闭环；三条主流程 E2E + 一键验证
-
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
@@ -16,6 +9,13 @@
 ![MinIO](https://img.shields.io/badge/MinIO-S3%20SDK-C72E49?logo=minio&logoColor=white)
 ![Spring AI](https://img.shields.io/badge/Spring%20AI-RAG-6DB33F?logo=spring&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+
+面向社区场景的工具共享租赁平台：居民按需预约、支付押金、取件使用、归还结算；工作人员处理取件、验收、报修与提醒。系统同时提供基于 RAG 的 AI 问答与工具推荐。
+
+- **三类角色**：居民（USER）、工作人员（STAFF）、系统管理员（SUPER_ADMIN）
+- **十个后端模块**：认证、工具、租赁与结算、损坏报修、消息、知识库、AI、统计、评价、信用分
+- **两个独立前端**：居民端（React 19）、管理端（Vue 3 + Element Plus）
+- **三项亮点**：评价 + 信用分；AI 引用溯源 + 评测集 + 反馈闭环；三条主流程 E2E + 一键验证
 
 ## 界面预览
 
@@ -189,6 +189,17 @@ bash ops/ai-eval.sh             # AI 固定评测集，默认阈值 0.8
 - 生产需将两个前端的 `dist/` 由静态服务器托管，并把 `/api` 代理到 `:8900`；SSE 需关闭代理缓冲。
 
 ## 文档
+
+### 课程交付文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [需求说明书](docs/course/01-需求说明书.md) | 角色权限、业务流程、功能/非功能需求、追踪矩阵与验收标准 |
+| [用户操作手册](docs/course/02-用户操作手册.md) | 居民端与管理端完整操作步骤，配套 18 张界面截图 |
+| [开发进度报告](docs/course/03-开发进度报告.md) | 开发周期、阶段任务、测试结果与问题解决 |
+| [交付文档](docs/course/04-交付文档.md) | 交付物、运行环境、启动步骤、验收清单与已知限制 |
+
+### 技术与运维
 
 - [需求文档 PRD](docs/PRD.md) · [附录（单据模板）](docs/附录.md)
 - [领域词汇表](GLOSSARY.md) · [架构决策记录](docs/adr/)（ADR-0001 ~ ADR-0008）

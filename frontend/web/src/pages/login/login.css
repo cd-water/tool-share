@@ -5,13 +5,6 @@
 /* 全出血底图：照片铺满整个视口（含顶部品牌带与右侧表单区），
    左右不再各自为政，靠一层渐隐蒙版收束出表单的可读区。 */
 .lv-canvas{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-/* 系统光标只在自定义齿轮确认渲染成功后才隐藏，任何失败都保留系统指针 */
-@media(pointer:fine){
-  body.cursor-swapped:not(.cursor-native) .lv,body.cursor-swapped:not(.cursor-native) .plaza,
-  body.cursor-swapped:not(.cursor-native) .lv a,body.cursor-swapped:not(.cursor-native) .plaza a,
-  body.cursor-swapped:not(.cursor-native) .lv button,body.cursor-swapped:not(.cursor-native) .plaza button{cursor:none}
-  body.cursor-swapped:not(.cursor-native) input,body.cursor-swapped:not(.cursor-native) textarea{cursor:text}
-}
 body.login-page .toast-stack{top:64px}
 #fCode.is-err .input,#fPw.is-err .input{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 #fCode.is-err .err,#fPw.is-err .err{display:block}
@@ -246,17 +239,7 @@ body.login-page .toast-stack{top:64px}
 .lc-foot a{color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
 .field.shake{animation:fieldShake .4s var(--ease)}
 @keyframes fieldShake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
-/* —— 齿轮光标 & 火花 —— */
-body.login-page .gear-cursor{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;width:32px;height:32px;margin:-16px 0 0 -16px;will-change:transform;transition:opacity .15s;opacity:0}
-body.login-page .gear-cursor.ready{opacity:1}
-body.login-page .gear-cursor svg{position:absolute;overflow:visible}
-body.login-page .gear-cursor .gc-main{left:0;top:0;width:32px;height:32px}
-body.login-page .gear-cursor .gc-ghost{left:22px;top:-9px;width:18px;height:18px;opacity:0;transition:opacity .18s}
-body.login-page .gear-cursor.hot .gc-ghost{opacity:.85}
-body.login-page .gear-cursor.text-mode{opacity:.42}
-.gear-cursor .gc-squash{transition:transform .12s}
-body.cursor-native body.login-page .gear-cursor{display:none}
-@media(pointer:coarse){.gear-cursor{display:none}}
+/* —— 火花粒子 —— */
 .fx-layer{position:fixed;inset:0;z-index:9998;pointer-events:none;overflow:hidden}
 .spark{position:absolute;width:6px;height:6px;border-radius:2px;background:var(--c,#F7A600);animation:sparkFly .6s cubic-bezier(.2,.7,.3,1) forwards}
 @keyframes sparkFly{from{transform:translate(0,0) rotate(0) scale(1);opacity:1}to{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.2);opacity:0}}
@@ -305,10 +288,8 @@ body.cursor-native body.login-page .gear-cursor{display:none}
   #cogBreath,.cog-tip-glow,.bolt-wrench,.drag-cue,.core-hint,.submit-btn.is-charged{animation:none!important}
   .core-hint{opacity:1;transform:translateX(-50%)}
   .core-tick{transition:none}
-  .gear-cursor .gc-main{animation:none!important}
   .spotlight{display:none}
 }
 
 /* 顶部音效开关（原型位于登录视图之外） */
 body.login-page .sound-fab{position:fixed;top:14px;right:20px;z-index:300}
-body.login-page.gear-cursor-on .gear-cursor{width:32px;height:32px;margin:-16px 0 0 -16px}
