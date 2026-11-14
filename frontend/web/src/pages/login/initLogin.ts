@@ -715,15 +715,18 @@ export function initLogin(host: HTMLElement, bridge: LoginBridge): () => void {
     countdown()
     addCharge(0.1)
     setState('watch')
-    toast('验证码已发送', {
-      type: 'info',
-      msg: res.code ? '演示环境验证码：' + res.code : '请查看后端日志中的 MOCK SMS 验证码',
-    })
+    if (res.code) {
+      code.value = res.code
+      $('#fCode')?.classList.remove('is-err')
+      toast('验证码已发送', { type: 'info', msg: '演示环境验证码：' + res.code + '，已自动填入' })
+    } else {
+      toast('验证码已发送', { type: 'info', msg: '请查看后端日志中的 MOCK SMS 验证码' })
+    }
   }
   const onDemo = async () => {
     phone.value = '13800000001'
-    code.value = '123456'
     pw.value = '123456'
+    if (mode === 'code' && !/^\d{6}$/.test(code.value)) code.value = ''
     phoneErr(false)
     $('#fCode')?.classList.remove('is-err')
     $('#fPw')?.classList.remove('is-err')
@@ -735,14 +738,18 @@ export function initLogin(host: HTMLElement, bridge: LoginBridge): () => void {
       sendBtn.textContent = '发送中…'
       try {
         const res = await bridge.sendCode(phone.value)
-        if (res.ok && res.code) {
-          code.value = res.code
-          toast('演示账号已填入', { type: 'info', msg: '真实验证码已自动填入，点击「启动工坊」即可进入' })
+        if (res.ok) {
           countdown()
+          if (res.code) {
+            code.value = res.code
+            toast('演示账号已填入', { type: 'info', msg: '真实验证码已自动填入，点击「启动工坊」即可进入' })
+          } else {
+            toast('演示账号已填入', { type: 'info', msg: '验证码已发送，请查看后端日志中的 MOCK SMS 验证码后填写' })
+          }
         } else {
-          toast('演示账号已填入', { type: 'info', msg: '请先点击「获取验证码」后再登录' })
           sendBtn.disabled = false
           sendBtn.textContent = '获取验证码'
+          toast('演示账号已填入', { type: 'info', msg: '请先点击「获取验证码」后再登录' })
         }
       } catch {
         sendBtn.disabled = false

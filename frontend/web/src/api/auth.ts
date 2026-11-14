@@ -2,7 +2,7 @@ import http from '@/api/request'
 import type { LoginResult, UserProfile } from '@/api/types'
 
 export const userApi = {
-  sendCode: (phone: string) => http.post<string>('/user/send-code', { phone }),
+  sendCode: (phone: string) => http.post<string | null>('/user/send-code', { phone }),
   loginByCode: (phone: string, code: string) =>
     http.post<LoginResult>('/user/login/by-code', { phone, code }),
   loginByPassword: (phone: string, password: string) =>

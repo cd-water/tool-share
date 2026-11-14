@@ -82,6 +82,10 @@ public class ToolService {
     @Value("${toolshare.availability.search-days:30}")
     private long availabilitySearchDays = 30;
 
+    /** E2E 等外部向量服务不可控的环境可关闭写时索引，避免阻塞业务响应。 */
+    @Value("${toolshare.ai.tool-index-enabled:true}")
+    private boolean toolIndexEnabled = true;
+
     public PageVO<ToolVO> userPage(String keyword, String category, String status,
                                    String orderBy, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
@@ -323,7 +327,7 @@ public class ToolService {
 
     /** 索引与数据库保持一致：通过审核且未报废才写入，其余一律删除；在事务提交后执行。 */
     private void syncIndex(Tool tool) {
-        if (tool == null || tool.getId() == null) {
+        if (!toolIndexEnabled || tool == null || tool.getId() == null) {
             return;
         }
         Long toolId = tool.getId();

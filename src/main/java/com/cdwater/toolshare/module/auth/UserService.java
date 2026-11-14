@@ -65,8 +65,8 @@ public class UserService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
-     * 发送验证码（MOCK 短信：无真实通道，验证码仅写日志）。
-     * 生产模式只返回「已发送」；开发/测试可通过 toolshare.auth.expose-captcha 打开返回。
+     * 发送验证码（MOCK 短信：无真实通道，验证码写入日志）。
+     * 开关打开时直接返回 6 位验证码；关闭时返回 null，验证码只存在于服务端与日志。
      */
     public String sendCode(String phone, String ip) {
         checkRateLimit(phone, ip);
@@ -74,7 +74,7 @@ public class UserService {
         stringRedisTemplate.opsForValue().set(CAPTCHA_KEY + phone, code, CAPTCHA_TTL);
         stringRedisTemplate.delete(CAPTCHA_ATTEMPT_KEY + phone);
         log.info("[MOCK SMS] phone={}, code={}", phone, code);
-        return authProperties.exposeCaptcha() ? code : "已发送";
+        return authProperties.exposeCaptcha() ? code : null;
     }
 
     private void checkRateLimit(String phone, String ip) {

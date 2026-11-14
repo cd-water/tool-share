@@ -18,13 +18,14 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 生产模式（默认不暴露验证码）：接口只返回「已发送」，验证码仅存在于服务端。
+ * 关闭暴露开关：接口 data 返回 null，验证码仅存在于服务端，仍可用服务端存储的验证码登录。
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "toolshare.auth.expose-captcha=false")
 @Import(TestStorageConfig.class)
 class CaptchaProductionModeIntegrationTest extends AbstractIntegrationTest {
 
@@ -60,10 +61,18 @@ class CaptchaProductionModeIntegrationTest extends AbstractIntegrationTest {
         JsonNode node = om.readTree(raw);
 
         assertEquals("A200", node.get("code").asString());
-        assertEquals("已发送", node.get("data").asString());
+        assertTrue(node.get("data").isNull(), "关闭开关时 data 应为 null");
 
         String stored = redis.opsForValue().get("captcha:user:" + PHONE);
         assertTrue(stored != null && stored.matches("\\d{6}"), "验证码应仍写入服务端");
-        assertNotEquals(stored, node.get("data").asString());
+
+        String loginRaw = client.post().uri("/api/user/login/by-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("phone", PHONE, "code", stored))
+                .retrieve()
+                .body(String.class);
+        JsonNode login = om.readTree(loginRaw);
+        assertEquals("A200", login.get("code").asString());
+        assertFalse(login.get("data").get("tokenValue").asString().isEmpty());
     }
 }

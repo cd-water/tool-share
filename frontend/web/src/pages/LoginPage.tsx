@@ -42,9 +42,9 @@ export default function LoginPage() {
       },
       async sendCode(phone) {
         try {
-          // 后端 MOCK 短信会直接把验证码返回，便于演示
+          // Mock 短信演示环境会直接返回 6 位验证码；关闭开关时为 null
           const code = await userApi.sendCode(phone)
-          return { ok: true as const, code }
+          return { ok: true as const, code: code ?? undefined }
         } catch (err) {
           return { ok: false as const, message: err instanceof Error ? err.message : '发送失败，请稍后重试' }
         }

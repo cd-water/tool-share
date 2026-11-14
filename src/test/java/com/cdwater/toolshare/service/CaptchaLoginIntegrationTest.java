@@ -34,8 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 集成测试：发送验证码 + 手机号验证码登录（静默注册）。
  * 依赖 Testcontainers 自动启动 MySQL/Redis。
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "toolshare.auth.expose-captcha=true")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(TestStorageConfig.class)
 class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
 

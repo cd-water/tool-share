@@ -44,7 +44,8 @@ docs/superpowers
 node_modules/
 logs/
 
-.claude/worktrees/
+.claude/
+.impeccable/
 
 ### E2E ###
 ops/e2e/test-results/

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -17,16 +18,22 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@Order(20)
 @RequiredArgsConstructor
 public class SeedAssetInitializer implements ApplicationRunner {
+
+    /** 用户手机号 -> 种子头像文件名 */
+    private static final Map<String, String> USER_AVATARS = Map.of(
+            "13800000001", "seed/avatars/wang-jianguo.jpg"
+    );
 
     /** 工具编码 -> 种子图片文件名 */
     private static final Map<String, String> TOOL_ASSETS = Map.of(
             "SQ-G-WX-0001", "seed/tools/drill.jpg",
             "SQ-G-WX-0002", "seed/tools/wrench.jpg",
-            "SQ-G-WX-0003", "seed/tools/drill.jpg",
+            "SQ-G-WX-0003", "seed/tools/rotary-hammer.jpg",
             "SQ-G-YY-0001", "seed/tools/pruner.jpg",
-            "SQ-G-YY-0002", "seed/tools/pruner.jpg",
+            "SQ-G-YY-0002", "seed/tools/lawn-mower.jpg",
             "SQ-G-QJ-0001", "seed/tools/washer.jpg",
             "SQ-G-QJ-0002", "seed/tools/vacuum.jpg",
             "SQ-G-QT-0001", "seed/tools/ladder.jpg"
@@ -35,10 +42,13 @@ public class SeedAssetInitializer implements ApplicationRunner {
     private final StorageService storageService;
     private final JdbcTemplate jdbcTemplate;
 
-    @Value("classpath*:seed/tools/*.jpg")
+    @Value("classpath*:seed/images/tools/*.jpg")
     private Resource[] toolAssets;
 
-    @Value("classpath:seed/login-stage.jpg")
+    @Value("classpath*:seed/images/avatars/*.jpg")
+    private Resource[] avatarAssets;
+
+    @Value("classpath:seed/images/ui/login-stage.jpg")
     private Resource loginStage;
 
     @Override
@@ -54,6 +64,16 @@ public class SeedAssetInitializer implements ApplicationRunner {
                     storageService.put(key, resource.getInputStream().readAllBytes(), "image/jpeg");
                 }
             }
+            for (Resource resource : avatarAssets) {
+                String filename = resource.getFilename();
+                if (filename == null) {
+                    continue;
+                }
+                String key = "seed/avatars/" + filename;
+                if (!storageService.exists(key)) {
+                    storageService.put(key, resource.getInputStream().readAllBytes(), "image/jpeg");
+                }
+            }
             if (loginStage.exists() && !storageService.exists("seed/login-stage.jpg")) {
                 storageService.put("seed/login-stage.jpg", loginStage.getInputStream().readAllBytes(), "image/jpeg");
             }
@@ -64,10 +84,49 @@ public class SeedAssetInitializer implements ApplicationRunner {
                                 + "WHERE code = ? AND (image_url IS NULL OR image_url = '' OR image_url LIKE '%github.com%')",
                         url, url, code);
             });
+            USER_AVATARS.forEach((phone, key) -> {
+                String url = storageService.url(key);
+                jdbcTemplate.update(
+                        "UPDATE t_user SET avatar = ? "
+                                + "WHERE phone = ? AND (avatar IS NULL OR avatar = '' OR avatar LIKE '%github.com%')",
+                        url, phone);
+            });
+            normalizeLegacyUrls();
             log.info("种子工具图片已同步到对象存储");
         } catch (Exception e) {
             // 对象存储不可用时不阻塞应用启动，工具图片会回退到前端占位
             log.warn("种子工具图片同步失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 把历史上经过后端代理的文件地址统一改为对象存储直链。
+     * 桶公开读未启用时跳过，继续由 /api/files/** 提供兜底。
+     */
+    private void normalizeLegacyUrls() {
+        String prefix = storageService.publicUrlPrefix();
+        if (prefix == null) {
+            log.warn("对象存储公开读未启用，跳过旧文件地址规范化");
+            return;
+        }
+        int changed = 0;
+        changed += jdbcTemplate.update(
+                "UPDATE t_tool SET image_url = REPLACE(image_url, '/api/files/', ?) "
+                        + "WHERE image_url LIKE '/api/files/%'", prefix);
+        changed += jdbcTemplate.update(
+                "UPDATE t_tool SET image_urls = REPLACE(image_urls, '/api/files/', ?) "
+                        + "WHERE image_urls LIKE '%/api/files/%'", prefix);
+        changed += jdbcTemplate.update(
+                "UPDATE t_user SET avatar = REPLACE(avatar, '/api/files/', ?) "
+                        + "WHERE avatar LIKE '/api/files/%'", prefix);
+        changed += jdbcTemplate.update(
+                "UPDATE t_damage_report SET images = REPLACE(images, '/api/files/', ?) "
+                        + "WHERE images LIKE '%/api/files/%'", prefix);
+        changed += jdbcTemplate.update(
+                "UPDATE t_tool_review SET images = REPLACE(images, '/api/files/', ?) "
+                        + "WHERE images LIKE '%/api/files/%'", prefix);
+        if (changed > 0) {
+            log.info("已将 {} 处旧文件地址规范化为对象存储直链", changed);
         }
     }
 }

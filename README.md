@@ -107,7 +107,7 @@ flowchart LR
 2. **租赁与结算**：创建租赁单即占档，待支付 30 分钟未支付自动取消并释放档期；状态流转使用带状态条件的原子更新与版本号。押金、逾期费、损坏赔偿、退款写入 `t_rental_fee` / `t_payment_record`，金额只由服务端计算。
 3. **定时任务**：过期待支付、取件/到期/逾期提醒、蹲守到货通知按单实例设计；Redis ZSet 保存到点提醒，数据库消息行保证可查询与幂等。
 4. **AI 链路**：知识库与工具向量写入 Qdrant；问答与推荐在向量检索失败、超时或无命中时降级关键词检索，外部模型不可用时仍返回完整事件流或降级推荐。
-5. **对象存储**：上传图片经扩展名/MIME 白名单与重编码后写入 MinIO，通过 `/api/files/**` 读取，响应带 `nosniff`。
+5. **对象存储**：上传图片经扩展名/MIME 白名单与重编码后写入 MinIO；公开桶直链由浏览器直接访问，`/api/files/**` 作为旧数据与策略失败时的代理兜底。
 
 可交互的架构图、ER 图与时序图见 [docs/diagrams/](docs/diagrams/)。OpenAPI 契约快照见 [docs/api/openapi.json](docs/api/openapi.json)。
 
@@ -136,7 +136,7 @@ erDiagram
 
 - 基础表：`t_user`、`t_admin`、`t_tool`、`t_rental`、`t_damage_report`、`t_message`、`t_tool_log`、`t_knowledge_doc`。
 - 重构新增：`t_rental_fee`、`t_payment_record`、`t_tool_review`、`t_user_credit_event`、`t_ai_recommendation`、`t_user_notification_pref`、`t_message_config`，以及租赁快照、版本号、管理员角色、工具审核等增量列。
-- 迁移位于 `src/main/resources/db/migration/`（V1–V14，编号不连续；V1 schema、V2 seed、V3 起为增量迁移）。完整字段以迁移脚本为准，可交互 ER 图见 [docs/diagrams/er.html](docs/diagrams/er.html)。
+- 迁移位于 `src/main/resources/db/migration/`，按域拆为 `V1__user_and_tool.sql`、`V2__rental_and_damage.sql`、`V3__message_and_knowledge.sql`、`V4__review_credit_ai.sql`，全部是纯建表语句（含最终列与索引）；演示数据在 `src/main/resources/seed/`（SQL、知识库语料、工具图片），测试数据在 `src/test/resources/db/test-seed.sql`，都不进入 Flyway。完整字段以迁移脚本为准，可交互 ER 图见 [docs/diagrams/er.html](docs/diagrams/er.html)。
 
 ## 目录结构
 
@@ -168,7 +168,8 @@ tool-share/
 │   │       └── knowledge/ ai/ dashboard/ review/ credit/
 │   └── resources/
 │       ├── application.yml
-│       └── db/migration/           # Flyway 迁移
+│       ├── db/migration/           # Flyway 迁移
+│       └── seed/                   # 初始化数据：SQL、知识库语料、工具图片
 ├── src/test/java/                  # 单元 + HTTP API 集成测试 + AI 评测
 ├── docs/
 │   ├── PRD.md  附录.md
@@ -207,15 +208,27 @@ cd frontend/web && pnpm install && pnpm dev      # http://localhost:5901
 cd frontend/admin && pnpm install && pnpm dev    # http://localhost:5902
 ```
 
-初始化种子账号（密码均为 `Aa123456`）：
+首次启动后端会自动建表，并在空库时自动写入演示数据：执行 `src/main/resources/seed/demo-data.sql`、导入 `seed/knowledge/` 下的 28 篇知识库文档、上传 `seed/images/` 下的工具图片。无需手工执行 SQL；用 `TOOLSHARE_DEMO_SEED_ENABLED=false`（对应 `toolshare.demo.seed-enabled`）可关闭自动种子。
+
+如果关闭了自动种子但仍需要演示数据，可手工执行：
+
+```bash
+set -a; source ops/.env; set +a
+docker compose -f ops/docker-compose.yml exec -T mysql \
+  mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" < src/main/resources/seed/demo-data.sql
+```
+
+`ops/e2e.sh` 会等待启动种子完成后再运行 Playwright。
+
+演示账号（密码均为 `Aa123456`）：
 
 | 端 | 账号 | 角色 | 说明 |
 | --- | --- | --- | --- |
-| 管理端 `:5902` | `admin` | 系统管理员 | V4 迁移将历史管理员统一升级为 `SUPER_ADMIN` |
+| 管理端 `:5902` | `admin` | 系统管理员 | 由 `src/main/resources/seed/demo-data.sql` 写入，角色 `SUPER_ADMIN` |
 | 居民端 `:5901` | `13800000001` | 居民 | 有密码，已完成实名 |
 | 居民端 `:5901` | `13800000002` | 居民 | 无密码，仅验证码登录 |
 
-工作人员账号需由系统管理员在管理端创建并分配 `STAFF` 角色。验证码短信为 Mock：生产默认只返回「已发送」，验证码写入日志 `[MOCK SMS]`；本地联调可设置 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA=true`（对应 `toolshare.auth.expose-captcha`）让接口直接返回验证码。
+工作人员账号需由系统管理员在管理端创建并分配 `STAFF` 角色。验证码短信为 Mock：课程演示环境默认由接口直接返回 6 位验证码并自动填入登录表单；关闭 `toolshare.auth.expose-captcha` 后接口只返回 `null`，验证码写入日志 `[MOCK SMS]`。接入真实短信或对外部署前必须关闭该开关。
 
 ### 验证与 AI 评测
 
@@ -268,14 +281,15 @@ bash ops/ai-eval.sh
 | `DEEPSEEK_CHAT_MODEL` | `deepseek-v4-flash` | 对话模型 |
 | `OLLAMA_BASE_URL` | `http://localhost:11934/v1` | 向量化服务 |
 | `QDRANT_HOST` | `localhost` | Qdrant gRPC 主机（端口固定 `6834`） |
-| `MINIO_ENDPOINT` | `http://localhost:9500` | MinIO 地址 |
-| `MINIO_BUCKET` | `tool-share` | 桶名，首次使用时自动创建 |
+| `MINIO_ENDPOINT` | `http://localhost:9500` | 后端 S3 客户端使用的 MinIO 地址 |
+| `MINIO_PUBLIC_ENDPOINT` | `http://localhost:9500` | 浏览器直连对象使用的地址，生产环境设为公开域名或反向代理 |
+| `MINIO_BUCKET` | `tool-share` | 桶名，首次使用时自动创建并设置公开读 |
 
 ### 业务开关（`application.yml` 中的 `toolshare.*`）
 
 | 配置 | 默认 | 说明 |
 | --- | --- | --- |
-| `toolshare.auth.expose-captcha` | `false` | 接口是否直接返回验证码，仅限本地联调 |
+| `toolshare.auth.expose-captcha` | `true` | Mock 短信演示默认直接返回验证码；接入真实短信或对外部署前改为 `false` |
 | `toolshare.auth.rate-limit.*` | 1/分钟、5/小时、10/IP/小时 | 验证码频控 |
 | `toolshare.message.sms-enabled` | `false` | Mock 短信渠道开关 |
 | `toolshare.message.default-channel` | `SYSTEM` | 未设置偏好时的默认渠道 |
@@ -285,7 +299,7 @@ bash ops/ai-eval.sh
 | `toolshare.ai.recommend.top-k` / `max-results` | `20` / `5` | 向量召回与返回上限 |
 | `toolshare.ai.recommend.index-on-startup` | `true` | 启动时重建工具向量索引 |
 
-Spring Boot 支持用环境变量覆盖这些配置，例如 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA=true`。
+Spring Boot 支持用环境变量覆盖这些配置，例如对外部署时设置 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA=false`。
 
 ## 部署与运维
 
@@ -293,7 +307,7 @@ Spring Boot 支持用环境变量覆盖这些配置，例如 `TOOLSHARE_AUTH_EXP
 - **单实例部署假设**（[ADR-0004](docs/adr/0004-single-instance-scheduling.md)）：`@Scheduled` 提醒任务、Redis 提醒队列与蹲守集合不适用于多副本，横向扩容前必须重新设计。
 - **无 CI/CD**（[ADR-0005](docs/adr/0005-no-ci-local-verification.md)）：合并门禁是本地 `bash ops/verify.sh` 全绿，仓库不维护流水线配置。
 - **备份**：MySQL 与 MinIO 是必须备份的数据源；Redis 会话可丢失，Qdrant 索引与 Ollama 模型可重建。具体命令见 `ops/README.md`。
-- **文件公开桶**（[ADR-0003](docs/adr/0003-public-bucket-upload-hardening.md)）：通过类型白名单、图片重编码与 `nosniff` 消除 XSS；如后续有隐私要求，升级为私有桶 + 签名 URL。
+- **文件公开桶**（[ADR-0003](docs/adr/0003-public-bucket-upload-hardening.md)、[ADR-0008](docs/adr/0008-public-bucket-direct-urls.md)）：公开桶直链减少后端图片流量；仍通过类型白名单与图片重编码消除 XSS，`/api/files/**` 仅作兜底。如后续有隐私要求，升级为私有桶 + 签名 URL。
 - 仓库未包含生产反向代理配置；生产部署需将两个前端的 `dist/` 由静态服务器托管，并把 `/api` 代理到 `:8900`（SSE 需关闭代理缓冲）。
 
 ## PRD 范围裁剪
@@ -312,7 +326,7 @@ Spring Boot 支持用环境变量覆盖这些配置，例如 `TOOLSHARE_AUTH_EXP
 
 - [需求文档 PRD](docs/PRD.md) · [附录（单据模板）](docs/附录.md)
 - [领域词汇表 GLOSSARY.md](GLOSSARY.md)
-- [架构决策记录 ADR](docs/adr/)（0001 渐进式重构 · 0002 结算流水 · 0003 公开桶加固 · 0004 单实例调度 · 0005 无 CI · 0006 PRD 裁剪 · 0007 AI 降级与评测）
+- [架构决策记录 ADR](docs/adr/)（0001 渐进式重构 · 0002 结算流水 · 0003 公开桶加固 · 0004 单实例调度 · 0005 无 CI · 0006 PRD 裁剪 · 0007 AI 降级与评测 · 0008 公开桶直链）
 - [部署与运维 ops/README.md](ops/README.md)
 - [架构图](docs/diagrams/architecture.html) · [ER 图](docs/diagrams/er.html) · [时序图](docs/diagrams/sequence.html)（浏览器直接打开）
 - [OpenAPI 契约](docs/api/openapi.json)

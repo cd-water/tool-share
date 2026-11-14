@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { WEB_URL } from '../lib/env'
-import { loginUser } from '../lib/ui'
+import { loginUserByCode } from '../lib/ui'
 
 test('登录 → AI 问答（SSE 流式与来源片段）', async ({ page }) => {
   test.setTimeout(150_000)
 
-  await loginUser(page)
+  await loginUserByCode(page)
   await page.goto(`${WEB_URL}/ai`)
   await expect(page.getByRole('button', { name: '智能问答' })).toHaveClass(/active/)
 

@@ -78,6 +78,7 @@ cd frontend/admin && pnpm install && pnpm dev    # :5902，/api 代理到 :8900
 | `MYSQL_ROOT_PASSWORD` / `MYSQL_DATABASE` | 是 | Compose 与 Spring Boot 共用 |
 | `REDIS_PASSWORD` | 是 | Compose 与 Spring Boot 共用 |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | 是 | MinIO 与应用 S3 凭据 |
+| `MINIO_PUBLIC_ENDPOINT` | 否 | 浏览器直连对象地址，默认同 `MINIO_ENDPOINT`；生产必须设为公开域名或反向代理 |
 | `QDRANT_API_KEY` | 是 | 应用访问 Qdrant |
 | `DEEPSEEK_API_KEY` | 否 | 留空时 AI 走降级路径，不影响启动 |
 | `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` | 否 | 预留组件，当前业务未使用 |
@@ -159,7 +160,7 @@ E2E 会占用 `8900/5901/5902`，执行前请停止本地 dev server。`ops/.env
 | --- | --- |
 | 后端启动失败，提示 `security.id-card-key` | `ID_CARD_AES_KEY` 未注入或长度不是 16/24/32 字节 |
 | 后端连不上 MySQL/Redis | 中间件未启动或 `ops/.env` 未 `source`；确认 `docker compose ps` |
-| 登录一直提示验证码错误 | 查看后端日志中的 `[MOCK SMS]`；本地联调可临时开启 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA=true` |
+| 登录一直提示验证码错误 | 演示环境默认自动填入验证码；若关闭了 `TOOLSHARE_AUTH_EXPOSE_CAPTCHA`，查看后端日志中的 `[MOCK SMS]` |
 | 上传失败 | MinIO 是否健康、桶名/凭据是否与 `.env` 一致；桶会自动创建 |
 | AI 问答总是兜底文案 | `DEEPSEEK_API_KEY` 为空、DeepSeek 超时/不可达 |
 | AI 推荐 `degraded=true` | Qdrant/Ollama 不可用、无向量命中或大模型重排失败，系统已降级关键词检索 |
@@ -169,13 +170,26 @@ E2E 会占用 `8900/5901/5902`，执行前请停止本地 dev server。`ops/.env
 ## 升级与数据库迁移
 
 - Flyway 在后端启动时自动执行 `src/main/resources/db/migration/` 中尚未应用的迁移。
-- 已应用的迁移文件不得修改；新增变更请创建下一个版本号（当前最高 V13）。
+- 当前为 `V1__user_and_tool.sql` ~ `V4__review_credit_ai.sql`（按域拆分的纯建表，无 seed）。已应用的迁移文件不得修改；新增变更从 `V5__` 起。
+- 演示数据统一放在 `src/main/resources/seed/`（SQL、知识库、图片），不进入 Flyway；后端启动时在空库自动写入，可用 `TOOLSHARE_DEMO_SEED_ENABLED=false` 关闭。测试数据在 `src/test/resources/db/test-seed.sql`。
 - 升级前先做 MySQL 备份；涉及破坏性变更时在维护窗口执行。
 - 启动时会幂等迁移历史明文/旧版身份证密文为 `enc:v2:`，无需手工处理。
+
+### 演示数据
+
+后端启动时若用户、管理员、工具三张表都为空，会自动执行 `seed/demo-data.sql`、导入 `seed/knowledge/*.md` 并上传 `seed/images/` 下的图片；重复启动不会重复写入。关闭自动种子时设置 `TOOLSHARE_DEMO_SEED_ENABLED=false`，再按需手工执行 SQL：
+
+```bash
+set -a; source ops/.env; set +a
+docker compose -f ops/docker-compose.yml exec -T mysql \
+  mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" < src/main/resources/seed/demo-data.sql
+```
+
+`ops/e2e.sh` 会等待启动种子完成后再运行 Playwright。
 
 ## 安全清单
 
 - 修改 `.env.example` 中的默认密码与示例密钥后再部署。
-- 生产保持 `toolshare.auth.expose-captcha=false`，短信使用 Mock 时确认验证码只写入日志。
-- 文件桶按公开读取设计（[ADR-0003](../docs/adr/0003-public-bucket-upload-hardening.md)）；如存储敏感照片，需升级私有桶 + 签名 URL。
+- `toolshare.auth.expose-captcha` 默认 `true` 仅用于课程演示；接入真实短信或对外部署前必须设为 `false`，届时验证码只写入日志。
+- 文件桶按公开读取设计，启动时自动设置公开读策略并返回直链（[ADR-0008](../docs/adr/0008-public-bucket-direct-urls.md)）；`MINIO_PUBLIC_ENDPOINT` 必须是浏览器可达地址。如存储敏感照片，需升级私有桶 + 签名 URL。
 - 应用与中间件之间当前按本机/内网部署假设连接；对公网暴露时应在反向代理层启用 HTTPS 并限制中间件端口。

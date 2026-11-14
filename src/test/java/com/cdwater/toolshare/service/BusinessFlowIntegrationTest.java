@@ -185,9 +185,11 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         JsonNode node = om.readTree(raw == null ? "{}" : raw);
         assertEquals("A200", node.get("code").asString(), node.toString());
         String url = node.get("data").get("url").asString();
-        assertTrue(url.startsWith("/api/files/"));
+        assertTrue(url.startsWith("https://files.test/tool-share/"));
 
-        ResponseEntity<byte[]> read = client.get().uri(url).retrieve().toEntity(byte[].class);
+        String key = url.substring("https://files.test/tool-share/".length());
+        ResponseEntity<byte[]> read = client.get().uri("/api/files/" + key)
+                .retrieve().toEntity(byte[].class);
         assertEquals(MediaType.IMAGE_PNG, read.getHeaders().getContentType());
         assertNotNull(ImageIO.read(new ByteArrayInputStream(read.getBody())));
     }

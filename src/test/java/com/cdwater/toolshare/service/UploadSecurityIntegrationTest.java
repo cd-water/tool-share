@@ -67,9 +67,12 @@ class UploadSecurityIntegrationTest extends AbstractIntegrationTest {
             JsonNode node = om.readTree(uploaded.getBody());
             assertEquals("A200", node.get("code").asString(), node.toString());
             String url = node.get("data").get("url").asString();
+            assertTrue(url.startsWith("https://files.test/tool-share/"), url);
             assertTrue(url.endsWith(".png") || url.endsWith(".jpg"), url);
 
-            ResponseEntity<byte[]> read = client.get().uri(url).retrieve().toEntity(byte[].class);
+            String key = url.substring("https://files.test/tool-share/".length());
+            ResponseEntity<byte[]> read = client.get().uri("/api/files/" + key)
+                    .retrieve().toEntity(byte[].class);
             assertEquals(HttpStatus.OK, read.getStatusCode());
             assertEquals(NOSNIFF, read.getHeaders().getFirst("X-Content-Type-Options"));
             assertEquals(mediaType(format).toString(), read.getHeaders().getContentType().toString());

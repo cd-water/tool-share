@@ -34,7 +34,10 @@ public class S3Config {
 
     @Data
     public static class MinioProperties {
+        /** 后端 S3 客户端使用的地址，可以是容器内网地址。 */
         private String endpoint;
+        /** 浏览器直接访问对象时使用的地址，必须能从用户浏览器访问。 */
+        private String publicEndpoint;
         private String accessKey;
         private String secretKey;
         private String bucket;

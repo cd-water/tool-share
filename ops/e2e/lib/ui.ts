@@ -15,6 +15,17 @@ export async function loginUser(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/tools$/, { timeout: 30_000 })
 }
 
+/** 居民端验证码登录：Mock 短信直接回填验证码，走真实登录表单。 */
+export async function loginUserByCode(page: Page): Promise<void> {
+  await page.goto(`${WEB_URL}/login`)
+  await page.getByRole('tab', { name: '验证码登录' }).click()
+  await page.locator('#phone').fill(USER_PHONE)
+  await page.locator('#sendCode').click()
+  await expect(page.locator('#code')).toHaveValue(/^\d{6}$/, { timeout: 15_000 })
+  await page.locator('#loginBtn').click()
+  await expect(page).toHaveURL(/\/tools$/, { timeout: 30_000 })
+}
+
 /** 管理端登录：走真实登录表单与自检转场。 */
 export async function loginAdmin(page: Page): Promise<void> {
   await page.goto(`${ADMIN_URL}/login`)

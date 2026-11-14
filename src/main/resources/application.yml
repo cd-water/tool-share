@@ -51,7 +51,10 @@ mybatis-plus:
 
 # MinIO 对象存储（自定义配置项）
 minio:
+  # 后端 S3 客户端地址；容器部署时可以是内网地址
   endpoint: ${MINIO_ENDPOINT:http://localhost:9500}
+  # 浏览器直连对象时使用的地址，必须能从用户浏览器访问
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9500}
   access-key: ${MINIO_ROOT_USER:toolminio}
   secret-key: ${MINIO_ROOT_PASSWORD:toolminio}
   bucket: ${MINIO_BUCKET:tool-share}
@@ -62,9 +65,12 @@ security:
 
 # 业务参数（不落库，按需覆盖）
 toolshare:
+  demo:
+    # 空库启动时自动写入演示数据（SQL + 知识库语料）；生产环境设为 false
+    seed-enabled: true
   auth:
-    # 开发/测试可打开以在响应中返回验证码；生产环境保持 false
-    expose-captcha: false
+    # Mock 短信演示默认在响应中返回验证码；接入真实短信或对外部署前必须改为 false
+    expose-captcha: true
     # 同一验证码允许的最大尝试次数，达到后验证码失效
     max-attempts: 5
     rate-limit:

@@ -33,7 +33,7 @@ public class SequenceService {
      * 启动时按数据库已有最大编号校准 Redis 序号，避免种子数据导致编码冲突。
      */
     @PostConstruct
-    void initSequence() {
+    public void initSequence() {
         try {
             for (ToolCategory category : ToolCategory.values()) {
                 raiseTo("tool:seq:" + category.code(), maxCode("t_tool", "code",

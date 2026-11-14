@@ -82,10 +82,37 @@ echo "▶ 检查前端依赖"
 [[ -d frontend/admin/node_modules ]] || (cd frontend/admin && pnpm install --frozen-lockfile)
 
 echo "▶ 启动后端（:8900）"
-setsid ./mvnw -q -DskipTests spring-boot:run >"$ARTIFACTS/backend.log" 2>&1 &
+TOOLSHARE_DEMO_SEED_ENABLED=true \
+TOOLSHARE_AI_TOOL_INDEX_ENABLED=false \
+TOOLSHARE_AI_RECOMMEND_INDEX_ON_STARTUP=false \
+TOOLSHARE_AUTH_RATE_LIMIT_PHONE_PER_MINUTE=100 \
+TOOLSHARE_AUTH_RATE_LIMIT_PHONE_PER_HOUR=100 \
+TOOLSHARE_AUTH_RATE_LIMIT_IP_PER_HOUR=100 \
+  setsid ./mvnw -q -DskipTests spring-boot:run >"$ARTIFACTS/backend.log" 2>&1 &
 backend_pid=$!
 PIDS+=("$backend_pid")
 wait_http "http://127.0.0.1:8900/v3/api-docs" "后端" "$backend_pid" 240
+
+echo "▶ 等待启动种子完成"
+seed_ready=0
+for _ in $(seq 1 60); do
+  counts=$(docker compose -f ops/docker-compose.yml exec -T mysql \
+    mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -B "${MYSQL_DATABASE:-tool_share}" \
+    -e "SELECT (SELECT COUNT(*) FROM t_tool), (SELECT COUNT(*) FROM t_knowledge_doc)" \
+    2>/dev/null | tr -d '\r' || true)
+  tool_count=$(echo "$counts" | awk '{print $1}')
+  knowledge_count=$(echo "$counts" | awk '{print $2}')
+  if [[ "${tool_count:-0}" -gt 0 && "${knowledge_count:-0}" -gt 0 ]]; then
+    seed_ready=1
+    break
+  fi
+  sleep 2
+done
+if [[ "$seed_ready" != "1" ]]; then
+  echo "✗ 演示数据未在 120s 内就绪，详见 $ARTIFACTS/backend.log" >&2
+  exit 1
+fi
+echo "✓ 演示数据就绪（工具 ${tool_count} 件，知识库 ${knowledge_count} 篇）"
 
 echo "▶ 启动用户端（:5901）"
 (cd frontend/web && exec ./node_modules/.bin/vite --host 127.0.0.1 --port 5901 --strictPort) \

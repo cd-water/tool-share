@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { api, findAvailableTool, poll, type Rental } from '../lib/api'
-import { ADMIN_URL, WEB_URL } from '../lib/env'
+import { ADMIN_URL, MINIO_PUBLIC_URL, WEB_URL } from '../lib/env'
 import { toInputValue } from '../lib/time'
 import { loginAdmin, loginUser, rowByOrder, runId, waitUntil } from '../lib/ui'
 
@@ -21,6 +21,13 @@ test('预约 → 支付 → 取件 → 归还', async ({ page }) => {
   await test.step('居民登录并打开工具广场', async () => {
     await loginUser(page)
     await expect(page.getByRole('heading', { name: '工具广场' })).toBeVisible()
+  })
+
+  await test.step('工具图片从对象存储直链加载', async () => {
+    const image = page.locator('.tool-card img').first()
+    await expect(image).toHaveAttribute('src', new RegExp(`^${MINIO_PUBLIC_URL}/`))
+    await expect.poll(() => image.evaluate((el) =>
+      el instanceof HTMLImageElement && el.complete && el.naturalWidth > 0)).toBe(true)
   })
 
   await test.step('选择可用工具并查看可预约时段', async () => {
