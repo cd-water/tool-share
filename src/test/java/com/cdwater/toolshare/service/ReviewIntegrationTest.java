@@ -268,6 +268,26 @@ class ReviewIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void tool_list_can_sort_by_rating_and_keeps_unrated_tools() {
+        String user = userLogin();
+        Tool low = toolMapper.selectById(1L);
+        Tool high = toolMapper.selectById(2L);
+        Tool unrated = toolMapper.selectById(7L);
+        insertReviewDirect(1L, low, 1);
+        insertReviewDirect(1L, high, 5);
+
+        JsonNode list = ok(call(HttpMethod.GET,
+                "/api/user/tools?category=WX&orderBy=rating&size=100", user, null));
+        List<Long> ids = new ArrayList<>();
+        list.get("data").get("records").forEach(node -> ids.add(node.get("id").asLong()));
+
+        assertTrue(ids.indexOf(high.getId()) < ids.indexOf(low.getId()),
+                "评分高的工具应排在前面: " + list);
+        assertTrue(ids.contains(unrated.getId()),
+                "无评价工具不能因为按评分排序被丢弃: " + list);
+    }
+
+    @Test
     void admin_can_list_reviews_by_tool() {
         String user = userLogin();
         String admin = adminLogin();

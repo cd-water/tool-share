@@ -30,9 +30,10 @@ public class UserToolController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String orderBy,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "12") long size) {
-        return Result.success(toolService.userPage(keyword, category, status, page, size));
+        return Result.success(toolService.userPage(keyword, category, status, orderBy, page, size));
     }
 
     @GetMapping("/{id}")

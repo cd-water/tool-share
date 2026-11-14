@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
+import com.cdwater.toolshare.module.review.ToolRatingStats;
+import com.cdwater.toolshare.module.review.ToolReviewMapper;
 import com.cdwater.toolshare.module.tool.Tool;
 import com.cdwater.toolshare.module.tool.ToolMapper;
 import com.cdwater.toolshare.shared.config.StpKit;
@@ -56,6 +58,7 @@ class ToolRecommendServiceTest {
     private ToolMapper toolMapper;
     private RentalMapper rentalMapper;
     private AiRecommendationMapper recommendationMapper;
+    private ToolReviewMapper reviewMapper;
     private ObjectProvider<VectorStore> vectorProvider;
     private ObjectProvider<ChatClient.Builder> chatProvider;
 
@@ -72,6 +75,8 @@ class ToolRecommendServiceTest {
         toolMapper = mock(ToolMapper.class);
         rentalMapper = mock(RentalMapper.class);
         recommendationMapper = mock(AiRecommendationMapper.class);
+        reviewMapper = mock(ToolReviewMapper.class);
+        when(reviewMapper.selectStatsByToolIds(any())).thenReturn(List.of());
         when(rentalMapper.selectList(any())).thenReturn(List.of());
         when(recommendationMapper.insert(any(AiRecommendation.class))).thenAnswer(invocation -> {
             AiRecommendation record = invocation.getArgument(0);
@@ -99,7 +104,7 @@ class ToolRecommendServiceTest {
 
     private ToolRecommendService service(Integer topK, Integer maxResults) {
         ToolRecommendService service = new ToolRecommendService(toolMapper, rentalMapper,
-                recommendationMapper, vectorProvider, chatProvider, new ObjectMapper());
+                recommendationMapper, reviewMapper, vectorProvider, chatProvider, new ObjectMapper());
         if (topK != null) {
             ReflectionTestUtils.setField(service, "topK", topK);
         }
@@ -135,6 +140,14 @@ class ToolRecommendServiceTest {
         ToolRecommendDTO dto = new ToolRecommendDTO();
         dto.setQuestion(question);
         return dto;
+    }
+
+    private static ToolRatingStats stats(long toolId, String ratingAvg, long reviewCount) {
+        ToolRatingStats stats = new ToolRatingStats();
+        stats.setToolId(toolId);
+        stats.setRatingAvg(new BigDecimal(ratingAvg));
+        stats.setReviewCount(reviewCount);
+        return stats;
     }
 
     private static Document doc(long toolId) {
@@ -299,6 +312,26 @@ class ToolRecommendServiceTest {
     }
 
     @Test
+    void degraded_heuristic_orders_by_rating_and_keeps_unrated_tools() {
+        VectorStore store = mock(VectorStore.class);
+        vectorReturns(store, List.of(doc(1), doc(2), doc(3)));
+        when(toolMapper.selectBatchIds(any(Collection.class))).thenReturn(List.of(
+                tool(1, "WX", "100", "AVAILABLE"),
+                tool(2, "WX", "100", "AVAILABLE"),
+                tool(3, "WX", "100", "AVAILABLE")));
+        when(reviewMapper.selectStatsByToolIds(any())).thenReturn(List.of(
+                stats(1, "2.0", 1), stats(2, "5.0", 2)));
+        chatReturns("这不是 JSON");
+
+        ToolRecommendVO vo = recommend(service(null, 5), query("打孔"));
+
+        assertTrue(vo.isDegraded());
+        assertEquals(List.of(2L, 1L, 3L),
+                vo.getItems().stream().map(ToolRecommendVO.Item::getToolId).toList(),
+                "降级排序应按评分倒序，无评价工具保留在结果中");
+    }
+
+    @Test
     void rerank_exception_falls_back_and_does_not_reach_caller() {
         VectorStore store = mock(VectorStore.class);
         vectorReturns(store, List.of(doc(1)));
@@ -343,6 +376,27 @@ class ToolRecommendServiceTest {
                 "重排 prompt 必须带上限，实际 " + prompt.getValue().length());
         assertFalse(prompt.getValue().contains("使用说明".repeat(800)),
                 "prompt 只能携带截断后的摘要字段");
+    }
+
+    @Test
+    void rerank_candidates_carry_rating_summary() {
+        VectorStore store = mock(VectorStore.class);
+        vectorReturns(store, List.of(doc(1), doc(2)));
+        when(toolMapper.selectBatchIds(any(Collection.class))).thenReturn(List.of(
+                tool(1, "WX", "100", "AVAILABLE"),
+                tool(2, "WX", "100", "AVAILABLE")));
+        when(reviewMapper.selectStatsByToolIds(any())).thenReturn(List.of(
+                stats(1, "4.5", 3), stats(2, "2.0", 1)));
+        ChatClientRequestSpec spec = chatReturns("{\"summary\":\"\",\"items\":[]}");
+
+        recommend(service(null, null), query("打孔"));
+
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        verify(spec).user(prompt.capture());
+        assertTrue(prompt.getValue().contains("\"ratingAvg\":4.5"),
+                "重排候选必须携带平均分: " + prompt.getValue());
+        assertTrue(prompt.getValue().contains("\"reviewCount\":3"),
+                "重排候选必须携带评价数量: " + prompt.getValue());
     }
 
     @Test

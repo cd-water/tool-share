@@ -50,6 +50,10 @@ public class ToolService {
             List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
     private static final List<String> UNFINISHED_REPORT_STATUS =
             List.of("SUBMITTED", "VERIFIED", "REPAIRING");
+    /** 按平均分倒序：无评价工具按 0 分参与排序，不会被从结果中过滤。 */
+    private static final String ORDER_BY_RATING_SQL =
+            "ORDER BY (SELECT COALESCE(AVG(r.rating), 0) FROM t_tool_review r"
+                    + " WHERE r.tool_id = t_tool.id) DESC, t_tool.create_time DESC";
 
     private final ToolMapper toolMapper;
     private final ToolLogMapper toolLogMapper;
@@ -76,13 +80,19 @@ public class ToolService {
     @Value("${toolshare.availability.search-days:30}")
     private long availabilitySearchDays = 30;
 
-    public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
+    public PageVO<ToolVO> userPage(String keyword, String category, String status,
+                                   String orderBy, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
                 .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code());
         if (!StringUtils.hasText(status)) {
             wrapper.ne(Tool::getStatus, ToolStatus.SCRAPPED.code());
         }
-        wrapper.orderByDesc(Tool::getCreateTime);
+        if ("rating".equals(orderBy)) {
+            wrapper.last(ORDER_BY_RATING_SQL);
+        } else {
+            // 默认排序保持不变
+            wrapper.orderByDesc(Tool::getCreateTime);
+        }
         Page<Tool> result = toolMapper.selectPage(PageQuery.of(page, size), wrapper);
         return toPage(result);
     }
