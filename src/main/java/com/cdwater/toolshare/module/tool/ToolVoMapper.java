@@ -1,5 +1,6 @@
 package com.cdwater.toolshare.module.tool;
 
+import com.cdwater.toolshare.shared.enums.AuditStatus;
 import com.cdwater.toolshare.shared.web.Dict;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -17,6 +18,8 @@ public interface ToolVoMapper {
     @Mapping(target = "damageLevelName", ignore = true)
     @Mapping(target = "statusName", ignore = true)
     @Mapping(target = "imageUrls", ignore = true)
+    @Mapping(target = "auditStatusName", ignore = true)
+    @Mapping(target = "createdByName", ignore = true)
     ToolVO toVO(Tool tool);
 
     @AfterMapping
@@ -24,6 +27,7 @@ public interface ToolVoMapper {
         vo.setCategoryName(Dict.label(Dict.TOOL_CATEGORY, tool.getCategory()));
         vo.setDamageLevelName(Dict.label(Dict.DAMAGE_LEVEL, tool.getDamageLevel()));
         vo.setStatusName(Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
+        vo.setAuditStatusName(AuditStatus.labelOf(tool.getAuditStatus()));
         vo.setImageUrls(parseImages(tool.getImageUrls()));
     }
 

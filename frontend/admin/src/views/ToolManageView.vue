@@ -57,6 +57,21 @@ function removeRow(row: ToolVO) {
     },
   })
 }
+
+async function auditRow(row: ToolVO, auditStatus: 'APPROVED' | 'NEEDS_CHANGE') {
+  let remark = ''
+  if (auditStatus === 'NEEDS_CHANGE') {
+    const result = await ElMessageBox.prompt('请填写退回原因', '审核退回', {
+      inputPlaceholder: '需修改的内容',
+      inputValidator: (v) => (v && v.trim() ? true : '审核意见不能为空'),
+    }).catch(() => null)
+    if (!result) return
+    remark = result.value.trim()
+  }
+  await toolApi.audit(row.id, { auditStatus, remark })
+  ElMessage.success(auditStatus === 'APPROVED' ? '工具已通过审核' : '已退回修改')
+  await loadList()
+}
 const query = reactive<ToolQuery & { page: number; size: number }>({
   page: 1,
   size: 10,
@@ -619,6 +634,7 @@ onMounted(loadList)
                   <div>
                     <div class="cell-main">{{ row.name }}</div>
                     <div class="cell-sub code">{{ row.code }}</div>
+                    <div class="cell-sub">录入：{{ row.createdByName || '—' }}</div>
                   </div>
                 </div>
               </td>
@@ -633,6 +649,8 @@ onMounted(loadList)
                 <span class="badge" :class="toolStatusBadge(row.status)">
                   <span class="dot"></span>{{ row.statusName || enumLabel(TOOL_STATUS_LABELS, row.status) }}
                 </span>
+                <div class="cell-sub">审核：{{ row.auditStatusName || '—' }}</div>
+                <div v-if="row.auditRemark" class="cell-sub">{{ row.auditRemark }}</div>
               </td>
               <td class="r"><span class="money">{{ formatMoney(row.deposit) }}</span></td>
               <td>{{ row.storageArea || '—' }}</td>
@@ -644,6 +662,12 @@ onMounted(loadList)
               <td>{{ formatDateTime(row.createTime) }}</td>
               <td>
                 <div class="row-actions">
+                  <button v-if="row.auditStatus !== 1" class="link-btn" @click="auditRow(row, 'APPROVED')">
+                    通过
+                  </button>
+                  <button v-if="row.auditStatus === 0" class="link-btn" @click="auditRow(row, 'NEEDS_CHANGE')">
+                    退回
+                  </button>
                   <button class="link-btn" @click="openEdit(row)">编辑</button>
                   <button class="link-btn" @click="openStatusDialog(row)">状态</button>
                   <button class="link-btn" @click="openLogs(row)">日志</button>

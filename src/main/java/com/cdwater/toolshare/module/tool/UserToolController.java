@@ -37,7 +37,7 @@ public class UserToolController {
 
     @GetMapping("/{id}")
     public Result<ToolVO> detail(@PathVariable Long id) {
-        return Result.success(toolService.getVO(id));
+        return Result.success(toolService.getUserVO(id));
     }
 
     @GetMapping("/{id}/availability")

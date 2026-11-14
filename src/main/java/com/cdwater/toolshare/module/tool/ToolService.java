@@ -1,24 +1,23 @@
 package com.cdwater.toolshare.module.tool;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cdwater.toolshare.module.auth.Admin;
+import com.cdwater.toolshare.module.auth.AdminMapper;
+import com.cdwater.toolshare.module.damage.DamageReport;
+import com.cdwater.toolshare.module.damage.DamageReportMapper;
+import com.cdwater.toolshare.module.rental.Rental;
+import com.cdwater.toolshare.module.rental.RentalMapper;
+import com.cdwater.toolshare.shared.config.StpKit;
+import com.cdwater.toolshare.shared.enums.AuditStatus;
+import com.cdwater.toolshare.shared.enums.ToolStatus;
+import com.cdwater.toolshare.shared.html.HtmlSanitizer;
+import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
 import com.cdwater.toolshare.shared.web.PageQuery;
-import com.cdwater.toolshare.shared.web.ResultCode;
-import com.cdwater.toolshare.shared.config.StpKit;
-import com.cdwater.toolshare.module.tool.ToolSaveDTO;
-import com.cdwater.toolshare.module.rental.Rental;
-import com.cdwater.toolshare.module.tool.Tool;
-import com.cdwater.toolshare.module.tool.ToolLog;
-import com.cdwater.toolshare.module.rental.RentalMapper;
-import com.cdwater.toolshare.module.tool.ToolLogMapper;
-import com.cdwater.toolshare.module.tool.ToolMapper;
-import com.cdwater.toolshare.module.tool.AvailabilityVO;
 import com.cdwater.toolshare.shared.web.PageVO;
-import com.cdwater.toolshare.module.tool.ToolLogVO;
-import com.cdwater.toolshare.module.tool.ToolVO;
+import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +27,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,10 +39,14 @@ public class ToolService {
     private static final DateTimeFormatter SUGGEST_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
     private static final List<String> ACTIVE_RENTAL_STATUS =
             List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
+    private static final List<String> UNFINISHED_REPORT_STATUS =
+            List.of("SUBMITTED", "VERIFIED", "REPAIRING");
 
     private final ToolMapper toolMapper;
     private final ToolLogMapper toolLogMapper;
     private final RentalMapper rentalMapper;
+    private final DamageReportMapper damageReportMapper;
+    private final AdminMapper adminMapper;
     private final SequenceService sequenceService;
     private final ToolWatchService toolWatchService;
     private final ToolIndexService toolIndexService;
@@ -47,13 +54,14 @@ public class ToolService {
     private final ToolLogVoMapper toolLogVoMapper;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
-        LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null);
+        LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null)
+                .eq(Tool::getAuditStatus, AuditStatus.APPROVED.code());
         if (!StringUtils.hasText(status)) {
-            wrapper.ne(Tool::getStatus, "SCRAPPED");
+            wrapper.ne(Tool::getStatus, ToolStatus.SCRAPPED.code());
         }
         wrapper.orderByDesc(Tool::getCreateTime);
         Page<Tool> result = toolMapper.selectPage(PageQuery.of(page, size), wrapper);
-        return PageVO.of(result, toolVoMapper::toVO);
+        return toPage(result);
     }
 
     /**
@@ -80,7 +88,7 @@ public class ToolService {
         // 次级排序保证结果稳定
         wrapper.orderByDesc(Tool::getCreateTime);
         Page<Tool> result = toolMapper.selectPage(PageQuery.of(query.getPage(), query.getSize()), wrapper);
-        return PageVO.of(result, toolVoMapper::toVO);
+        return toPage(result);
     }
 
     private LambdaQueryWrapper<Tool> baseWrapper(String keyword, String category,
@@ -103,8 +111,18 @@ public class ToolService {
         return wrapper;
     }
 
+    /** 管理端详情：未审核工具也可见。 */
     public ToolVO getVO(Long id) {
         return toVO(getTool(id));
+    }
+
+    /** 用户端详情：未通过审核的工具按不存在处理。 */
+    public ToolVO getUserVO(Long id) {
+        Tool tool = getTool(id);
+        if (!isApproved(tool)) {
+            throw new BizException(ResultCode.NOT_FOUND, "工具不存在");
+        }
+        return toVO(tool);
     }
 
     public Tool getTool(Long id) {
@@ -121,13 +139,17 @@ public class ToolService {
         Tool tool = new Tool();
         apply(tool, dto);
         tool.setCode(sequenceService.nextToolCode(dto.getCategory()));
-        tool.setAuditStatus(1);
+        tool.setAuditStatus(AuditStatus.PENDING.code());
         tool.setRentalCount(0);
-        tool.setStatus(StringUtils.hasText(dto.getStatus()) ? dto.getStatus() : "AVAILABLE");
+        tool.setStatus(StringUtils.hasText(dto.getStatus())
+                ? dto.getStatus() : ToolStatus.AVAILABLE.code());
         tool.setCreatedBy(StpKit.ADMIN.getLoginIdAsLong());
         toolMapper.insert(tool);
-        log(tool.getId(), "CREATE", "新增工具 " + tool.getCode());
-        toolIndexService.upsert(tool);
+        logStructured(tool.getId(), "CREATE", null, tool.getStatus(), "新增工具 " + tool.getCode());
+        // 未审核工具不进入推荐索引
+        if (isApproved(tool)) {
+            toolIndexService.upsert(tool);
+        }
         return toVO(tool);
     }
 
@@ -136,38 +158,101 @@ public class ToolService {
         validateDict(dto);
         Tool tool = getTool(id);
         apply(tool, dto);
-        if (StringUtils.hasText(dto.getStatus())) {
-            tool.setStatus(dto.getStatus());
-        }
         toolMapper.updateById(tool);
-        log(tool.getId(), "UPDATE", "编辑工具 " + tool.getCode());
-        toolIndexService.upsert(tool);
+        logStructured(tool.getId(), "UPDATE", tool.getStatus(), tool.getStatus(), "编辑工具 " + tool.getCode());
+        if (StringUtils.hasText(dto.getStatus()) && !dto.getStatus().equals(tool.getStatus())) {
+            changeStatus(id, dto.getStatus());
+            tool = getTool(id);
+        }
+        if (isApproved(tool)) {
+            toolIndexService.upsert(tool);
+        }
         return toVO(tool);
     }
 
+    /** 审核：仅系统管理员可调用；退回时必须填写审核意见。 */
     @Transactional
-    public void updateStatus(Long id, String status) {
-        if (!Dict.containsKey(Dict.TOOL_STATUS, status)) {
-            throw new BizException(ResultCode.BAD_REQUEST, "无效的工具状态");
+    public ToolVO audit(Long id, ToolAuditDTO dto) {
+        AuditStatus target = AuditStatus.fromName(dto.getAuditStatus())
+                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的审核状态"));
+        if (target == AuditStatus.PENDING) {
+            throw new BizException(ResultCode.BAD_REQUEST, "不能把工具改回待审核");
+        }
+        if (target == AuditStatus.NEEDS_CHANGE && !StringUtils.hasText(dto.getRemark())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "退回需填写审核意见");
         }
         Tool tool = getTool(id);
-        String before = tool.getStatus();
-        tool.setStatus(status);
-        if ("AVAILABLE".equals(status)) {
+        AuditStatus from = AuditStatus.fromCode(tool.getAuditStatus()).orElse(AuditStatus.PENDING);
+        if (from == target) {
+            return toVO(tool);
+        }
+        tool.setAuditStatus(target.code());
+        tool.setAuditRemark(dto.getRemark());
+        tool.setReviewedBy(StpKit.ADMIN.getLoginIdAsLong());
+        tool.setReviewedAt(LocalDateTime.now());
+        toolMapper.updateById(tool);
+        logStructured(id, "AUDIT", from.name(), target.name(), dto.getRemark());
+        if (target == AuditStatus.APPROVED) {
+            toolIndexService.upsert(tool);
+        } else {
+            toolIndexService.remove(id);
+        }
+        return toVO(tool);
+    }
+
+    /** 手动状态更新入口。 */
+    @Transactional
+    public void updateStatus(Long id, String status) {
+        changeStatus(id, status);
+    }
+
+    private void changeStatus(Long id, String status) {
+        Tool tool = getTool(id);
+        transition(tool, parseStatus(status), "STATUS_CHANGE", "手动更新工具状态");
+    }
+
+    /**
+     * 所有工具状态写入口统一走这里：状态机校验 + 可用性守卫 + 结构化日志。
+     */
+    @Transactional
+    public void transition(Tool tool, ToolStatus target, String action, String remark) {
+        ToolStatus from = parseStatus(tool.getStatus());
+        ToolStateMachine.assertTransition(from, target);
+        if (target == ToolStatus.AVAILABLE) {
+            if (hasActiveRental(tool.getId())) {
+                throw new BizException(ResultCode.BAD_REQUEST, "存在活动租赁，不能将工具置为可用");
+            }
+            if (hasUnfinishedReport(tool.getId())) {
+                throw new BizException(ResultCode.BAD_REQUEST, "存在未完成报修，不能将工具置为可用");
+            }
+        }
+        tool.setStatus(target.code());
+        if (target == ToolStatus.AVAILABLE) {
             tool.setLastRepairTime(LocalDateTime.now());
         }
         toolMapper.updateById(tool);
-        log(id, "STATUS_CHANGE",
-                "状态由 " + Dict.label(Dict.TOOL_STATUS, before) + " 变为 " + Dict.label(Dict.TOOL_STATUS, status));
-        if ("SCRAPPED".equals(status)) {
-            toolIndexService.remove(id);
+        logStructured(tool.getId(), action, from.code(), target.code(), remark);
+        if (target == ToolStatus.SCRAPPED) {
+            toolIndexService.remove(tool.getId());
         }
         notifyWatchersIfAvailable(tool);
     }
 
+    private boolean hasActiveRental(Long toolId) {
+        return rentalMapper.selectCount(new LambdaQueryWrapper<Rental>()
+                .eq(Rental::getToolId, toolId)
+                .in(Rental::getStatus, ACTIVE_RENTAL_STATUS)) > 0;
+    }
+
+    private boolean hasUnfinishedReport(Long toolId) {
+        return damageReportMapper.selectCount(new LambdaQueryWrapper<DamageReport>()
+                .eq(DamageReport::getToolId, toolId)
+                .in(DamageReport::getStatus, UNFINISHED_REPORT_STATUS)) > 0;
+    }
+
     /** 工具恢复可用时提醒蹲守用户（手动改状态/归还/维修完成都会走到这里） */
     public void notifyWatchersIfAvailable(Tool tool) {
-        if (tool == null || !"AVAILABLE".equals(tool.getStatus())) {
+        if (tool == null || !ToolStatus.AVAILABLE.code().equals(tool.getStatus())) {
             return;
         }
         toolWatchService.notifyAvailable(tool.getId(), tool.getName());
@@ -182,7 +267,10 @@ public class ToolService {
 
     public AvailabilityVO availability(Long toolId, LocalDateTime start, LocalDateTime end) {
         Tool tool = getTool(toolId);
-        if (!"AVAILABLE".equals(tool.getStatus())) {
+        if (!isApproved(tool)) {
+            return new AvailabilityVO(false, "工具待审核，暂不可预约", List.of());
+        }
+        if (!ToolStatus.AVAILABLE.code().equals(tool.getStatus())) {
             return new AvailabilityVO(false,
                     "工具当前状态为" + Dict.label(Dict.TOOL_STATUS, tool.getStatus()) + "，暂不可预约",
                     List.of());
@@ -209,13 +297,38 @@ public class ToolService {
         return new AvailabilityVO(false, "该时段已被预约，可尝试其他时间", suggestions);
     }
 
-    public void log(Long toolId, String action, String detail) {
+    private void logStructured(Long toolId, String action,
+                               String fromStatus, String toStatus, String remark) {
         ToolLog log = new ToolLog();
         log.setToolId(toolId);
         log.setAction(action);
-        log.setDetail(detail);
-        log.setOperatorId(StpKit.ADMIN.isLogin() ? StpKit.ADMIN.getLoginIdAsLong() : null);
+        log.setFromStatus(fromStatus);
+        log.setToStatus(toStatus);
+        log.setRemark(remark);
+        if (StringUtils.hasText(remark)) {
+            log.setDetail(remark);
+        } else if (fromStatus != null && toStatus != null) {
+            log.setDetail(fromStatus + " -> " + toStatus);
+        } else {
+            log.setDetail(action);
+        }
+        if (StpKit.ADMIN.isLogin()) {
+            Long adminId = StpKit.ADMIN.getLoginIdAsLong();
+            log.setOperatorId(adminId);
+            Admin admin = adminMapper.selectById(adminId);
+            log.setOperatorName(admin == null ? null : admin.getUsername());
+        }
         toolLogMapper.insert(log);
+    }
+
+    private boolean isApproved(Tool tool) {
+        return tool.getAuditStatus() != null
+                && tool.getAuditStatus() == AuditStatus.APPROVED.code();
+    }
+
+    private ToolStatus parseStatus(String status) {
+        return ToolStatus.fromCode(status)
+                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的工具状态"));
     }
 
     private void validateDict(ToolSaveDTO dto) {
@@ -237,7 +350,7 @@ public class ToolService {
         tool.setDamageLevel(dto.getDamageLevel());
         tool.setDeposit(dto.getDeposit());
         tool.setStorageArea(dto.getStorageArea() == null ? "" : dto.getStorageArea().trim());
-        tool.setUsageGuide(dto.getUsageGuide());
+        tool.setUsageGuide(HtmlSanitizer.clean(dto.getUsageGuide()));
         List<String> images = dto.getImageUrls() == null ? List.of() : dto.getImageUrls();
         tool.setImageUrls(String.join(",", images));
         tool.setImageUrl(images.isEmpty() ? "" : images.get(0));
@@ -246,6 +359,27 @@ public class ToolService {
     }
 
     private ToolVO toVO(Tool tool) {
-        return toolVoMapper.toVO(tool);
+        ToolVO vo = toolVoMapper.toVO(tool);
+        if (tool.getCreatedBy() != null) {
+            Admin admin = adminMapper.selectById(tool.getCreatedBy());
+            vo.setCreatedByName(admin == null ? null : admin.getUsername());
+        }
+        return vo;
+    }
+
+    private PageVO<ToolVO> toPage(Page<Tool> result) {
+        Set<Long> creatorIds = result.getRecords().stream()
+                .map(Tool::getCreatedBy)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> names = creatorIds.isEmpty()
+                ? Map.of()
+                : adminMapper.selectBatchIds(creatorIds).stream()
+                        .collect(Collectors.toMap(Admin::getId, Admin::getUsername));
+        return PageVO.of(result, tool -> {
+            ToolVO vo = toolVoMapper.toVO(tool);
+            vo.setCreatedByName(names.get(tool.getCreatedBy()));
+            return vo;
+        });
     }
 }

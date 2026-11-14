@@ -138,6 +138,15 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         assertEquals("A200", post("/api/admin/damage-reports/" + reportId + "/progress", adminToken,
                 Map.of("progressStatus", "REPAIRING", "progressNote", "已更换电源线",
                         "repairCost", 30)).get("code").asString());
+        // 报修未终结时按「带伤归还」处理，工具保持维修中
+        assertEquals("A200", post("/api/admin/rentals/" + rentalId + "/return", adminToken,
+                Map.of("damageResult", "SEVERE", "remark", "带伤归还")).get("code").asString());
+        JsonNode returned = get("/api/user/rentals/" + rentalId, userToken).get("data");
+        assertEquals("RETURNED", returned.get("status").asString());
+        assertEquals("REFUNDED", returned.get("depositStatus").asString());
+        assertEquals(70, returned.get("refundAmount").asInt());
+
+        // 维修验收通过后工具才恢复可用（归还已结束、报修已终结）
         assertEquals("A200", post("/api/admin/damage-reports/" + reportId + "/accept", adminToken,
                 Map.of("acceptResult", "QUALIFIED", "toolStatusAfter", "AVAILABLE",
                         "remark", "恢复正常")).get("code").asString());
@@ -145,13 +154,6 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
                 .get("data").get("status").asString());
         assertEquals("AVAILABLE", get("/api/user/tools/" + toolId, userToken)
                 .get("data").get("status").asString());
-
-        assertEquals("A200", post("/api/admin/rentals/" + rentalId + "/return", adminToken,
-                Map.of("damageResult", "INTACT", "remark", "验收完好")).get("code").asString());
-        JsonNode returned = get("/api/user/rentals/" + rentalId, userToken).get("data");
-        assertEquals("RETURNED", returned.get("status").asString());
-        assertEquals("REFUNDED", returned.get("depositStatus").asString());
-        assertEquals(120, returned.get("refundAmount").asInt());
         assertTrue(get("/api/user/messages?page=1&size=20", userToken)
                 .get("data").get("total").asInt() > 0);
     }
@@ -262,7 +264,23 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
                 "imageUrls", List.of()));
         assertEquals("A200", node.get("code").asString(), node.toString());
         assertTrue(node.get("data").get("code").asString().matches("SQ-G-WX-\\d{4}"));
-        return node.get("data").get("id").asLong();
+        long id = node.get("data").get("id").asLong();
+        JsonNode audit = patch("/api/admin/tools/" + id + "/audit", token,
+                Map.of("auditStatus", "APPROVED", "remark", "测试通过"));
+        assertEquals("A200", audit.get("code").asString(), audit.toString());
+        return id;
+    }
+
+    private JsonNode patch(String url, String token, Object body) {
+        RestClient.RequestBodySpec spec = client.method(org.springframework.http.HttpMethod.PATCH)
+                .uri(url)
+                .contentType(MediaType.APPLICATION_JSON);
+        if (token != null) {
+            spec.header("Authorization", "Bearer " + token);
+        }
+        String raw = spec.body(body).retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
+        return om.readTree(raw == null ? "{}" : raw);
     }
 
     private String userLogin() {

@@ -222,7 +222,11 @@ class ErrorSemanticsIntegrationTest extends AbstractIntegrationTest {
                 "usageGuide", "测试说明",
                 "imageUrls", List.of()));
         assertEquals(200, resp.status(), resp.body().toString());
-        return resp.body().get("data").get("id").asLong();
+        long id = resp.body().get("data").get("id").asLong();
+        ApiResponse audit = call(HttpMethod.PATCH, "/api/admin/tools/" + id + "/audit",
+                adminToken, Map.of("auditStatus", "APPROVED"));
+        assertEquals(200, audit.status(), audit.body().toString());
+        return id;
     }
 
     private String userLogin() {

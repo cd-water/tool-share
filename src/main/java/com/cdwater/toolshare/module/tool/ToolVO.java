@@ -27,6 +27,11 @@ public class ToolVO {
     private List<String> imageUrls;
     private LocalDate purchaseDate;
     private String supplier;
+    private Integer auditStatus;
+    private String auditStatusName;
+    private String auditRemark;
+    private Long createdBy;
+    private String createdByName;
     private Integer rentalCount;
     private LocalDateTime lastRepairTime;
     private LocalDateTime createTime;

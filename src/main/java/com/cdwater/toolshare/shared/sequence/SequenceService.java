@@ -7,29 +7,33 @@ import com.cdwater.toolshare.module.tool.Tool;
 import com.cdwater.toolshare.module.damage.DamageReportMapper;
 import com.cdwater.toolshare.module.rental.RentalMapper;
 import com.cdwater.toolshare.module.tool.ToolMapper;
+import com.cdwater.toolshare.shared.web.BizException;
+import com.cdwater.toolshare.shared.web.ResultCode;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
  * Redis 原子序号：工具编码、租赁单号、报修单号。
+ * <p>序号服务不可用时明确失败并提示重试，不回退随机数（随机数会破坏唯一性）。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SequenceService {
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final StringRedisTemplate redis;
     private final ToolMapper toolMapper;
     private final RentalMapper rentalMapper;
     private final DamageReportMapper damageReportMapper;
-    private final SecureRandom random = new SecureRandom();
 
     /**
      * 启动时按数据库已有最大编号校准 Redis 序号，避免种子数据导致编码冲突。
@@ -43,8 +47,8 @@ public class SequenceService {
             String day = LocalDate.now().format(DAY);
             raiseTo("rental:seq:" + day, maxRentalSeq(day));
             raiseTo("damage:seq:" + day, maxDamageSeq(day));
-        } catch (Exception ignored) {
-            // 数据库暂不可用时保持 Redis 自增，业务层仍有初始化保护
+        } catch (Exception e) {
+            log.error("初始化 Redis 序号失败，单号生成可能在恢复前不可用，请检查 Redis 后重试", e);
         }
     }
 
@@ -111,9 +115,10 @@ public class SequenceService {
             if (value != null) {
                 return value;
             }
-        } catch (Exception ignored) {
-            // Redis 不可用时退化为随机序号，保证主流程可用
+            log.error("Redis 序号自增返回空值 key={}", key);
+        } catch (Exception e) {
+            log.error("Redis 序号自增失败 key={}", key, e);
         }
-        return 1 + random.nextInt(9999);
+        throw new BizException(ResultCode.INTERNAL_SERVER_ERROR, "编号生成失败，请稍后重试");
     }
 }

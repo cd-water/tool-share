@@ -3,6 +3,7 @@ package com.cdwater.toolshare.module.damage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
+import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
@@ -111,9 +112,7 @@ public class DamageService {
         report.setStatus("VERIFIED");
         damageReportMapper.updateById(report);
         Tool tool = toolService.getTool(report.getToolId());
-        tool.setStatus("MAINTENANCE");
-        toolMapper.updateById(tool);
-        toolService.log(tool.getId(), "STATUS_CHANGE", "报修核验确认，工具转维修中");
+        toolService.transition(tool, ToolStatus.MAINTENANCE, "REPAIR", "报修核验确认，工具转维修中");
         messageService.notifyUser(report.getUserId(), "REPAIR", "报修已确认",
                 "报修单 " + report.getReportNo() + " 已核验，维修人员将尽快处理。");
     }
@@ -184,7 +183,6 @@ public class DamageService {
         damageReportMapper.updateById(report);
 
         Tool tool = toolService.getTool(report.getToolId());
-        tool.setStatus(toolStatus);
         tool.setLastRepairTime(LocalDateTime.now());
         if ("QUALIFIED".equals(dto.getAcceptResult())) {
             tool.setDamageLevel("LIGHT");
@@ -193,9 +191,10 @@ public class DamageService {
         } else {
             tool.setDamageLevel("SEVERE");
         }
-        toolMapper.updateById(tool);
-        toolService.notifyWatchersIfAvailable(tool);
-        toolService.log(tool.getId(), "STATUS_CHANGE", "维修验收：" + Dict.label(Dict.TOOL_STATUS, toolStatus));
+        ToolStatus targetStatus = ToolStatus.fromCode(toolStatus)
+                .orElseThrow(() -> new BizException(ResultCode.BAD_REQUEST, "无效的工具状态"));
+        toolService.transition(tool, targetStatus, "REPAIR",
+                "维修验收：" + Dict.label(Dict.TOOL_STATUS, toolStatus));
         messageService.notifyUser(report.getUserId(), "REPAIR", "维修验收完成",
                 "报修单 " + report.getReportNo() + " 验收结果："
                         + Dict.label(Dict.ACCEPT_RESULT, dto.getAcceptResult())

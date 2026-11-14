@@ -46,7 +46,14 @@ public class Tool {
 
     private String supplier;
 
+    /** 0 待审核 1 已通过 2 需修改，见 AuditStatus */
     private Integer auditStatus;
+
+    private String auditRemark;
+
+    private Long reviewedBy;
+
+    private LocalDateTime reviewedAt;
 
     private Integer rentalCount;
 

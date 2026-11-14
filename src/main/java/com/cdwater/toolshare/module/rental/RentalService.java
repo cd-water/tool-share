@@ -3,6 +3,8 @@ package com.cdwater.toolshare.module.rental;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
+import com.cdwater.toolshare.shared.enums.AuditStatus;
+import com.cdwater.toolshare.shared.enums.ToolStatus;
 import com.cdwater.toolshare.shared.security.IdCardCipher;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -81,6 +83,9 @@ public class RentalService {
             throw new BizException(ResultCode.BAD_REQUEST, "请先在个人中心完善真实姓名与身份证号");
         }
         Tool tool = toolService.getTool(dto.getToolId());
+        if (tool.getAuditStatus() == null || tool.getAuditStatus() != AuditStatus.APPROVED.code()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "工具尚未通过审核，暂不可预约");
+        }
         if (!"AVAILABLE".equals(tool.getStatus())) {
             throw new BizException(ResultCode.BAD_REQUEST,
                     "工具当前不可预约：" + Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
@@ -188,10 +193,8 @@ public class RentalService {
         Tool tool = toolService.getTool(rental.getToolId());
         rental.setStatus("PICKED_UP");
         rentalMapper.updateById(rental);
-        tool.setStatus("RENTED");
         tool.setRentalCount((tool.getRentalCount() == null ? 0 : tool.getRentalCount()) + 1);
-        toolMapper.updateById(tool);
-        toolService.log(tool.getId(), "STATUS_CHANGE", "取件后工具状态变为已租出");
+        toolService.transition(tool, ToolStatus.RENTED, "PICKUP", "取件后工具状态变为已租出");
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "工具已取件",
                 "预约单 " + rental.getOrderNo() + " 已确认取件，请按时归还。");
     }
@@ -229,19 +232,16 @@ public class RentalService {
 
         Tool tool = toolService.getTool(rental.getToolId());
         if ("SEVERE".equals(dto.getDamageResult())) {
-            tool.setStatus("MAINTENANCE");
             tool.setDamageLevel("SEVERE");
-            tool.setLastRepairTime(now);
-            toolService.log(tool.getId(), "RETURN", "归还验收为严重损坏，工具转维修中");
+            toolService.transition(tool, ToolStatus.MAINTENANCE, "RETURN",
+                    "归还验收为严重损坏，工具转维修中");
         } else {
-            tool.setStatus("AVAILABLE");
             if ("MINOR".equals(dto.getDamageResult())) {
                 tool.setDamageLevel("LIGHT");
             }
-            toolService.log(tool.getId(), "RETURN", "归还验收完成，工具恢复可用");
+            toolService.transition(tool, ToolStatus.AVAILABLE, "RETURN",
+                    "归还验收完成，工具恢复可用");
         }
-        toolMapper.updateById(tool);
-        toolService.notifyWatchersIfAvailable(tool);
         messageService.notifyUser(rental.getUserId(), "SYSTEM", "归还验收完成",
                 "预约单 " + rental.getOrderNo() + " 已归还，逾期费 " + overdueFee
                         + " 元，损坏赔偿 " + damageFee + " 元，退还押金 " + refund + " 元。");

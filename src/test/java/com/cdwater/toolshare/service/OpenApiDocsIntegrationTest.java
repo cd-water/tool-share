@@ -63,6 +63,7 @@ class OpenApiDocsIntegrationTest extends AbstractIntegrationTest {
             "/api/admin/upload",
             "/api/admin/tools",
             "/api/admin/tools/{id}",
+            "/api/admin/tools/{id}/audit",
             "/api/admin/tools/{id}/status",
             "/api/admin/tools/{id}/logs",
             "/api/admin/rentals",

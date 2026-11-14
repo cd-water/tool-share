@@ -2,6 +2,7 @@ package com.cdwater.toolshare.module.tool;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.cdwater.toolshare.shared.web.Result;
+import com.cdwater.toolshare.module.tool.ToolAuditDTO;
 import com.cdwater.toolshare.module.tool.ToolSaveDTO;
 import com.cdwater.toolshare.module.tool.ToolStatusDTO;
 import com.cdwater.toolshare.module.tool.ToolService;
@@ -43,6 +44,11 @@ public class AdminToolController {
     @PutMapping("/{id}")
     public Result<ToolVO> update(@PathVariable Long id, @Valid @RequestBody ToolSaveDTO dto) {
         return Result.success(toolService.update(id, dto));
+    }
+
+    @PatchMapping("/{id}/audit")
+    public Result<ToolVO> audit(@PathVariable Long id, @Valid @RequestBody ToolAuditDTO dto) {
+        return Result.success(toolService.audit(id, dto));
     }
 
     @PatchMapping("/{id}/status")

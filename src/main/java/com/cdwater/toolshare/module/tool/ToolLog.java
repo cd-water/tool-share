@@ -18,9 +18,17 @@ public class ToolLog {
 
     private String action;
 
+    private String fromStatus;
+
+    private String toStatus;
+
     private String detail;
 
     private Long operatorId;
+
+    private String operatorName;
+
+    private String remark;
 
     private LocalDateTime createTime;
 }

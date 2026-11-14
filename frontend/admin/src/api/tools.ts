@@ -4,6 +4,7 @@ import type { PageQuery, PageResult } from '@/api/types'
 export type ToolCategory = 'WX' | 'YY' | 'QJ' | 'QT'
 export type DamageLevel = 'NEW' | 'LIGHT' | 'MEDIUM' | 'SEVERE'
 export type ToolStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'SCRAPPED'
+export type AuditStatus = 'PENDING' | 'APPROVED' | 'NEEDS_CHANGE'
 
 export interface ToolVO {
   id: number
@@ -23,6 +24,11 @@ export interface ToolVO {
   imageUrls?: string[]
   purchaseDate?: string
   supplier?: string
+  auditStatus?: number
+  auditStatusName?: string
+  auditRemark?: string
+  createdBy?: number
+  createdByName?: string
   rentalCount?: number
   lastRepairTime?: string
   createTime?: string
@@ -60,12 +66,21 @@ export interface ToolSaveDTO {
   status?: ToolStatus
 }
 
+export interface ToolAuditDTO {
+  auditStatus: Exclude<AuditStatus, 'PENDING'>
+  remark?: string
+}
+
 export interface ToolLogVO {
   id: number
   toolId: number
   action: string
+  fromStatus?: string | null
+  toStatus?: string | null
   detail?: string
   operatorId?: number
+  operatorName?: string
+  remark?: string
   createTime?: string
 }
 
@@ -73,6 +88,8 @@ export const toolApi = {
   list: (params: ToolQuery) => http.get<PageResult<ToolVO>>('/admin/tools', { params }),
   create: (data: ToolSaveDTO) => http.post<ToolVO>('/admin/tools', data),
   update: (id: number, data: ToolSaveDTO) => http.put<ToolVO>(`/admin/tools/${id}`, data),
+  audit: (id: number, data: ToolAuditDTO) =>
+    http.patch<ToolVO>(`/admin/tools/${id}/audit`, data),
   updateStatus: (id: number, status: ToolStatus) =>
     http.patch<void>(`/admin/tools/${id}/status`, { status }),
   logs: (id: number) => http.get<ToolLogVO[]>(`/admin/tools/${id}/logs`),
