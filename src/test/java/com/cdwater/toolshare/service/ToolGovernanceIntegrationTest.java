@@ -158,8 +158,12 @@ class ToolGovernanceIntegrationTest extends AbstractIntegrationTest {
         ok(call(HttpMethod.POST, "/api/user/damage-reports", user, Map.of(
                 "rentalId", rentalId, "damagePart", "电机", "description", "异响", "images", List.of())));
         // 带伤归还：租赁结束但报修尚未完成，工具转维修中
+        Rental toReturn = rentalMapper.selectById(rentalId);
+        toReturn.setStartTime(LocalDateTime.now().minusDays(1).withNano(0));
+        rentalMapper.updateById(toReturn);
         ok(call(HttpMethod.POST, "/api/admin/rentals/" + rentalId + "/return", admin,
-                Map.of("damageResult", "SEVERE", "remark", "带伤归还")));
+                Map.of("actualReturnTime", LocalDateTime.now().withNano(0).format(FORMAT),
+                        "damageResult", "SEVERE", "remark", "带伤归还")));
 
         ApiResponse guardedByReport = call(HttpMethod.PATCH,
                 "/api/admin/tools/" + repairTool + "/status", admin, Map.of("status", "AVAILABLE"));

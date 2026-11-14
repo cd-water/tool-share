@@ -1192,9 +1192,12 @@ export interface components {
         };
         ServerSentEventString: unknown;
         RentalReturnDTO: {
+            /** Format: date-time */
+            actualReturnTime: string;
             damageResult: string;
-            overdueFee?: number;
-            damageFee?: number;
+            waiveOverdue?: boolean;
+            waiveDamage?: boolean;
+            waiverReason?: string;
             remark?: string;
         };
         AdminLoginDTO: {

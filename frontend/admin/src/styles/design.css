@@ -184,6 +184,9 @@ body[data-app="web"] .btn-primary{color:#3D2E00}
 .field.is-err .err{display:block}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .form-grid .full{grid-column:1/-1}
+.check-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;min-height:38px}
+.check-row .ck{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-sm);color:var(--ink-2);cursor:pointer}
+.check-row .ck input{accent-color:var(--brand)}
 .input-group{display:flex;gap:9px}
 .input-group .input{flex:1}
 .pw-wrap{position:relative}

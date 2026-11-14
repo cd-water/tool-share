@@ -173,7 +173,8 @@ class RentalConcurrencyIntegrationTest extends AbstractIntegrationTest {
                 user, Map.of("reason", "行程变化")).status());
         assertCode("C409", call(HttpMethod.POST, base + "/pickup", admin, Map.of()));
         assertCode("C409", call(HttpMethod.POST, base + "/return", admin,
-                Map.of("damageResult", "INTACT")));
+                Map.of("actualReturnTime", LocalDateTime.now().withNano(0).format(FORMAT),
+                        "damageResult", "INTACT")));
     }
 
     @Test

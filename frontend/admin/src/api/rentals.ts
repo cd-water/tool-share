@@ -50,9 +50,11 @@ export interface RentalQuery extends PageQuery {
 }
 
 export interface RentalReturnDTO {
+  actualReturnTime: string
   damageResult: DamageResult
-  overdueFee?: number
-  damageFee?: number
+  waiveOverdue?: boolean
+  waiveDamage?: boolean
+  waiverReason?: string
   remark?: string
 }
 

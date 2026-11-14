@@ -139,8 +139,12 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
                 Map.of("progressStatus", "REPAIRING", "progressNote", "已更换电源线",
                         "repairCost", 30)).get("code").asString());
         // 报修未终结时按「带伤归还」处理，工具保持维修中
+        Rental toReturn = rentalMapper.selectById(rentalId);
+        toReturn.setStartTime(LocalDateTime.now().minusDays(1).withNano(0));
+        rentalMapper.updateById(toReturn);
         assertEquals("A200", post("/api/admin/rentals/" + rentalId + "/return", adminToken,
-                Map.of("damageResult", "SEVERE", "remark", "带伤归还")).get("code").asString());
+                Map.of("actualReturnTime", LocalDateTime.now().withNano(0).format(FORMAT),
+                        "damageResult", "SEVERE", "remark", "带伤归还")).get("code").asString());
         JsonNode returned = get("/api/user/rentals/" + rentalId, userToken).get("data");
         assertEquals("RETURNED", returned.get("status").asString());
         assertEquals("REFUNDED", returned.get("depositStatus").asString());

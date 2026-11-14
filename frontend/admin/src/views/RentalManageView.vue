@@ -151,12 +151,20 @@ const detailTimeline = computed(() => {
 const returnDialogVisible = ref(false)
 const returnSaving = ref(false)
 const returnTarget = ref<RentalVO | null>(null)
-const returnForm = reactive<{ damageResult: DamageResult; overdueFee: number | null; damageFee: number | null; remark: string; returnTime: string }>({
+const returnForm = reactive<{
+  damageResult: DamageResult
+  returnTime: string
+  waiveOverdue: boolean
+  waiveDamage: boolean
+  waiverReason: string
+  remark: string
+}>({
   damageResult: 'INTACT',
-  overdueFee: null,
-  damageFee: null,
-  remark: '',
   returnTime: '',
+  waiveOverdue: false,
+  waiveDamage: false,
+  waiverReason: '',
+  remark: '',
 })
 
 function nowInput(): string {
@@ -165,27 +173,32 @@ function nowInput(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-const refundPreview = computed(() => {
-  const deposit = returnTarget.value?.depositAmount ?? 0
-  return Math.max(0, deposit - (returnForm.overdueFee ?? 0) - (returnForm.damageFee ?? 0))
-})
-
 function openReturn(row: RentalVO) {
   returnTarget.value = row
   returnForm.damageResult = 'INTACT'
-  returnForm.overdueFee = null
-  returnForm.damageFee = null
-  returnForm.remark = ''
   returnForm.returnTime = nowInput()
+  returnForm.waiveOverdue = false
+  returnForm.waiveDamage = false
+  returnForm.waiverReason = ''
+  returnForm.remark = ''
   returnDialogVisible.value = true
 }
 
 async function submitReturn() {
   const target = returnTarget.value
   if (!target) return
-  const payload: RentalReturnDTO = { damageResult: returnForm.damageResult }
-  if (returnForm.overdueFee !== null) payload.overdueFee = returnForm.overdueFee
-  if (returnForm.damageFee !== null) payload.damageFee = returnForm.damageFee
+  const waiving = returnForm.waiveOverdue || returnForm.waiveDamage
+  if (waiving && !returnForm.waiverReason.trim()) {
+    ElMessage.warning('减免必须填写原因')
+    return
+  }
+  const payload: RentalReturnDTO = {
+    actualReturnTime: returnForm.returnTime,
+    damageResult: returnForm.damageResult,
+  }
+  if (returnForm.waiveOverdue) payload.waiveOverdue = true
+  if (returnForm.waiveDamage) payload.waiveDamage = true
+  if (waiving) payload.waiverReason = returnForm.waiverReason.trim()
   if (returnForm.remark.trim()) payload.remark = returnForm.remark.trim()
   returnSaving.value = true
   try {
@@ -490,12 +503,21 @@ onMounted(loadList)
         </div>
         <div class="form-grid">
           <div class="field">
-            <label>逾期费</label>
-            <input v-model.number="returnForm.overdueFee" type="number" min="0" step="0.01" class="input" placeholder="留空由系统计算" />
+            <label>减免</label>
+            <div class="check-row">
+              <label class="ck"><input v-model="returnForm.waiveOverdue" type="checkbox" /><span>减免逾期费</span></label>
+              <label class="ck"><input v-model="returnForm.waiveDamage" type="checkbox" /><span>减免损坏赔偿</span></label>
+            </div>
           </div>
           <div class="field">
-            <label>损坏费</label>
-            <input v-model.number="returnForm.damageFee" type="number" min="0" step="0.01" class="input" placeholder="可手动指定" />
+            <label>减免原因</label>
+            <input
+              v-model="returnForm.waiverReason"
+              class="input"
+              maxlength="500"
+              :disabled="!returnForm.waiveOverdue && !returnForm.waiveDamage"
+              placeholder="减免时必填"
+            />
           </div>
         </div>
         <div class="field">
@@ -504,12 +526,11 @@ onMounted(loadList)
         </div>
         <div class="refund-preview">
           <div>
-            <span class="rp-label">预计退款</span>
+            <span class="rp-label">退款金额</span>
             <span class="rp-calc">
-              押金 {{ formatMoney(returnTarget?.depositAmount || 0) }} − 逾期 {{ formatMoney(returnForm.overdueFee || 0) }} − 赔偿 {{ formatMoney(returnForm.damageFee || 0) }}
+              由系统按实际归还时间、验收结果与减免计算，押金 {{ formatMoney(returnTarget?.depositAmount || 0) }}
             </span>
           </div>
-          <b>{{ formatMoney(refundPreview) }}</b>
         </div>
       </div>
       <div class="dlg-foot">
