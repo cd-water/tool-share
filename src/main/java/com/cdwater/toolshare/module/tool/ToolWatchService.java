@@ -2,14 +2,12 @@ package com.cdwater.toolshare.module.tool;
 
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.shared.web.BizException;
-import com.cdwater.toolshare.shared.web.Dict;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 
@@ -32,6 +30,7 @@ public class ToolWatchService {
     private final StringRedisTemplate redis;
     private final ToolMapper toolMapper;
     private final MessageService messageService;
+    private final ToolWatchVoMapper toolWatchVoMapper;
 
     public void watch(Long userId, Long toolId) {
         Tool tool = toolMapper.selectById(toolId);
@@ -76,7 +75,7 @@ public class ToolWatchService {
             }
             return ids.stream().map(this::parseId).filter(id -> id != null)
                     .map(toolMapper::selectById).filter(tool -> tool != null)
-                    .map(this::toVO).toList();
+                    .map(toolWatchVoMapper::toVO).toList();
         } catch (Exception e) {
             log.warn("读取蹲守列表失败 userId={}: {}", userId, e.getMessage());
             return List.of();
@@ -120,17 +119,5 @@ public class ToolWatchService {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private ToolWatchVO toVO(Tool tool) {
-        ToolWatchVO vo = new ToolWatchVO();
-        vo.setToolId(tool.getId());
-        vo.setCode(tool.getCode());
-        vo.setName(tool.getName());
-        vo.setStatus(tool.getStatus());
-        vo.setStatusName(Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
-        vo.setDeposit(tool.getDeposit() == null ? BigDecimal.ZERO : tool.getDeposit());
-        vo.setImageUrl(tool.getImageUrl());
-        return vo;
     }
 }

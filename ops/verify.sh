@@ -33,16 +33,17 @@ run_in() {
 # 1. 后端编译
 run "后端编译" ./mvnw -q -DskipTests compile
 
-# 2. 用户端：安装、lint、构建
+# 2. 后端测试（Testcontainers 自动启动 MySQL/Redis，只需本机 Docker）
+run "后端测试" ./mvnw -q test
+
+# 3. 用户端：安装、lint、构建
 run_in "用户端依赖安装" frontend/web pnpm install --frozen-lockfile
 run_in "用户端 lint" frontend/web pnpm lint
 run_in "用户端构建" frontend/web pnpm build
 
-# 3. 管理端：安装、构建
+# 4. 管理端：安装、构建
 run_in "管理端依赖安装" frontend/admin pnpm install --frozen-lockfile
 run_in "管理端构建" frontend/admin pnpm build
-
-# 4. 测试：票据 #3 接入 Testcontainers 后在此运行（./mvnw verify）
 
 echo ""
 echo "✓ 验证通过"

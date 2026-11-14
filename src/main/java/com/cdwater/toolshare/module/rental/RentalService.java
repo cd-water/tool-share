@@ -8,6 +8,7 @@ import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
+import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.module.rental.RentalCreateDTO;
@@ -53,6 +54,7 @@ public class RentalService {
     private final SequenceService sequenceService;
     private final MessageService messageService;
     private final RentalReminderService reminderService;
+    private final RentalVoMapper rentalVoMapper;
 
     /** 逾期状态由定时任务物化，列表查询前做一次惰性刷新，避免筛选存在最长 10 分钟的窗口 */
     private final AtomicLong lastOverdueRefresh = new AtomicLong(0);
@@ -99,7 +101,7 @@ public class RentalService {
             String suggestion = conflicts.stream()
                     .map(item -> item.getEndTime().plusHours(1).format(DATE_TIME))
                     .findFirst().orElse("其他时间");
-            throw new BizException(ResultCode.BAD_REQUEST, "该时段已被预约，建议 " + suggestion + " 之后");
+            throw new BizException(ResultCode.CONFLICT, "该时段已被预约，建议 " + suggestion + " 之后");
         }
 
         Rental rental = new Rental();
@@ -263,17 +265,17 @@ public class RentalService {
         if (StringUtils.hasText(status)) {
             wrapper.eq(Rental::getStatus, status);
         }
-        Page<Rental> result = rentalMapper.selectPage(new Page<>(page, clamp(size)),
+        Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
                 wrapper.orderByDesc(Rental::getCreateTime));
-        return PageVO.of(result, this::toVO);
+        return PageVO.of(result, rentalVoMapper::toVO);
     }
 
     public PageVO<RentalVO> adminPage(String keyword, String status, String overdue,
                                       long page, long size) {
         ensureOverdueFresh();
-        Page<Rental> result = rentalMapper.selectPage(new Page<>(page, clamp(size)),
+        Page<Rental> result = rentalMapper.selectPage(PageQuery.of(page, size),
                 adminWrapper(keyword, status, overdue).orderByDesc(Rental::getCreateTime));
-        return PageVO.of(result, this::toVO);
+        return PageVO.of(result, rentalVoMapper::toVO);
     }
 
     private LambdaQueryWrapper<Rental> adminWrapper(String keyword, String status, String overdue) {
@@ -367,46 +369,15 @@ public class RentalService {
     }
 
     private RentalVO toVO(Rental rental) {
-        RentalVO vo = new RentalVO();
-        vo.setId(rental.getId());
-        vo.setOrderNo(rental.getOrderNo());
-        vo.setToolId(rental.getToolId());
-        vo.setToolCode(rental.getToolCode());
-        vo.setToolName(rental.getToolName());
+        RentalVO vo = rentalVoMapper.toVO(rental);
         Tool tool = toolMapper.selectById(rental.getToolId());
         vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
-        vo.setUserId(rental.getUserId());
-        vo.setRenterName(rental.getRenterName());
-        vo.setRenterPhone(IdCardCipher.maskPhone(rental.getRenterPhone()));
-        vo.setStartTime(rental.getStartTime());
-        vo.setEndTime(rental.getEndTime());
-        vo.setPickupPerson(rental.getPickupPerson());
-        vo.setDepositAmount(rental.getDepositAmount());
-        vo.setDepositStatus(rental.getDepositStatus());
-        vo.setDepositStatusName(Dict.label(Dict.DEPOSIT_STATUS, rental.getDepositStatus()));
-        vo.setStatus(rental.getStatus());
-        vo.setStatusName(Dict.label(Dict.RENTAL_STATUS, rental.getStatus()));
-        vo.setActualReturnTime(rental.getActualReturnTime());
-        vo.setOverdueFee(rental.getOverdueFee());
-        vo.setDamageFee(rental.getDamageFee());
-        vo.setRefundAmount(rental.getRefundAmount());
-        vo.setDamageResult(rental.getDamageResult());
-        vo.setDamageResultName(Dict.label(Dict.DAMAGE_RESULT, rental.getDamageResult()));
-        vo.setReturnRemark(rental.getReturnRemark());
-        vo.setCancelReason(rental.getCancelReason());
-        vo.setCancelTime(rental.getCancelTime());
         vo.setRemindBeforeMinutes(reminderService.leadOf(rental.getId()));
         vo.setRemindAt(reminderService.remindAtOf(rental.getId()));
-        vo.setCreateTime(rental.getCreateTime());
-        vo.setUpdateTime(rental.getUpdateTime());
         return vo;
     }
 
     private String format(LocalDateTime time) {
         return time == null ? "" : time.format(DATE_TIME);
-    }
-
-    private long clamp(long size) {
-        return Math.min(Math.max(size, 1), 100);
     }
 }

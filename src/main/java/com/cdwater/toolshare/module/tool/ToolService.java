@@ -5,6 +5,7 @@ import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
+import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.module.tool.ToolSaveDTO;
@@ -26,7 +27,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -43,6 +43,8 @@ public class ToolService {
     private final SequenceService sequenceService;
     private final ToolWatchService toolWatchService;
     private final ToolIndexService toolIndexService;
+    private final ToolVoMapper toolVoMapper;
+    private final ToolLogVoMapper toolLogVoMapper;
 
     public PageVO<ToolVO> userPage(String keyword, String category, String status, long page, long size) {
         LambdaQueryWrapper<Tool> wrapper = baseWrapper(keyword, category, status, null);
@@ -50,8 +52,8 @@ public class ToolService {
             wrapper.ne(Tool::getStatus, "SCRAPPED");
         }
         wrapper.orderByDesc(Tool::getCreateTime);
-        Page<Tool> result = toolMapper.selectPage(new Page<>(page, clamp(size)), wrapper);
-        return PageVO.of(result, this::toVO);
+        Page<Tool> result = toolMapper.selectPage(PageQuery.of(page, size), wrapper);
+        return PageVO.of(result, toolVoMapper::toVO);
     }
 
     /**
@@ -77,8 +79,8 @@ public class ToolService {
         }
         // 次级排序保证结果稳定
         wrapper.orderByDesc(Tool::getCreateTime);
-        Page<Tool> result = toolMapper.selectPage(new Page<>(query.getPage(), clamp(query.getSize())), wrapper);
-        return PageVO.of(result, this::toVO);
+        Page<Tool> result = toolMapper.selectPage(PageQuery.of(query.getPage(), query.getSize()), wrapper);
+        return PageVO.of(result, toolVoMapper::toVO);
     }
 
     private LambdaQueryWrapper<Tool> baseWrapper(String keyword, String category,
@@ -175,16 +177,7 @@ public class ToolService {
         return toolLogMapper.selectList(new LambdaQueryWrapper<ToolLog>()
                         .eq(ToolLog::getToolId, toolId)
                         .orderByDesc(ToolLog::getCreateTime))
-                .stream().map(item -> {
-                    ToolLogVO vo = new ToolLogVO();
-                    vo.setId(item.getId());
-                    vo.setToolId(item.getToolId());
-                    vo.setAction(item.getAction());
-                    vo.setDetail(item.getDetail());
-                    vo.setOperatorId(item.getOperatorId());
-                    vo.setCreateTime(item.getCreateTime());
-                    return vo;
-                }).toList();
+                .stream().map(toolLogVoMapper::toVO).toList();
     }
 
     public AvailabilityVO availability(Long toolId, LocalDateTime start, LocalDateTime end) {
@@ -253,42 +246,6 @@ public class ToolService {
     }
 
     private ToolVO toVO(Tool tool) {
-        ToolVO vo = new ToolVO();
-        vo.setId(tool.getId());
-        vo.setCode(tool.getCode());
-        vo.setName(tool.getName());
-        vo.setModel(tool.getModel());
-        vo.setCategory(tool.getCategory());
-        vo.setCategoryName(Dict.label(Dict.TOOL_CATEGORY, tool.getCategory()));
-        vo.setDamageLevel(tool.getDamageLevel());
-        vo.setDamageLevelName(Dict.label(Dict.DAMAGE_LEVEL, tool.getDamageLevel()));
-        vo.setStatus(tool.getStatus());
-        vo.setStatusName(Dict.label(Dict.TOOL_STATUS, tool.getStatus()));
-        vo.setDeposit(tool.getDeposit());
-        vo.setStorageArea(tool.getStorageArea());
-        vo.setUsageGuide(tool.getUsageGuide());
-        vo.setImageUrl(tool.getImageUrl());
-        vo.setImageUrls(parseImages(tool.getImageUrls()));
-        vo.setPurchaseDate(tool.getPurchaseDate());
-        vo.setSupplier(tool.getSupplier());
-        vo.setRentalCount(tool.getRentalCount());
-        vo.setLastRepairTime(tool.getLastRepairTime());
-        vo.setCreateTime(tool.getCreateTime());
-        vo.setUpdateTime(tool.getUpdateTime());
-        return vo;
-    }
-
-    private List<String> parseImages(String images) {
-        if (!StringUtils.hasText(images)) {
-            return List.of();
-        }
-        return Arrays.stream(images.split(","))
-                .map(String::trim)
-                .filter(StringUtils::hasText)
-                .toList();
-    }
-
-    private long clamp(long size) {
-        return Math.min(Math.max(size, 1), 100);
+        return toolVoMapper.toVO(tool);
     }
 }

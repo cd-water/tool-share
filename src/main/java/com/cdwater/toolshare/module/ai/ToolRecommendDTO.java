@@ -23,6 +23,7 @@ public class ToolRecommendDTO {
     /** 期望结束时间 */
     private LocalDateTime endTime;
 
+    @Size(max = 16, message = "工具类别不能超过 16 个字符")
     private String category;
 
     @DecimalMin(value = "0", message = "押金上限不能为负数")

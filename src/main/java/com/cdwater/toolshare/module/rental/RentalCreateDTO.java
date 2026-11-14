@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,7 @@ public class RentalCreateDTO {
     private LocalDateTime endTime;
 
     @NotBlank(message = "请填写取件人")
+    @Size(max = 64, message = "取件人不能超过 64 个字符")
     private String pickupPerson;
 
     /**

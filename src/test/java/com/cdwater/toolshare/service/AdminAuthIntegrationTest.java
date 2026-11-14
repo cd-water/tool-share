@@ -48,7 +48,8 @@ class AdminAuthIntegrationTest extends AbstractIntegrationTest {
         if (tokenValue != null) {
             spec.header("Authorization", "Bearer " + tokenValue);
         }
-        String raw = spec.body(body).retrieve().body(String.class);
+        String raw = spec.body(body).retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 
@@ -57,7 +58,8 @@ class AdminAuthIntegrationTest extends AbstractIntegrationTest {
         if (tokenValue != null) {
             spec.header("Authorization", "Bearer " + tokenValue);
         }
-        String raw = spec.retrieve().body(String.class);
+        String raw = spec.retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 

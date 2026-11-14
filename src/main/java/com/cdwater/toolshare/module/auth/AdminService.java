@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 public class AdminService {
 
     private final AdminMapper adminMapper;
+    private final AdminVoMapper adminVoMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
@@ -47,10 +48,7 @@ public class AdminService {
         if (admin.getStatus() == null || admin.getStatus() == 0) {
             throw new BizException(ResultCode.FORBIDDEN, "账号已禁用");
         }
-        AdminVO vo = new AdminVO();
-        vo.setId(admin.getId());
-        vo.setUsername(admin.getUsername());
-        return vo;
+        return adminVoMapper.toVO(admin);
     }
 
     /** 当前会话注销 */

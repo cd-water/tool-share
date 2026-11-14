@@ -12,6 +12,33 @@ interface Result<T> {
   data: T
 }
 
+/** 非 2xx 响应里的 envelope；不是统一响应结构时返回 null */
+function parseEnvelope(data: unknown): Result<unknown> | null {
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    typeof (data as Result<unknown>).code === 'string'
+  ) {
+    return data as Result<unknown>
+  }
+  return null
+}
+
+function handleBusinessError(body: Result<unknown>): Error {
+  if (body.code === UNAUTHORIZED_CODE) {
+    useAuthStore().reset()
+    if (router.currentRoute.value.path !== '/login') {
+      router.push({
+        path: '/login',
+        query: { redirect: router.currentRoute.value.fullPath },
+      })
+    }
+  } else {
+    ElMessage.error(body.message || '请求失败')
+  }
+  return new Error(body.message || '请求失败')
+}
+
 const instance = axios.create({
   baseURL: '/api',
   timeout: 30_000,
@@ -34,20 +61,31 @@ instance.interceptors.response.use(
     if (body.code === SUCCESS_CODE) {
       return body.data
     }
-    if (body.code === UNAUTHORIZED_CODE) {
-      useAuthStore().reset()
-      if (router.currentRoute.value.path !== '/login') {
-        router.push({
-          path: '/login',
-          query: { redirect: router.currentRoute.value.fullPath },
-        })
-      }
-      return Promise.reject(new Error(body.message))
-    }
-    ElMessage.error(body.message || '请求失败')
-    return Promise.reject(new Error(body.message || '请求失败'))
+    // 兼容旧行为：HTTP 200 + 业务错误 code
+    return Promise.reject(handleBusinessError(body))
   },
-  (error) => {
+  // 语义化状态码：从 error.response.data 解出 envelope，没有 envelope 才是网络异常
+  async (error) => {
+    const response = error?.response
+    let data: unknown = response?.data
+    if (data instanceof Blob) {
+      // blob 下载失败时后端返回 JSON envelope，不能当 Excel 保存
+      const contentType =
+        data.type || response?.headers?.['content-type'] || ''
+      if (contentType.includes('json')) {
+        try {
+          data = JSON.parse(await data.text())
+        } catch {
+          data = null
+        }
+      } else {
+        data = null
+      }
+    }
+    const body = parseEnvelope(data)
+    if (body) {
+      return Promise.reject(handleBusinessError(body))
+    }
     ElMessage.error('网络异常，请稍后重试')
     return Promise.reject(error)
   },

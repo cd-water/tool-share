@@ -210,7 +210,7 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
 
         JsonNode conflict = post("/api/user/rentals", userToken,
                 Map.of("toolId", toolId, "startTime", start, "endTime", end, "pickupPerson", "王建国"));
-        assertEquals("C400", conflict.get("code").asString());
+        assertEquals("C409", conflict.get("code").asString());
 
         assertEquals("A200", post("/api/user/rentals/" + rentalId + "/cancel", userToken,
                 Map.of("reason", "临时有事")).get("code").asString());
@@ -275,7 +275,8 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         if (token != null) {
             spec.header("Authorization", "Bearer " + token);
         }
-        String raw = spec.body(body).retrieve().body(String.class);
+        String raw = spec.body(body).retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 
@@ -284,7 +285,8 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         if (token != null) {
             spec.header("Authorization", "Bearer " + token);
         }
-        String raw = spec.retrieve().body(String.class);
+        String raw = spec.retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 
@@ -293,7 +295,8 @@ class BusinessFlowIntegrationTest extends AbstractIntegrationTest {
         if (token != null) {
             spec.header("Authorization", "Bearer " + token);
         }
-        String raw = spec.retrieve().body(String.class);
+        String raw = spec.retrieve().onStatus(status -> true, (request, response) -> {
+        }).body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }
 }

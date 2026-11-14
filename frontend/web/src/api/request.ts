@@ -11,6 +11,28 @@ interface Result<T> {
   data: T
 }
 
+/** 非 2xx 响应里的 envelope；不是统一响应结构时返回 null */
+function parseEnvelope(data: unknown): Result<unknown> | null {
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    typeof (data as Result<unknown>).code === 'string'
+  ) {
+    return data as Result<unknown>
+  }
+  return null
+}
+
+function handleBusinessError(body: Result<unknown>): Error {
+  if (body.code === UNAUTHORIZED_CODE) {
+    useAuthStore.getState().clear()
+    toast.add({ title: '登录已过期，请重新登录', type: 'error' })
+  } else {
+    toast.add({ title: body.message || '请求失败', type: 'error' })
+  }
+  return new Error(body.message || '请求失败')
+}
+
 const instance = axios.create({
   baseURL: '/api',
   timeout: 10_000,
@@ -32,15 +54,15 @@ instance.interceptors.response.use(
     if (body.code === SUCCESS_CODE) {
       return body.data
     }
-    if (body.code === UNAUTHORIZED_CODE) {
-      useAuthStore.getState().clear()
-      toast.add({ title: '登录已过期，请重新登录', type: 'error' })
-    } else {
-      toast.add({ title: body.message || '请求失败', type: 'error' })
-    }
-    return Promise.reject(new Error(body.message || '请求失败'))
+    // 兼容旧行为：HTTP 200 + 业务错误 code
+    return Promise.reject(handleBusinessError(body))
   },
+  // 语义化状态码：从 error.response.data 解出 envelope，没有 envelope 才是网络异常
   (error) => {
+    const body = parseEnvelope(error?.response?.data)
+    if (body) {
+      return Promise.reject(handleBusinessError(body))
+    }
     toast.add({ title: '网络异常，请稍后重试', type: 'error' })
     return Promise.reject(error)
   },

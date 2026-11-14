@@ -67,8 +67,13 @@ export const aiApi = {
     if (!response.ok || !response.body) {
       let message = `请求失败（${response.status}）`
       try {
-        const data = (await response.json()) as { message?: string }
+        const data = (await response.json()) as ResultError
         if (data?.message) message = data.message
+        if (data?.code === 'C401') {
+          useAuthStore.getState().clear()
+          toast.add({ title: '登录已过期，请重新登录', type: 'error' })
+          return
+        }
       } catch {
         // 非 JSON 响应（如 404 页面），保留默认文案
       }

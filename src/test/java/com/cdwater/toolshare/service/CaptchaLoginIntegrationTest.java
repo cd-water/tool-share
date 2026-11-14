@@ -64,6 +64,8 @@ class CaptchaLoginIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
+                .onStatus(status -> true, (request, response) -> {
+                })
                 .body(String.class);
         return om.readTree(raw == null ? "{}" : raw);
     }

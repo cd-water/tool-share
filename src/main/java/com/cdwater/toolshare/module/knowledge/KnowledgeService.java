@@ -28,11 +28,12 @@ public class KnowledgeService {
 
     private final KnowledgeDocMapper knowledgeDocMapper;
     private final AiService aiService;
+    private final KnowledgeDocVoMapper knowledgeDocVoMapper;
 
     public List<KnowledgeDocVO> list() {
         return knowledgeDocMapper.selectList(new LambdaQueryWrapper<KnowledgeDoc>()
                         .orderByDesc(KnowledgeDoc::getCreateTime))
-                .stream().map(this::toVO).toList();
+                .stream().map(knowledgeDocVoMapper::toVO).toList();
     }
 
     public KnowledgeDocVO upload(MultipartFile file, String title) {
@@ -53,7 +54,7 @@ public class KnowledgeService {
         knowledgeDocMapper.insert(doc);
         doc.setIndexed(aiService.index(doc));
         knowledgeDocMapper.updateById(doc);
-        return toVO(doc);
+        return knowledgeDocVoMapper.toVO(doc);
     }
 
     public void delete(Long id) {
@@ -101,14 +102,4 @@ public class KnowledgeService {
         }
     }
 
-    private KnowledgeDocVO toVO(KnowledgeDoc doc) {
-        KnowledgeDocVO vo = new KnowledgeDocVO();
-        vo.setId(doc.getId());
-        vo.setTitle(doc.getTitle());
-        vo.setFileName(doc.getFileName());
-        String content = doc.getContent() == null ? "" : doc.getContent().replaceAll("\\s+", " ").trim();
-        vo.setContentPreview(content.length() > 120 ? content.substring(0, 120) + "…" : content);
-        vo.setCreateTime(doc.getCreateTime());
-        return vo;
-    }
 }

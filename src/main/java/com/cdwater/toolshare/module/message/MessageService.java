@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
-import com.cdwater.toolshare.shared.web.Dict;
+import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import com.cdwater.toolshare.module.auth.Admin;
 import com.cdwater.toolshare.module.message.Message;
@@ -26,6 +26,7 @@ public class MessageService {
 
     private final MessageMapper messageMapper;
     private final AdminMapper adminMapper;
+    private final MessageVoMapper messageVoMapper;
 
     public void notifyUser(Long userId, String type, String title, String content) {
         insert("USER", userId, type, title, content, null);
@@ -65,12 +66,12 @@ public class MessageService {
     }
 
     public PageVO<MessageVO> page(String receiverType, Long receiverId, long page, long size) {
-        Page<Message> result = messageMapper.selectPage(new Page<>(page, size),
+        Page<Message> result = messageMapper.selectPage(PageQuery.of(page, size),
                 new LambdaQueryWrapper<Message>()
                         .eq(Message::getReceiverType, receiverType)
                         .eq(Message::getReceiverId, receiverId)
                         .orderByDesc(Message::getCreateTime));
-        return PageVO.of(result, this::toVO);
+        return PageVO.of(result, messageVoMapper::toVO);
     }
 
     public long unreadCount(String receiverType, Long receiverId) {
@@ -98,16 +99,4 @@ public class MessageService {
                 .set(Message::getReadStatus, 1));
     }
 
-    private MessageVO toVO(Message message) {
-        MessageVO vo = new MessageVO();
-        vo.setId(message.getId());
-        vo.setType(message.getType());
-        vo.setTypeName(Dict.label(Dict.MESSAGE_TYPE, message.getType()));
-        vo.setTitle(message.getTitle());
-        vo.setContent(message.getContent());
-        vo.setChannel(message.getChannel());
-        vo.setReadStatus(message.getReadStatus() != null && message.getReadStatus() == 1);
-        vo.setCreateTime(message.getCreateTime());
-        return vo;
-    }
 }

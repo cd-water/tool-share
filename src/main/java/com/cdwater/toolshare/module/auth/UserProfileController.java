@@ -4,6 +4,7 @@ import com.cdwater.toolshare.shared.web.Result;
 import com.cdwater.toolshare.module.auth.UserService;
 import com.cdwater.toolshare.module.auth.ProfileUpdateDTO;
 import com.cdwater.toolshare.module.auth.UserVO;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,7 +25,7 @@ public class UserProfileController {
     }
 
     @PutMapping("/profile")
-    public Result<UserVO> update(@RequestBody ProfileUpdateDTO dto) {
+    public Result<UserVO> update(@Valid @RequestBody ProfileUpdateDTO dto) {
         return Result.success(userService.updateProfile(dto));
     }
 }

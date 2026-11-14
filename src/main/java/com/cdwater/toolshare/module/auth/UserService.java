@@ -35,6 +35,7 @@ public class UserService {
     private final UserMapper userMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final IdCardCipher idCardCipher;
+    private final UserVoMapper userVoMapper;
     private final SecureRandom random = new SecureRandom();
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -125,25 +126,14 @@ public class UserService {
             user.setRealName(dto.getRealName().trim());
         }
         if (StringUtils.hasText(dto.getIdCard())) {
-            String idCard = dto.getIdCard().trim();
-            if (!idCard.matches("^\\d{17}[\\dXx]$")) {
-                throw new BizException(ResultCode.BAD_REQUEST, "请输入正确的 18 位身份证号");
-            }
-            user.setIdCard(idCardCipher.encrypt(idCard));
+            user.setIdCard(idCardCipher.encrypt(dto.getIdCard().trim()));
         }
         userMapper.updateById(user);
         return toVO(user);
     }
 
     private UserVO toVO(User user) {
-        UserVO vo = new UserVO();
-        vo.setId(user.getId());
-        vo.setPhone(IdCardCipher.maskPhone(user.getPhone()));
-        vo.setNickname(user.getNickname());
-        vo.setAvatar(user.getAvatar());
-        vo.setRealName(user.getRealName());
-        vo.setIdCard(idCardCipher.mask(user.getIdCard()));
-        return vo;
+        return userVoMapper.toVO(user, idCardCipher);
     }
 
     /** 当前会话注销 */

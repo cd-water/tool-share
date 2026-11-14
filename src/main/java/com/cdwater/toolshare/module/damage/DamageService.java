@@ -3,11 +3,11 @@ package com.cdwater.toolshare.module.damage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
-import com.cdwater.toolshare.shared.security.IdCardCipher;
 import com.cdwater.toolshare.shared.sequence.SequenceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.shared.web.BizException;
 import com.cdwater.toolshare.shared.web.Dict;
+import com.cdwater.toolshare.shared.web.PageQuery;
 import com.cdwater.toolshare.shared.web.ResultCode;
 import com.cdwater.toolshare.shared.config.StpKit;
 import com.cdwater.toolshare.module.damage.DamageAcceptDTO;
@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -47,6 +46,7 @@ public class DamageService {
     private final ToolService toolService;
     private final SequenceService sequenceService;
     private final MessageService messageService;
+    private final DamageReportVoMapper damageReportVoMapper;
 
     @Transactional
     public DamageReportVO create(DamageCreateDTO dto) {
@@ -203,11 +203,11 @@ public class DamageService {
     }
 
     public PageVO<DamageReportVO> userPage(long page, long size) {
-        Page<DamageReport> result = damageReportMapper.selectPage(new Page<>(page, clamp(size)),
+        Page<DamageReport> result = damageReportMapper.selectPage(PageQuery.of(page, size),
                 new LambdaQueryWrapper<DamageReport>()
                         .eq(DamageReport::getUserId, StpKit.USER.getLoginIdAsLong())
                         .orderByDesc(DamageReport::getCreateTime));
-        return PageVO.of(result, this::toVO);
+        return PageVO.of(result, damageReportVoMapper::toVO);
     }
 
     public PageVO<DamageReportVO> adminPage(String keyword, String status, long page, long size) {
@@ -221,9 +221,9 @@ public class DamageService {
         if (StringUtils.hasText(status)) {
             wrapper.eq(DamageReport::getStatus, status);
         }
-        Page<DamageReport> result = damageReportMapper.selectPage(new Page<>(page, clamp(size)),
+        Page<DamageReport> result = damageReportMapper.selectPage(PageQuery.of(page, size),
                 wrapper.orderByDesc(DamageReport::getCreateTime));
-        return PageVO.of(result, this::toVO);
+        return PageVO.of(result, damageReportVoMapper::toVO);
     }
 
     public DamageReportVO userDetail(Long id) {
@@ -259,56 +259,9 @@ public class DamageService {
     }
 
     private DamageReportVO toVO(DamageReport report) {
-        DamageReportVO vo = new DamageReportVO();
-        vo.setId(report.getId());
-        vo.setReportNo(report.getReportNo());
-        vo.setRentalId(report.getRentalId());
-        vo.setToolId(report.getToolId());
-        vo.setToolCode(report.getToolCode());
-        vo.setToolName(report.getToolName());
+        DamageReportVO vo = damageReportVoMapper.toVO(report);
         Tool tool = toolMapper.selectById(report.getToolId());
         vo.setToolImageUrl(tool == null ? null : tool.getImageUrl());
-        vo.setUserId(report.getUserId());
-        vo.setReporterName(report.getReporterName());
-        vo.setReporterPhone(IdCardCipher.maskPhone(report.getReporterPhone()));
-        vo.setDamagePart(report.getDamagePart());
-        vo.setDescription(report.getDescription());
-        vo.setImages(parseImages(report.getImages()));
-        vo.setStatus(report.getStatus());
-        vo.setStatusName(Dict.label(Dict.REPORT_STATUS, report.getStatus()));
-        vo.setVerifier(report.getVerifier());
-        vo.setVerifyTime(report.getVerifyTime());
-        vo.setVerifyResult(report.getVerifyResult());
-        vo.setRepairPerson(report.getRepairPerson());
-        vo.setRepairEstimate(report.getRepairEstimate());
-        vo.setRepairStartTime(report.getRepairStartTime());
-        vo.setRepairCost(report.getRepairCost());
-        vo.setProgressStatus(report.getProgressStatus());
-        vo.setProgressStatusName(Dict.label(Dict.PROGRESS_STATUS, report.getProgressStatus()));
-        vo.setProgressUpdateTime(report.getProgressUpdateTime());
-        vo.setProgressNote(report.getProgressNote());
-        vo.setAcceptor(report.getAcceptor());
-        vo.setAcceptTime(report.getAcceptTime());
-        vo.setAcceptResult(report.getAcceptResult());
-        vo.setAcceptResultName(Dict.label(Dict.ACCEPT_RESULT, report.getAcceptResult()));
-        vo.setToolStatusAfter(report.getToolStatusAfter());
-        vo.setRemark(report.getRemark());
-        vo.setCreateTime(report.getCreateTime());
-        vo.setUpdateTime(report.getUpdateTime());
         return vo;
-    }
-
-    private List<String> parseImages(String images) {
-        if (!StringUtils.hasText(images)) {
-            return List.of();
-        }
-        return Arrays.stream(images.split(","))
-                .map(String::trim)
-                .filter(StringUtils::hasText)
-                .toList();
-    }
-
-    private long clamp(long size) {
-        return Math.min(Math.max(size, 1), 100);
     }
 }
