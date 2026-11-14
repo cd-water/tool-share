@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cdwater.toolshare.module.auth.User;
 import com.cdwater.toolshare.module.auth.UserMapper;
+import com.cdwater.toolshare.module.credit.CreditService;
 import com.cdwater.toolshare.module.rental.Rental;
 import com.cdwater.toolshare.module.rental.RentalMapper;
 import com.cdwater.toolshare.module.tool.ToolService;
@@ -35,6 +36,7 @@ public class ReviewService {
     private final RentalMapper rentalMapper;
     private final UserMapper userMapper;
     private final ToolService toolService;
+    private final CreditService creditService;
 
     @Transactional
     public ReviewVO create(ReviewCreateDTO dto) {
@@ -70,6 +72,8 @@ public class ReviewService {
             // 并发重复提交由 rental_id 唯一键兜底
             throw new BizException(ResultCode.CONFLICT, "该租赁单已评价，评价不可修改");
         }
+        // 低星评价信用事件与评价同一事务；同一评价由 review_id 唯一键保证只计一次
+        creditService.recordReview(userId, review.getRentalId(), review.getId(), review.getRating());
         return toVO(review);
     }
 

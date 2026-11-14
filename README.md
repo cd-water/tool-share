@@ -85,6 +85,9 @@ cd frontend/admin && pnpm install && pnpm dev
 
 # 4. 一键验证（后端编译 + 用户端 lint/构建 + 管理端构建）
 bash ops/verify.sh
+
+# 5. AI 固定评测集（可选，不进入默认测试门禁；需要 Docker）
+bash ops/ai-eval.sh
 ```
 
 > 部署与运维入口统一在 `ops/`：`docker-compose.yml` 与 `.env` 均位于该目录，因此 compose 命令需在 `ops/` 下执行（`cd ops && docker compose up -d`）。
@@ -151,11 +154,12 @@ tool-share/
 │   │       ├── ai/               # RAG 检索 + SSE 流式问答
 │   │       └── dashboard/        # 用户端 / 管理端统计
 │   └── resources/db/migration/   # Flyway V1 schema + V2 seed
-├── docs/                         # PRD、附录、diagrams/
+├── docs/                         # PRD、附录、diagrams/、ai/eval/ 评测集
 └── ops/                          # 部署与运维入口
     ├── docker-compose.yml        # 中间件编排
     ├── .env.example              # 环境变量模板（复制为 .env）
-    └── verify.sh                 # 本地一键验证
+    ├── verify.sh                 # 本地一键验证
+    └── ai-eval.sh                # AI 评测集（独立 Profile，不进门禁）
 ```
 
 > 模块内部统一为 `controller / service / entity / mapper / dto / vo` 分层；跨模块仅依赖对方的 service / entity，公共能力一律走 `shared/`。

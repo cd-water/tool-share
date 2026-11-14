@@ -3,6 +3,7 @@ package com.cdwater.toolshare.module.rental;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cdwater.toolshare.module.auth.Admin;
 import com.cdwater.toolshare.module.auth.AdminMapper;
+import com.cdwater.toolshare.module.credit.CreditService;
 import com.cdwater.toolshare.module.message.MessageService;
 import com.cdwater.toolshare.module.tool.ToolService;
 import com.cdwater.toolshare.shared.enums.AuditStatus;
@@ -69,6 +70,7 @@ public class RentalService {
     private final SequenceService sequenceService;
     private final MessageService messageService;
     private final RentalReminderService reminderService;
+    private final CreditService creditService;
     private final RentalVoMapper rentalVoMapper;
     private final IdCardCipher idCardCipher;
     private final AfterCommit afterCommit;
@@ -278,6 +280,11 @@ public class RentalService {
                 damageResult.code(), dto.getRemark(), operator) == 0) {
             throw new BizException(ResultCode.CONFLICT, "当前状态不可归还");
         }
+
+        // 信用分与归还验收入同一事务：按时/逾期互斥，严重损坏单独计一次
+        creditService.recordReturn(rental.getUserId(), rental.getId(), rental.getOrderNo(),
+                !actualReturnTime.isAfter(rental.getEndTime()),
+                damageResult == DamageResult.SEVERE);
 
         if (overdueFee.signum() > 0) {
             recordFee(rental.getId(), RentalFeeType.OVERDUE, overdueFee,

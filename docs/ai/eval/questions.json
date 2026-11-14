@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "description": "AI 问答固定评测集：问题 + 期望来源。期望来源的 title 必须与知识库文档标题一致；contains 为期望来源片段中的关键片段。",
+  "cases": [
+    {
+      "id": "deposit-refund",
+      "question": "押金什么时候退还",
+      "expectedSources": [
+        { "title": "社区工具租赁规则", "contains": "押金" }
+      ]
+    },
+    {
+      "id": "overdue-fee",
+      "question": "逾期费怎么计算",
+      "expectedSources": [
+        { "title": "社区工具租赁规则", "contains": "逾期费" }
+      ]
+    },
+    {
+      "id": "cancel-reservation",
+      "question": "预约后可以取消吗",
+      "expectedSources": [
+        { "title": "社区工具租赁规则", "contains": "取消" }
+      ]
+    },
+    {
+      "id": "rental-rules",
+      "question": "租赁规则是什么",
+      "expectedSources": [
+        { "title": "社区工具租赁规则", "contains": "租赁" }
+      ]
+    },
+    {
+      "id": "drill-safety",
+      "question": "手电钻安全吗",
+      "expectedSources": [
+        { "title": "手电钻安全操作说明", "contains": "手电钻" }
+      ]
+    },
+    {
+      "id": "damage-report",
+      "question": "工具损坏怎么报修",
+      "expectedSources": [
+        { "title": "手电钻安全操作说明", "contains": "报修" },
+        { "title": "园艺工具使用与保养", "contains": "报修" }
+      ]
+    },
+    {
+      "id": "repair-time",
+      "question": "维修要多久",
+      "expectedSources": [
+        { "title": "园艺工具使用与保养", "contains": "维修" }
+      ]
+    },
+    {
+      "id": "garden-maintenance",
+      "question": "园艺工具 保养",
+      "expectedSources": [
+        { "title": "园艺工具使用与保养", "contains": "修枝剪" }
+      ]
+    },
+    {
+      "id": "mower-oil",
+      "question": "割草机 机油",
+      "expectedSources": [
+        { "title": "园艺工具使用与保养", "contains": "机油" }
+      ]
+    },
+    {
+      "id": "after-use-cleaning",
+      "question": "使用后怎么清理",
+      "expectedSources": [
+        { "title": "手电钻安全操作说明", "contains": "使用后" },
+        { "title": "园艺工具使用与保养", "contains": "使用后" }
+      ]
+    }
+  ]
+}

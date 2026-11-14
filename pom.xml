@@ -187,6 +187,14 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- AI 评测集（@Tag("ai-eval")）不进入默认测试门禁，只在 -Pai-eval 下运行。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>ai-eval</excludedGroups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -206,5 +214,24 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- 专用评测 Profile：只跑 ai-eval 标签的测试，不涉及其他测试。 -->
+        <profile>
+            <id>ai-eval</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>ai-eval</groups>
+                            <excludedGroups>none</excludedGroups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

@@ -19,9 +19,12 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -43,6 +46,20 @@ public class ToolRecommendService {
 
     private static final List<String> ACTIVE_RENTAL_STATUS =
             List.of("PENDING_PAYMENT", "RESERVED", "PICKED_UP", "OVERDUE");
+
+    /** 向量召回硬上限：配置值再大也不会超过它，避免一次召回整库。 */
+    private static final int HARD_RECALL_LIMIT = 50;
+    /** 关键词兜底单次最多捞取的工具数，避免无有效关键词时退化为全表扫描。 */
+    private static final int KEYWORD_RECALL_LIMIT = 20;
+    /** 接口单次最多返回的推荐数。 */
+    private static final int HARD_RESULT_LIMIT = 5;
+    /** 进入重排 prompt 的候选数量与总字符预算。 */
+    private static final int MAX_RERANK_CANDIDATES = 20;
+    private static final int MAX_RERANK_CHARS = 6000;
+    /** 候选摘要中单条使用说明的最大长度。 */
+    private static final int GUIDE_SUMMARY_CHARS = 200;
+    /** 外部向量/大模型调用超时；超时按已有降级路径处理，不抛给前端。 */
+    private static final Duration AI_TIMEOUT = Duration.ofSeconds(15);
 
     private static final Map<String, List<String>> KEYWORD_HINTS = Map.of(
             "打孔", List.of("钻孔", "电钻", "电锤"),
@@ -172,11 +189,16 @@ public class ToolRecommendService {
             return null;
         }
         try {
-            List<Document> docs = vectorStore.similaritySearch(SearchRequest.builder()
-                    .query(question)
-                    .topK(Math.max(topK * 2, 20))
-                    .similarityThresholdAll()
-                    .build());
+            // 一个工具可能被切成多个 chunk，召回时放宽到 topK 的两倍，但始终受硬上限约束
+            int recall = Math.min(recallLimit() * 2, HARD_RECALL_LIMIT);
+            List<Document> docs = Mono.fromCallable(() -> vectorStore.similaritySearch(SearchRequest.builder()
+                            .query(question)
+                            .topK(recall)
+                            .similarityThresholdAll()
+                            .build()))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .timeout(AI_TIMEOUT)
+                    .block();
             if (docs == null || docs.isEmpty()) {
                 return List.of();
             }
@@ -219,25 +241,37 @@ public class ToolRecommendService {
 
     private List<Tool> keywordCandidates(String question) {
         List<String> terms = keywords(question);
+        // 没有有效关键词时宁可返回空，也不能退化成扫全表
+        if (terms.isEmpty()) {
+            return List.of();
+        }
         LambdaQueryWrapper<Tool> wrapper = new LambdaQueryWrapper<Tool>()
+                .select(Tool::getId, Tool::getName, Tool::getCategory, Tool::getModel,
+                        Tool::getDeposit, Tool::getStorageArea, Tool::getUsageGuide,
+                        Tool::getImageUrl, Tool::getStatus, Tool::getAuditStatus,
+                        Tool::getRentalCount, Tool::getCreateTime, Tool::getDamageLevel)
                 .eq(Tool::getStatus, "AVAILABLE")
                 .eq(Tool::getAuditStatus, 1);
-        if (!terms.isEmpty()) {
-            wrapper.and(query -> {
-                for (int i = 0; i < terms.size(); i++) {
-                    String term = terms.get(i);
-                    if (i > 0) {
-                        query.or();
-                    }
-                    query.like(Tool::getName, term)
-                            .or().like(Tool::getModel, term)
-                            .or().like(Tool::getUsageGuide, term)
-                            .or().like(Tool::getStorageArea, term);
+        wrapper.and(query -> {
+            for (int i = 0; i < terms.size(); i++) {
+                String term = terms.get(i);
+                if (i > 0) {
+                    query.or();
                 }
-            });
+                query.like(Tool::getName, term)
+                        .or().like(Tool::getModel, term)
+                        .or().like(Tool::getUsageGuide, term)
+                        .or().like(Tool::getStorageArea, term);
+            }
+        });
+        wrapper.orderByDesc(Tool::getRentalCount).orderByDesc(Tool::getCreateTime)
+                .last("LIMIT " + KEYWORD_RECALL_LIMIT);
+        List<Tool> tools = toolMapper.selectList(wrapper);
+        // 兜底结果只用于重排摘要，截断使用说明，避免把长文本带进 prompt
+        for (Tool tool : tools) {
+            tool.setUsageGuide(truncate(tool.getUsageGuide(), GUIDE_SUMMARY_CHARS));
         }
-        wrapper.orderByDesc(Tool::getRentalCount).orderByDesc(Tool::getCreateTime);
-        return toolMapper.selectList(wrapper);
+        return tools;
     }
 
     private List<String> keywords(String question) {
@@ -282,9 +316,14 @@ public class ToolRecommendService {
         return filtered.stream().filter(tool -> !busy.contains(tool.getId())).toList();
     }
 
+    private int recallLimit() {
+        return Math.max(1, Math.min(topK, HARD_RECALL_LIMIT));
+    }
+
     private int limitOf(ToolRecommendDTO dto) {
-        int requested = dto.getLimit() == null ? maxResults : dto.getLimit();
-        return Math.max(1, Math.min(requested, maxResults));
+        int configured = Math.max(1, Math.min(maxResults, HARD_RESULT_LIMIT));
+        int requested = dto.getLimit() == null ? configured : dto.getLimit();
+        return Math.max(1, Math.min(requested, configured));
     }
 
     /** 大模型重排；任何异常或输出不合法都返回 null，由调用方降级 */
@@ -295,12 +334,15 @@ public class ToolRecommendService {
         }
         try {
             String userPrompt = "候选工具：\n" + candidateJson(candidates)
-                    + "\n\n居民需求：" + question;
-            String raw = builder.build().prompt()
-                    .system(SYSTEM_PROMPT.formatted(limit))
-                    .user(userPrompt)
-                    .call()
-                    .content();
+                    + "\n\n居民需求：" + truncate(question, 500);
+            String raw = Mono.fromCallable(() -> builder.build().prompt()
+                            .system(SYSTEM_PROMPT.formatted(limit))
+                            .user(userPrompt)
+                            .call()
+                            .content())
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .timeout(AI_TIMEOUT)
+                    .block();
             return parseRerank(raw, candidates);
         } catch (Exception e) {
             // 带上异常链：Spring AI 只把 OkHttp 的 IOException 包装成 "Request failed"，
@@ -310,9 +352,14 @@ public class ToolRecommendService {
         }
     }
 
+    /** 只序列化摘要字段，并同时限制候选数量与总字符数，避免 prompt 随库增长。 */
     private String candidateJson(List<Tool> candidates) {
-        List<Map<String, Object>> list = new ArrayList<>(candidates.size());
+        StringBuilder json = new StringBuilder("[");
+        int count = 0;
         for (Tool tool : candidates) {
+            if (count >= MAX_RERANK_CANDIDATES) {
+                break;
+            }
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("toolId", tool.getId());
             item.put("name", tool.getName());
@@ -320,10 +367,18 @@ public class ToolRecommendService {
             item.put("model", tool.getModel());
             item.put("deposit", tool.getDeposit());
             item.put("storageArea", tool.getStorageArea());
-            item.put("guide", truncate(plainText(tool.getUsageGuide()), 300));
-            list.add(item);
+            item.put("guide", truncate(plainText(tool.getUsageGuide()), GUIDE_SUMMARY_CHARS));
+            String itemJson = objectMapper.writeValueAsString(item);
+            if (json.length() + itemJson.length() + 1 > MAX_RERANK_CHARS) {
+                break;
+            }
+            if (count > 0) {
+                json.append(',');
+            }
+            json.append(itemJson);
+            count++;
         }
-        return objectMapper.writeValueAsString(list);
+        return json.append(']').toString();
     }
 
     private RerankResult parseRerank(String raw, List<Tool> candidates) {

@@ -31,6 +31,9 @@ public class User {
     /** 0-禁用 1-启用 */
     private Integer status;
 
+    /** 信用分 0-100，初始 100 */
+    private Integer creditScore;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

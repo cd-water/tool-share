@@ -14,8 +14,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -32,6 +36,13 @@ public class AiService {
     private static final int CHUNK_SIZE = 700;
     private static final int CHUNK_OVERLAP = 80;
     private static final int MAX_CHUNKS = 60;
+    /** 单次问答最多召回的知识片段数，避免把整库内容拼进 prompt。 */
+    private static final int MAX_SOURCES = 4;
+    /** 拼进 prompt 的知识库上下文上限（字符）。 */
+    private static final int MAX_CONTEXT_CHARS = 1600;
+    /** 单次大模型调用超时，超时后降级为知识库兜底回答。 */
+    private static final Duration LLM_TIMEOUT = Duration.ofSeconds(20);
+    private static final Pattern CITATION = Pattern.compile("\\[\\d+]");
 
     private final KnowledgeDocMapper knowledgeDocMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
@@ -80,10 +91,7 @@ public class AiService {
 
     public AiChatVO chat(String question) {
         List<AiChatVO.SourceVO> sources = retrieve(question);
-        String answer = generateAnswer(question, sources);
-        if (!StringUtils.hasText(answer)) {
-            answer = fallbackAnswer(sources);
-        }
+        String answer = withCitations(generateAnswer(question, sources), sources);
         AiChatVO vo = new AiChatVO();
         vo.setAnswer(answer);
         vo.setSources(sources);
@@ -95,23 +103,35 @@ public class AiService {
         return search(question);
     }
 
-    /** 流式生成回答；外部 AI 不可用或异常时流式输出兜底文案，保证事件流完整结束。 */
+    /**
+     * 流式生成回答；外部 AI 不可用或异常时流式输出兜底文案，保证事件流完整结束。
+     * 模型未用 [序号] 标注来源或没有返回内容时，追加「参考来源」区块并随流输出。
+     */
     public Flux<String> streamAnswer(String question, List<AiChatVO.SourceVO> sources) {
         ChatClient.Builder builder = chatClientBuilderProvider.getIfAvailable();
         if (builder == null || sources.isEmpty()) {
             return Flux.just(fallbackAnswer(sources));
         }
-        String context = buildContext(sources);
-        return builder.build().prompt()
-                .system(SYSTEM_PROMPT)
-                .user("知识库内容：\n" + context + "\n\n居民问题：" + question)
-                .stream()
-                .content()
-                .filter(StringUtils::hasText)
-                .onErrorResume(e -> {
-                    log.warn("AI 流式生成失败，降级为知识库检索: {}", e.getMessage());
-                    return Flux.just(fallbackAnswer(sources));
-                });
+        String userPrompt = userPrompt(question, sources);
+        return Flux.defer(() -> {
+            StringBuilder answer = new StringBuilder();
+            Flux<String> generated = Flux.defer(() -> builder.build().prompt()
+                            .system(SYSTEM_PROMPT)
+                            .user(userPrompt)
+                            .stream()
+                            .content())
+                    .filter(StringUtils::hasText)
+                    .timeout(LLM_TIMEOUT)
+                    .doOnNext(answer::append)
+                    .onErrorResume(e -> {
+                        log.warn("AI 流式生成失败，降级为知识库检索: {}", e.getMessage());
+                        return Flux.empty();
+                    });
+            return generated.concatWith(Flux.defer(() -> {
+                String tail = citationTail(answer.toString(), sources);
+                return StringUtils.hasText(tail) ? Flux.just(tail) : Flux.empty();
+            }));
+        });
     }
 
     private String generateAnswer(String question, List<AiChatVO.SourceVO> sources) {
@@ -119,35 +139,80 @@ public class AiService {
         if (builder == null || sources.isEmpty()) {
             return null;
         }
+        String userPrompt = userPrompt(question, sources);
         try {
-            return builder.build().prompt()
-                    .system(SYSTEM_PROMPT)
-                    .user("知识库内容：\n" + buildContext(sources) + "\n\n居民问题：" + question)
-                    .call()
-                    .content();
+            return Mono.fromCallable(() -> builder.build().prompt()
+                            .system(SYSTEM_PROMPT)
+                            .user(userPrompt)
+                            .call()
+                            .content())
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .timeout(LLM_TIMEOUT)
+                    .onErrorResume(e -> {
+                        log.warn("AI 生成回答失败，降级为知识库检索: {}", e.getMessage());
+                        return Mono.empty();
+                    })
+                    .block();
         } catch (Exception e) {
             log.warn("AI 生成回答失败，降级为知识库检索: {}", e.getMessage());
             return null;
         }
     }
 
+    private String withCitations(String answer, List<AiChatVO.SourceVO> sources) {
+        if (!StringUtils.hasText(answer)) {
+            return fallbackAnswer(sources);
+        }
+        String tail = citationTail(answer, sources);
+        return tail == null ? answer : answer + tail;
+    }
+
+    /** 模型已标注来源时返回 null，否则返回要追加的参考来源区块。 */
+    private String citationTail(String answer, List<AiChatVO.SourceVO> sources) {
+        if (!StringUtils.hasText(answer)) {
+            return fallbackAnswer(sources);
+        }
+        return CITATION.matcher(answer).find() ? null : sourceBlock(sources);
+    }
+
     private String fallbackAnswer(List<AiChatVO.SourceVO> sources) {
         if (sources.isEmpty()) {
             return "暂未在知识库中找到相关说明。建议您联系社区服务站工作人员，或换个关键词再试。";
         }
-        return "根据社区工具知识库，为您找到以下相关信息：\n" + buildContext(sources)
+        return "根据社区工具知识库，为您找到以下相关信息：" + sourceBlock(sources)
                 + "\n如需更准确的答复，请联系社区服务站工作人员。";
     }
 
+    private String sourceBlock(List<AiChatVO.SourceVO> sources) {
+        StringBuilder block = new StringBuilder("\n\n参考来源：");
+        for (int i = 0; i < sources.size(); i++) {
+            AiChatVO.SourceVO source = sources.get(i);
+            block.append("\n[").append(i + 1).append("] ").append(source.getTitle())
+                    .append("：").append(source.getSnippet());
+        }
+        return block.toString();
+    }
+
+    private String userPrompt(String question, List<AiChatVO.SourceVO> sources) {
+        return "知识库内容：\n" + buildContext(sources) + "\n\n居民问题：" + question;
+    }
+
+    /** 按来源编号拼接上下文并截断，避免超长 prompt 与成本失控。 */
     private String buildContext(List<AiChatVO.SourceVO> sources) {
-        return sources.stream()
-                .map(item -> "\n【" + item.getTitle() + "】\n" + item.getSnippet())
-                .reduce("", String::concat);
+        StringBuilder context = new StringBuilder();
+        for (int i = 0; i < sources.size() && context.length() < MAX_CONTEXT_CHARS; i++) {
+            AiChatVO.SourceVO source = sources.get(i);
+            context.append("\n[").append(i + 1).append("] 【").append(source.getTitle()).append("】\n")
+                    .append(source.getSnippet());
+        }
+        return context.length() > MAX_CONTEXT_CHARS
+                ? context.substring(0, MAX_CONTEXT_CHARS) : context.toString();
     }
 
     private static final String SYSTEM_PROMPT = "你是社区共享工具租赁系统的服务助手。请只依据提供的知识库内容，"
             + "用简洁、友好的中文回答居民问题；如果知识库没有答案，请明确说明并建议联系社区工作人员。"
-            + "回答中可以分点说明，但不要编造规则。";
+            + "回答中可以分点说明，但不要编造规则。"
+            + "请在回答中用 [1]、[2] 这样的编号标注所依据的来源，编号与知识库内容前的编号一致。";
 
     private List<AiChatVO.SourceVO> search(String question) {
         List<AiChatVO.SourceVO> result = new ArrayList<>();
@@ -156,7 +221,7 @@ public class AiService {
             try {
                 List<Document> docs = vectorStore.similaritySearch(SearchRequest.builder()
                         .query(question)
-                        .topK(4)
+                        .topK(MAX_SOURCES)
                         .similarityThresholdAll()
                         .build());
                 if (docs != null) {
@@ -190,8 +255,9 @@ public class AiService {
                     }
                     return Map.entry(doc, score);
                 })
+                .filter(entry -> entry.getValue() > 0)
                 .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
-                .limit(4)
+                .limit(MAX_SOURCES)
                 .map(entry -> new AiChatVO.SourceVO(entry.getKey().getTitle(),
                         snippet(entry.getKey().getContent(), question)))
                 .toList();
